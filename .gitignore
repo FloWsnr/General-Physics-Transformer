@@ -1,4 +1,5 @@
 data/tasks/*
+data/raw_comsol/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
