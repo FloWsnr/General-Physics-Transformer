@@ -12,11 +12,11 @@ from metaparc.model.base_models.conv_model import ConvModel
 def model_params():
     """Fixture for default model parameters."""
     return {
-        'input_channels': 3,
-        'output_channels': 10,
-        'hidden_channels': 32,
-        'hidden_dim': 32,
-        'dropout_rate': 0.5
+        "input_channels": 3,
+        "output_channels": 10,
+        "hidden_channels": 32,
+        "hidden_dim": 32,
+        "dropout_rate": 0.5,
     }
 
 
@@ -39,15 +39,15 @@ def test_model_initialization(model, model_params):
     assert isinstance(model.fc1, nn.Linear)
 
     # Check conv1 parameters
-    assert model.conv1.in_channels == model_params['input_channels']
-    assert model.conv1.out_channels == model_params['hidden_channels']
+    assert model.conv1.in_channels == model_params["input_channels"]
+    assert model.conv1.out_channels == model_params["hidden_channels"]
 
     # Check conv2 parameters
-    assert model.conv2.in_channels == model_params['hidden_channels']
-    assert model.conv2.out_channels == model_params['hidden_channels'] * 2
+    assert model.conv2.in_channels == model_params["hidden_channels"]
+    assert model.conv2.out_channels == model_params["hidden_channels"] * 2
 
     # Check dropout rate
-    assert model.dropout.p == model_params['dropout_rate']
+    assert model.dropout.p == model_params["dropout_rate"]
 
 
 def test_forward_pass_shape(model, model_params):
@@ -56,14 +56,14 @@ def test_forward_pass_shape(model, model_params):
     height, width = 32, 32
 
     # Create random input tensor
-    x = torch.randn(batch_size, model_params['input_channels'], height, width)
+    x = torch.randn(batch_size, model_params["input_channels"], height, width)
 
     # Run forward pass
     with torch.no_grad():
         output = model(x)
 
     # Check output shape
-    expected_shape = (batch_size, model_params['output_channels'])
+    expected_shape = (batch_size, model_params["output_channels"])
     assert output.shape == expected_shape
 
 
@@ -73,11 +73,11 @@ def test_forward_pass_different_input_sizes(model, model_params):
     input_sizes = [(16, 16), (32, 32), (64, 64)]
 
     for height, width in input_sizes:
-        x = torch.randn(batch_size, model_params['input_channels'], height, width)
+        x = torch.randn(batch_size, model_params["input_channels"], height, width)
         with torch.no_grad():
             output = model(x)
 
-        expected_shape = (batch_size, model_params['output_channels'])
+        expected_shape = (batch_size, model_params["output_channels"])
         assert output.shape == expected_shape
 
 
