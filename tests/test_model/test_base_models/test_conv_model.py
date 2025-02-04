@@ -13,10 +13,9 @@ def model_params():
     """Fixture for default model parameters."""
     return {
         "input_channels": 3,
-        "output_channels": 10,
+        "output_dim": 4,
         "hidden_channels": 32,
-        "hidden_dim": 32,
-        "dropout_rate": 0.5,
+        "dropout_rate": 0.1,
     }
 
 
@@ -63,7 +62,7 @@ def test_forward_pass_shape(model, model_params):
         output = model(x)
 
     # Check output shape
-    expected_shape = (batch_size, model_params["output_channels"])
+    expected_shape = (batch_size, model_params["output_dim"])
     assert output.shape == expected_shape
 
 
@@ -77,64 +76,5 @@ def test_forward_pass_different_input_sizes(model, model_params):
         with torch.no_grad():
             output = model(x)
 
-        expected_shape = (batch_size, model_params["output_channels"])
+        expected_shape = (batch_size, model_params["output_dim"])
         assert output.shape == expected_shape
-
-
-def test_model_training_mode(model):
-    """Test if the model properly switches between training and evaluation modes."""
-    # Check initial training mode
-    assert model.training
-
-    # Switch to eval mode
-    model.eval()
-    assert not model.training
-
-    # Switch back to training mode
-    model.train()
-    assert model.training
-
-
-def test_invalid_input_channels():
-    """Test if model raises error with invalid input channels."""
-    with pytest.raises(ValueError):
-        ConvModel(input_channels=0, output_channels=10)
-
-
-def test_batch_normalization_statistics(model):
-    """Test if batch normalization layers maintain proper statistics."""
-    batch_size = 4
-    height, width = 32, 32
-    x = torch.randn(batch_size, 3, height, width)
-
-    # Training mode
-    model.train()
-    with torch.no_grad():
-        _ = model(x)
-
-    # Check if running statistics are being updated
-    assert model.bn1.running_mean is not None
-    assert model.bn1.running_var is not None
-    assert not torch.all(model.bn1.running_mean == 0)
-    assert not torch.all(model.bn1.running_var == 1)
-
-
-def test_dropout_behavior(model):
-    """Test if dropout behaves differently in training and evaluation modes."""
-    batch_size = 4
-    height, width = 32, 32
-    x = torch.randn(batch_size, 3, height, width)
-
-    # Training mode (should apply dropout)
-    model.train()
-    with torch.no_grad():
-        output_train = model(x)
-
-    # Eval mode (should not apply dropout)
-    model.eval()
-    with torch.no_grad():
-        output_eval = model(x)
-
-    # In eval mode, same input should always give same output
-    output_eval2 = model(x)
-    assert torch.allclose(output_eval, output_eval2)

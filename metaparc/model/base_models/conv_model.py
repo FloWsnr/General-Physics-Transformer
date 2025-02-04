@@ -7,7 +7,6 @@ Date: 2025-02-04
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Tuple
 
 
 class ConvModel(nn.Module):
@@ -19,35 +18,26 @@ class ConvModel(nn.Module):
         - Dropout
         - Fully Connected Layer
 
-    Args:
-        input_channels (int): Number of input channels
-        output_channels (int): Number of output channels/classes
-        hidden_channels (int, optional): Number of features in hidden layers. Defaults to 32.
-        hidden_dim (int, optional): Size of the hidden dimension before final layer. Defaults to 32.
-        dropout_rate (float, optional): Dropout probability. Defaults to 0.5.
+    Parameters
+    ----------
+        input_channels : int
+            Number of input channels
+        output_dim : int
+            Number of output dimensions/classes
+        hidden_channels : int, optional
+            Number of features in hidden layers. Default is 32.
+        dropout_rate : float, optional
+            Dropout probability. Default is 0.1.
     """
 
     def __init__(
         self,
         input_channels: int,
-        output_channels: int,
+        output_dim: int,
         hidden_channels: int = 32,
-        hidden_dim: int = 32,
-        dropout_rate: float = 0.5,
+        dropout_rate: float = 0.1,
     ):
         super(ConvModel, self).__init__()
-
-        # Input validation
-        if input_channels <= 0:
-            raise ValueError("input_channels must be positive")
-        if output_channels <= 0:
-            raise ValueError("output_channels must be positive")
-        if hidden_channels <= 0:
-            raise ValueError("hidden_channels must be positive")
-        if hidden_dim <= 0:
-            raise ValueError("hidden_dim must be positive")
-        if not 0 <= dropout_rate <= 1:
-            raise ValueError("dropout_rate must be between 0 and 1")
 
         # First convolutional block
         self.conv1 = nn.Conv2d(
@@ -70,7 +60,7 @@ class ConvModel(nn.Module):
         self.adaptive_pool = nn.AdaptiveAvgPool2d((4, 4))
 
         # Calculate the flattened size for the fully connected layer
-        self.fc1 = nn.Linear(hidden_channels * 2 * 16, output_channels)
+        self.fc1 = nn.Linear(hidden_channels * 2 * 16, output_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass of the model.
