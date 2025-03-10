@@ -41,9 +41,9 @@ class ConvModel(nn.Module):
 
         # First convolutional block
         self.conv1 = nn.Conv2d(
-            input_channels, hidden_channels, kernel_size=3, padding=1
+            input_channels, hidden_channels, kernel_size=3, padding=1, stride=1
         )
-        self.bn1 = nn.BatchNorm2d(hidden_channels)
+        self.bn1 = nn.BatchNorm2d(hidden_channels, eps=1e-5, momentum=0.1)
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
 
         # Second convolutional block
@@ -73,13 +73,13 @@ class ConvModel(nn.Module):
         """
         # First block
         x = self.conv1(x)
-        x = self.bn1(x)
+        # x = self.bn1(x)
         x = F.relu(x)
         x = self.pool1(x)
 
         # Second block
         x = self.conv2(x)
-        x = self.bn2(x)
+        # x = self.bn2(x)
         x = F.relu(x)
         x = self.pool2(x)
 

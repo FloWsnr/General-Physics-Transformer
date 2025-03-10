@@ -13,6 +13,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
+import einops
 from the_well.data import WellDataset
 
 import matplotlib.pyplot as plt
@@ -56,14 +57,14 @@ def get_data_loaders(
     )
 
     train_loader = WellDataset(
-        path=str(data_dir),
+        path=str(data_dir / "train"),
         well_split_name="train",
         n_steps_input=n_steps_input,
         n_steps_output=n_steps_output,
     )
     val_loader = WellDataset(
-        path=str(data_dir),
-        well_split_name="val",
+        path=str(data_dir / "test"),
+        well_split_name="test",
         n_steps_input=n_steps_input,
         n_steps_output=n_steps_output,
     )
@@ -93,6 +94,26 @@ def get_model(input_channels, output_dim, hidden_channels, dropout_rate):
     )
 
 
+def collate_fn(batch):
+    """Collate function for the dataset.
+    Get a batch from input or output fields.
+    The fields are of shape (B, Time steps, H, W, C)
+    We want to get a batch of shape (B, Time steps & C, H, W)
+
+    Parameters
+    ----------
+    batch : list
+        List of dictionaries containing the data
+
+    Returns
+    -------
+    batch : torch.Tensor
+        Batch of shape (B, Time steps & C, H, W)
+    """
+    batch = einops.rearrange(batch, "b time h w c -> b (time c) h w")
+    return batch
+
+
 def train_epoch(model, device, train_loader, optimizer, criterion):
     """Train the model for one epoch.
 
@@ -116,15 +137,16 @@ def train_epoch(model, device, train_loader, optimizer, criterion):
     """
     model.train()
     train_loss = 0
-    correct = 0
-    total = 0
 
     pbar = tqdm(train_loader, desc="Training")
     for batch_idx, batch in enumerate(pbar):
         x = batch["input_fields"]
+        x = collate_fn(x)
         x.to(device)
 
         y = batch["output_fields"]
+        y = collate_fn(y)
+        y = y.reshape(y.shape[0], -1)
         y.to(device)
 
         optimizer.zero_grad()
@@ -134,13 +156,8 @@ def train_epoch(model, device, train_loader, optimizer, criterion):
         optimizer.step()
 
         train_loss += loss.item()
-        _, predicted = output.max(1)
-        total += y.size(0)
-        correct += predicted.eq(y).sum().item()
 
-        pbar.set_postfix(
-            {"loss": train_loss / (batch_idx + 1), "acc": 100.0 * correct / total}
-        )
+        pbar.set_postfix({"loss": train_loss / (batch_idx + 1)})
 
     return train_loss / len(train_loader)
 
@@ -166,29 +183,25 @@ def validate(model, device, val_loader, criterion):
     """
     model.eval()
     val_loss = 0
-    correct = 0
-    total = 0
 
     pbar = tqdm(val_loader, desc="Validation")
     with torch.no_grad():
         for batch_idx, batch in enumerate(pbar):
             x = batch["input_fields"]
+            x = collate_fn(x)
             x.to(device)
 
             y = batch["output_fields"]
+            y = collate_fn(y)
+            y = y.reshape(y.shape[0], -1)
             y.to(device)
 
             output = model(x)
             loss = criterion(output, y)
 
             val_loss += loss.item()
-            _, predicted = output.max(1)
-            total += y.size(0)
-            correct += predicted.eq(y).sum().item()
 
-            pbar.set_postfix(
-                {"loss": val_loss / (batch_idx + 1), "acc": 100.0 * correct / total}
-            )
+            pbar.set_postfix({"loss": val_loss / (batch_idx + 1)})
 
     return val_loss / len(val_loader)
 
@@ -199,17 +212,20 @@ def main():
         "/home/flwi01/Coding/MetaPARC/data/tasks/datasets/porous_twophase_flow/data"
     )
     batch_size = 64
+    input_channels = 4
+    output_dim = 128 * 256
     hidden_channels = 32
     dropout_rate = 0.1
     lr = 0.001
     epochs = 10
 
-    n_steps_input = 10
-    n_steps_output = 10
+    n_steps_input = 4
+    n_steps_output = 1
     num_workers = 4
 
     # Set up device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     print(f"Using device: {device}")
 
     # Create data loaders
@@ -219,8 +235,8 @@ def main():
 
     # Create model
     model = get_model(
-        input_channels=3,
-        output_dim=10,
+        input_channels=input_channels * n_steps_input,
+        output_dim=output_dim * n_steps_output * input_channels,
         hidden_channels=hidden_channels,
         dropout_rate=dropout_rate,
     )
