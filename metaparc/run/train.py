@@ -111,10 +111,19 @@ def collate_fn(batch):
         Batch of shape (B, Time steps & C, H, W)
     """
     batch = einops.rearrange(batch, "b time h w c -> b (time c) h w")
+
+    # Replace NaNs with 0
+    batch = torch.where(torch.isnan(batch), torch.zeros_like(batch), batch)
     return batch
 
 
-def train_epoch(model, device, train_loader, optimizer, criterion):
+def train_epoch(
+    model: nn.Module,
+    device: torch.device,
+    train_loader: DataLoader,
+    optimizer: torch.optim.Optimizer,
+    criterion: nn.Module,
+) -> float:
     """Train the model for one epoch.
 
     Parameters
@@ -142,12 +151,12 @@ def train_epoch(model, device, train_loader, optimizer, criterion):
     for batch_idx, batch in enumerate(pbar):
         x = batch["input_fields"]
         x = collate_fn(x)
-        x.to(device)
+        x = x.to(device)
 
         y = batch["output_fields"]
         y = collate_fn(y)
         y = y.reshape(y.shape[0], -1)
-        y.to(device)
+        y = y.to(device)
 
         optimizer.zero_grad()
         output = model(x)
@@ -189,12 +198,12 @@ def validate(model, device, val_loader, criterion):
         for batch_idx, batch in enumerate(pbar):
             x = batch["input_fields"]
             x = collate_fn(x)
-            x.to(device)
+            x = x.to(device)
 
             y = batch["output_fields"]
             y = collate_fn(y)
             y = y.reshape(y.shape[0], -1)
-            y.to(device)
+            y = y.to(device)
 
             output = model(x)
             loss = criterion(output, y)
@@ -211,7 +220,7 @@ def main():
     data_dir = Path(
         "/home/flwi01/Coding/MetaPARC/data/tasks/datasets/porous_twophase_flow/data"
     )
-    batch_size = 64
+    batch_size = 2
     input_channels = 4
     output_dim = 128 * 256
     hidden_channels = 32
@@ -224,8 +233,8 @@ def main():
     num_workers = 4
 
     # Set up device
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     print(f"Using device: {device}")
 
     # Create data loaders
@@ -260,7 +269,13 @@ def main():
         print(f"\nEpoch {epoch}/{epochs}")
 
         # Train
-        train_loss = train_epoch(model, device, train_loader, optimizer, criterion)
+        train_loss = train_epoch(
+            model=model,
+            device=device,
+            train_loader=train_loader,
+            optimizer=optimizer,
+            criterion=criterion,
+        )
         train_losses.append(train_loss)
 
         # Validate
