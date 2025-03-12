@@ -1,5 +1,5 @@
 """
-Basic convolutional inner model for testing purposes.
+UNet model implementation.
 By: Florian Wiesner
 Date: 2025-02-04
 """
@@ -9,14 +9,49 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class ConvBlock(nn.Module):
+    """A convolutional block with batch normalization and ReLU activation."""
+
+    def __init__(self, in_channels, out_channels, stride=1):
+        super(ConvBlock, self).__init__()
+        self.conv = nn.Conv2d(
+            in_channels, out_channels, kernel_size=3, padding=1, stride=stride
+        )
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        x = self.relu(x)
+        return x
+
+
+class ConvTransBlock(nn.Module):
+    """A convolutional transpose block with batch normalization and ReLU activation."""
+
+    def __init__(self, in_channels, out_channels, stride=2):
+        super(ConvTransBlock, self).__init__()
+        self.conv_trans = nn.ConvTranspose2d(
+            in_channels, out_channels, kernel_size=2, padding=0, stride=stride
+        )
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        x = self.conv_trans(x)
+        x = self.bn(x)
+        x = self.relu(x)
+        return x
+
+
 class ConvModel(nn.Module):
-    """A standard convolutional neural network with batch normalization and dropout.
+    """A UNet architecture for image-to-image tasks.
 
     Architecture:
-        - Conv2d -> BatchNorm2d -> ReLU -> MaxPool2d
-        - Conv2d -> BatchNorm2d -> ReLU -> MaxPool2d
-        - Dropout
-        - Fully Connected Layer
+        - Encoder: Series of Conv2d -> BatchNorm2d -> ReLU -> MaxPool2d blocks
+        - Bridge: Conv2d block at bottom of U
+        - Decoder: Series of Upsample -> Conv2d -> BatchNorm2d -> ReLU blocks with skip connections
 
     Parameters
     ----------
@@ -25,7 +60,7 @@ class ConvModel(nn.Module):
         output_dim : int
             Number of output dimensions/classes
         hidden_channels : int, optional
-            Number of features in hidden layers. Default is 32.
+            Number of features in first hidden layer. Default is 32.
         dropout_rate : float, optional
             Dropout probability. Default is 0.1.
     """
@@ -33,34 +68,33 @@ class ConvModel(nn.Module):
     def __init__(
         self,
         input_channels: int,
-        output_dim: int,
+        output_channels: int = 1,
         hidden_channels: int = 32,
-        dropout_rate: float = 0.1,
     ):
         super(ConvModel, self).__init__()
 
-        # First convolutional block
-        self.conv1 = nn.Conv2d(
-            input_channels, hidden_channels, kernel_size=3, padding=1, stride=1
+        # Encoder path with funnel structure
+        self.enc = nn.Sequential(
+            ConvBlock(input_channels, hidden_channels, stride=2),
+            ConvBlock(hidden_channels, hidden_channels * 2, stride=2),
+            ConvBlock(hidden_channels * 2, hidden_channels * 4, stride=2),
         )
-        self.bn1 = nn.BatchNorm2d(hidden_channels, eps=1e-5, momentum=0.1)
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        # Second convolutional block
-        self.conv2 = nn.Conv2d(
-            hidden_channels, hidden_channels * 2, kernel_size=3, padding=1
+        # Bridge
+        self.bridge = nn.Sequential(
+            ConvBlock(hidden_channels * 4, hidden_channels * 4, stride=1),
         )
-        self.bn2 = nn.BatchNorm2d(hidden_channels * 2)
-        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        # Dropout for regularization
-        self.dropout = nn.Dropout(dropout_rate)
-
-        # Adaptive pooling to handle variable input sizes
-        self.adaptive_pool = nn.AdaptiveAvgPool2d((4, 4))
-
-        # Calculate the flattened size for the fully connected layer
-        self.fc1 = nn.Linear(hidden_channels * 2 * 16, output_dim)
+        # Decoder path with expanding structure
+        self.dec = nn.Sequential(
+            ConvTransBlock(hidden_channels * 4, hidden_channels * 2, stride=2),
+            ConvTransBlock(hidden_channels * 2, hidden_channels, stride=2),
+            ConvTransBlock(hidden_channels, 4, stride=2),
+        )
+        # # Final layer
+        self.final = nn.Sequential(
+            nn.Conv2d(2, 1, kernel_size=1, padding=0),
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass of the model.
@@ -69,28 +103,17 @@ class ConvModel(nn.Module):
             x (torch.Tensor): Input tensor of shape (batch_size, input_channels, height, width)
 
         Returns:
-            torch.Tensor: Output tensor of shape (batch_size, output_channels)
+            torch.Tensor: Output tensor of shape (batch_size, output_dim)
         """
-        # First block
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = F.relu(x)
-        x = self.pool1(x)
+        # Encoder with funnel structure
+        x = self.enc(x)
 
-        # Second block
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = F.relu(x)
-        x = self.pool2(x)
+        # Bridge
+        x = self.bridge(x)
 
-        # Adaptive pooling to fixed size
-        x = self.adaptive_pool(x)
+        # Decoder with skip connections
+        x = self.dec(x)
 
-        # Flatten and apply dropout
-        x = x.view(x.size(0), -1)
-        x = self.dropout(x)
-
-        # Final fully connected layer
-        x = self.fc1(x)
-
+        # x = self.final(x)
+        # Final output
         return x

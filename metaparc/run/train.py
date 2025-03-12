@@ -88,9 +88,8 @@ def get_model(input_channels, output_dim, hidden_channels, dropout_rate):
     """
     return ConvModel(
         input_channels=input_channels,
-        output_dim=output_dim,
+        output_channels=output_dim,
         hidden_channels=hidden_channels,
-        dropout_rate=dropout_rate,
     )
 
 
@@ -147,7 +146,7 @@ def train_epoch(
     model.train()
     train_loss = 0
 
-    pbar = tqdm(train_loader, desc="Training")
+    pbar = tqdm(train_loader, desc="Training one epoch")
     for batch_idx, batch in enumerate(pbar):
         x = batch["input_fields"]
         x = collate_fn(x)
@@ -155,7 +154,6 @@ def train_epoch(
 
         y = batch["output_fields"]
         y = collate_fn(y)
-        y = y.reshape(y.shape[0], -1)
         y = y.to(device)
 
         optimizer.zero_grad()
@@ -167,6 +165,7 @@ def train_epoch(
         train_loss += loss.item()
 
         pbar.set_postfix({"loss": train_loss / (batch_idx + 1)})
+        break
 
     return train_loss / len(train_loader)
 
@@ -202,7 +201,6 @@ def validate(model, device, val_loader, criterion):
 
             y = batch["output_fields"]
             y = collate_fn(y)
-            y = y.reshape(y.shape[0], -1)
             y = y.to(device)
 
             output = model(x)
@@ -220,7 +218,7 @@ def main():
     data_dir = Path(
         "/home/flwi01/Coding/MetaPARC/data/tasks/datasets/porous_twophase_flow/data"
     )
-    batch_size = 2
+    batch_size = 64
     input_channels = 4
     output_dim = 128 * 256
     hidden_channels = 32
