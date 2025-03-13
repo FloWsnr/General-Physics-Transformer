@@ -68,7 +68,7 @@ class ConvModel(nn.Module):
     def __init__(
         self,
         input_channels: int,
-        output_channels: int = 1,
+        output_channels: int = 4,
         hidden_channels: int = 32,
     ):
         super(ConvModel, self).__init__()
@@ -89,11 +89,7 @@ class ConvModel(nn.Module):
         self.dec = nn.Sequential(
             ConvTransBlock(hidden_channels * 4, hidden_channels * 2, stride=2),
             ConvTransBlock(hidden_channels * 2, hidden_channels, stride=2),
-            ConvTransBlock(hidden_channels, 4, stride=2),
-        )
-        # # Final layer
-        self.final = nn.Sequential(
-            nn.Conv2d(2, 1, kernel_size=1, padding=0),
+            ConvTransBlock(hidden_channels, output_channels, stride=2),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
