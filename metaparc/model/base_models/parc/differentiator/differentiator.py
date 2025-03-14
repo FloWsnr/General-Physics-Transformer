@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
 
-from metaparc.model.base_models.parc.advection import Advection
-from metaparc.model.base_models.parc.diffusion import Diffusion
-from metaparc.model.base_models.parc.num_differentiation import FiniteDifference
-from metaparc.model.base_models.parc.reaction import ReactionNet
-from metaparc.model.base_models.parc.transform import TransformNet
+from metaparc.model.base_models.parc.differentiator.advection import Advection
+from metaparc.model.base_models.parc.differentiator.diffusion import Diffusion
+from metaparc.model.base_models.parc.differentiator.num_differentiation import (
+    FiniteDifference,
+)
+from metaparc.model.base_models.parc.differentiator.reaction import ReactionNet
+from metaparc.model.base_models.parc.differentiator.transform_net import TransformNet
 
 
 class Differentiator(nn.Module):
@@ -53,7 +55,7 @@ class Differentiator(nn.Module):
         # The reaction gets all features
         reaction = self.reaction(x)
 
-        # Compute advection and diffusion
+        # Compute advection and diffusion, only numerical, no ML
         advection = self.advection(states, velocities)
         diffusion = self.diffusion(states)
 
