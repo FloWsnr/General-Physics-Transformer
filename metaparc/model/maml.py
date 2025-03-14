@@ -1,5 +1,8 @@
 """Model Agnostic Meta Learning
 
+Author: Florian Wiesner
+Date: 2025-03-07
+
 This module implements the MAML (Model-Agnostic Meta-Learning) algorithm as described in the paper
 'Model-Agnostic Meta-Learning for Fast Adaptation of Deep Networks' by Finn et al.
 """
@@ -24,13 +27,20 @@ class MAML(nn.Module):
     ):
         """Initialize MAML.
 
-        Args:
-            base_model: Base model to be meta-learned
-            inner_lr: Learning rate for the inner loop optimization
-            meta_lr: Learning rate for the meta-optimization
-            first_order: If True, use first-order approximation
-            num_inner_steps: Number of gradient steps in the inner loop
-            learn_inner_lr: If True, learn the inner learning rate
+        Parameters
+        ----------
+        base_model : nn.Module
+            Base model to be meta-learned
+        inner_lr : float, default=0.01
+            Learning rate for the inner loop optimization
+        meta_lr : float, default=0.001
+            Learning rate for the meta-optimization
+        first_order : bool, default=False
+            If True, use first-order approximation
+        num_inner_steps : int, default=1
+            Number of gradient steps in the inner loop
+        learn_inner_lr : bool, default=False
+            If True, learn the inner learning rate
         """
         super().__init__()
         self.base_model = base_model
@@ -55,10 +65,14 @@ class MAML(nn.Module):
     def clone_model(self, model: nn.Module) -> nn.Module:
         """Create a copy of model with same architecture but different parameter values.
 
-        Args:
-            model: Model to be cloned
+        Parameters
+        ----------
+        model : nn.Module
+            Model to be cloned
 
-        Returns:
+        Returns
+        -------
+        nn.Module
             A copy of the model with same architecture but different parameter values
         """
         clone = type(model)()  # Create new instance with same architecture
@@ -74,13 +88,20 @@ class MAML(nn.Module):
     ) -> nn.Module:
         """Perform inner loop optimization to adapt model parameters to task.
 
-        Args:
-            support_x: Support set inputs
-            support_y: Support set labels
-            model: Model to adapt (if None, use self.base_model)
-            create_graph: Whether to create computation graph (needed for meta-update)
+        Parameters
+        ----------
+        support_x : torch.Tensor
+            Support set inputs
+        support_y : torch.Tensor
+            Support set labels
+        model : nn.Module, optional
+            Model to adapt (if None, use self.base_model)
+        create_graph : bool, default=False
+            Whether to create computation graph (needed for meta-update)
 
-        Returns:
+        Returns
+        -------
+        nn.Module
             Adapted model
         """
         if model is None:
@@ -120,13 +141,20 @@ class MAML(nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor, nn.Module]:
         """Forward pass for meta-learning.
 
-        Args:
-            support_x: Support set inputs
-            support_y: Support set labels
-            query_x: Query set inputs
-            query_y: Query set labels
+        Parameters
+        ----------
+        support_x : torch.Tensor
+            Support set inputs
+        support_y : torch.Tensor
+            Support set labels
+        query_x : torch.Tensor
+            Query set inputs
+        query_y : torch.Tensor
+            Query set labels
 
-        Returns:
+        Returns
+        -------
+        Tuple[torch.Tensor, torch.Tensor, nn.Module]
             Tuple containing:
             - Query set predictions
             - Query set loss
@@ -148,14 +176,18 @@ class MAML(nn.Module):
     ) -> Tuple[float, List[float]]:
         """Perform single meta-training step.
 
-        Args:
-            tasks: List of task dictionaries, each containing:
-                - 'support_x': Support set inputs
-                - 'support_y': Support set labels
-                - 'query_x': Query set inputs
-                - 'query_y': Query set labels
+        Parameters
+        ----------
+        tasks : List[Dict[str, torch.Tensor]]
+            List of task dictionaries, each containing:
+            - 'support_x': Support set inputs
+            - 'support_y': Support set labels
+            - 'query_x': Query set inputs
+            - 'query_y': Query set labels
 
-        Returns:
+        Returns
+        -------
+        Tuple[float, List[float]]
             Tuple containing:
             - Average meta-loss across tasks
             - List of query losses for each task
@@ -187,12 +219,18 @@ class MAML(nn.Module):
     ) -> nn.Module:
         """Adapt model to new task using support set.
 
-        Args:
-            support_x: Support set inputs
-            support_y: Support set labels
-            num_adapt_steps: Number of adaptation steps (if None, use self.num_inner_steps)
+        Parameters
+        ----------
+        support_x : torch.Tensor
+            Support set inputs
+        support_y : torch.Tensor
+            Support set labels
+        num_adapt_steps : int, optional
+            Number of adaptation steps (if None, use self.num_inner_steps)
 
-        Returns:
+        Returns
+        -------
+        nn.Module
             Adapted model for the new task
         """
         if num_adapt_steps is None:
