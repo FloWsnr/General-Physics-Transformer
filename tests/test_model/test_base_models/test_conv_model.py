@@ -58,3 +58,14 @@ def test_forward_pass_different_input_sizes(model: ConvModel, model_params: dict
 
         expected_shape = (batch_size, model_params["output_channels"], height, width)
         assert output.shape == expected_shape
+
+
+def test_model_with_gpu():
+    """Test if the model can be moved to GPU."""
+    model = ConvModel(input_channels=3, output_channels=4, hidden_channels=32)
+    model = model.to("cuda")
+
+    x = torch.randn(1, 3, 32, 32)
+    x = x.to("cuda")
+    output = model(x)
+    assert output.shape == (1, 4, 32, 32)
