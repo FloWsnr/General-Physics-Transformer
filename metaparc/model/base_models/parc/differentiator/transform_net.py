@@ -42,7 +42,7 @@ class TransformNet(nn.Module):
             padding=0,
         )
 
-    def forward(self, advection, diffusion, reaction):
+    def forward(self, reaction: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the TransformNet.
 

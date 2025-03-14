@@ -47,7 +47,8 @@ class Differentiator(nn.Module):
             ],  # Indices of skip connections for UNet (residual connections)
         )
 
-        self.transform_net = TransformNet()
+        self.transform_net_states = TransformNet()
+        self.transform_net_velocities = TransformNet()
 
     def forward(self, states: torch.Tensor, velocities: torch.Tensor) -> torch.Tensor:
         x = torch.cat([states, velocities], dim=1)
@@ -60,6 +61,7 @@ class Differentiator(nn.Module):
         diffusion = self.diffusion(states)
 
         # Transform all features into final states derivatives wrt time
-        states_dot = self.transform_net(advection, diffusion, reaction)
+        states_dot = self.transform_net_states(reaction, mask=[advection, diffusion])
+        vel_dot = self.transform_net_velocities(reaction, mask=[advection, diffusion])
 
-        return states_dot
+        return torch.cat([states_dot, vel_dot], dim=1)
