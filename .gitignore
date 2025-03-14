@@ -1,4 +1,4 @@
-data/tasks/*
+data/datasets/*
 data/raw_comsol/*
 
 .vscode/*
