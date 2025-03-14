@@ -1,49 +1,20 @@
-[build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "metaparc"
 version = "0.1.0"
-description = "Meta-Learning Model for Physics-based Neural Nets"
+description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-license = {text = "MIT"}
-authors = [
-    {name = "Florian Wiesner", email = "wiesnerflorian94@gmail.com"}
-]
-
 dependencies = [
-    "numpy",
-    "matplotlib",
-    "tqdm",
-    "pandas",
-    "h5py",
-    "torch>=2.0.0",
-    "the_well",
+    "einops>=0.8.1",
+    "h5py>=3.13.0",
+    "imageio>=2.37.0",
+    "ipykernel>=6.29.5",
+    "matplotlib>=3.10.1",
+    "numpy>=2.2.3",
+    "pandas>=2.2.3",
+    "pytest>=8.3.5",
+    "the-well>=1.0.1",
+    "torch>=2.6.0",
+    "torchvision>=0.21.0",
+    "tqdm>=4.67.1",
 ]
-
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "ipykernel",
-    "imageio",
-    "jupyter",
-    "black",
-    "flake8",
-    "isort",
-]
-
-[tool.setuptools]
-packages = ["metaparc"]
-
-[tool.setuptools.package-data]
-metaparc = ["py.typed"]
-
-[tool.black]
-line-length = 88
-target-version = ["py312"]
-
-[tool.isort]
-profile = "black"
-multi_line_output = 3

@@ -7,14 +7,14 @@ Meta-Learning Model for Physics-based Neural Nets
 
 ## Installation
 
+We are using uv to manage the dependencies.
+
 ```bash
-mamba create -n parc python=3.12
-mamba activate parc
-mamba install pytorch pytorch-cuda=12.4 -c pytorch -c nvidia
-mamba install numpy matplotlib tqdm ipykernel imageio pandas h5py pytest
-pip install torchvision
-pip install the_well einops
-pip install -e .
+uv venv
+source .venv/bin/activate
+uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+uv pip install numpy matplotlib tqdm ipykernel imageio pandas h5py pytest the-well einops
+uv pip install -e .
 ```
 
 
