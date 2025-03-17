@@ -1,8 +1,9 @@
+import torch
 import torch.nn as nn
 
 # Import custom utilities
 from metaparc.model.base_models.parc.differentiator.spade import SPADEGeneratorUnit
-from metaparc.model.base_models.parc.differentiator.resnet import ResNet
+from metaparc.model.base_models.resnet import ResNet
 
 
 class TransformNet(nn.Module):
@@ -53,7 +54,7 @@ class TransformNet(nn.Module):
         Returns:
             torch.Tensor: Output tensor of shape [N, output_channel, H, W]
         """
-        spade_out = self.spade(advection, diffusion, self.add_noise)
+        spade_out = self.spade(reaction, mask, self.add_noise)
         resnet_out = self.resnet(spade_out)
         conv_out = self.conv_out(resnet_out)
 

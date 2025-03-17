@@ -6,7 +6,7 @@ from metaparc.model.base_models.parc.differentiator.diffusion import Diffusion
 from metaparc.model.base_models.parc.differentiator.num_differentiation import (
     FiniteDifference,
 )
-from metaparc.model.base_models.parc.differentiator.reaction import ReactionNet
+from metaparc.model.base_models.unet import ReactionNet
 from metaparc.model.base_models.parc.differentiator.transform_net import TransformNet
 
 
@@ -63,5 +63,5 @@ class Differentiator(nn.Module):
         # Transform all features into final states derivatives wrt time
         states_dot = self.transform_net_states(reaction, mask=[advection, diffusion])
         vel_dot = self.transform_net_velocities(reaction, mask=[advection, diffusion])
-
+    
         return torch.cat([states_dot, vel_dot], dim=1)
