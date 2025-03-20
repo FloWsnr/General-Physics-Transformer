@@ -7,13 +7,19 @@ Meta-Learning Model for Physics-based Neural Nets
 
 ## Installation
 
-We are using uv to manage the dependencies.
+We are using conda and pip to manage the dependencies.
+
+```bash
+conda create -n metaparc python=3.12
+conda activate metaparc
+pip install -e .
+```
+
+You can also use uv, but for some systems, torch does not install correctly.
 
 ```bash
 uv sync
 ```
-Alternatively, you can use conda to manage everything.
-
 
 
 ## Datasets
