@@ -14,11 +14,11 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 import einops
-from the_well.data import WellDataset
 
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
+from metaparc.data.datasets import PhysicsDataset
 from metaparc.model.base_models.conv_model import ConvModel
 
 
@@ -56,19 +56,6 @@ def get_data_loaders(
         ]
     )
 
-    train_loader = WellDataset(
-        path=str(data_dir / "train"),
-        well_split_name="train",
-        n_steps_input=n_steps_input,
-        n_steps_output=n_steps_output,
-    )
-    val_loader = WellDataset(
-        path=str(data_dir / "test"),
-        well_split_name="test",
-        n_steps_input=n_steps_input,
-        n_steps_output=n_steps_output,
-    )
-
     train_loader = DataLoader(
         train_loader, batch_size=batch_size, shuffle=True, num_workers=num_workers
     )
@@ -92,28 +79,6 @@ def get_model(input_channels, output_dim, hidden_channels, dropout_rate):
         hidden_channels=hidden_channels,
     )
 
-
-def collate_fn(batch):
-    """Collate function for the dataset.
-    Get a batch from input or output fields.
-    The fields are of shape (B, Time steps, H, W, C)
-    We want to get a batch of shape (B, Time steps & C, H, W)
-
-    Parameters
-    ----------
-    batch : list
-        List of dictionaries containing the data
-
-    Returns
-    -------
-    batch : torch.Tensor
-        Batch of shape (B, Time steps & C, H, W)
-    """
-    batch = einops.rearrange(batch, "b time h w c -> b (time c) h w")
-
-    # Replace NaNs with 0
-    batch = torch.where(torch.isnan(batch), torch.zeros_like(batch), batch)
-    return batch
 
 
 def train_epoch(
@@ -215,10 +180,8 @@ def validate(model, device, val_loader, criterion):
 
 def main():
     """Main training function."""
-    data_dir = Path(
-        "/home/flwi01/Coding/MetaPARC/data/tasks/datasets/porous_twophase_flow/data"
-    )
-    batch_size = 64
+    data_dir = Path("C:/Users/zsa8rk/Coding/MetaPARC/data/datasets/shear_flow/data")
+    batch_size = 4
     input_channels = 4
     output_dim = 128 * 256
     hidden_channels = 32
