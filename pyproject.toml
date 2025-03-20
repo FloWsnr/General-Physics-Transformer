@@ -18,6 +18,9 @@ dependencies = [
     "tqdm>=4.67.1",
 ]
 
+[tool.setuptools]
+packages = ["metaparc"]
+
 [[tool.uv.index]]
 name = "pytorch-cu126"
 url = "https://download.pytorch.org/whl/cu126"

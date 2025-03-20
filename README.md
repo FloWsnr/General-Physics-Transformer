@@ -10,12 +10,10 @@ Meta-Learning Model for Physics-based Neural Nets
 We are using uv to manage the dependencies.
 
 ```bash
-uv venv
-source .venv/bin/activate
-uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-uv pip install numpy matplotlib tqdm ipykernel imageio pandas h5py pytest the-well einops
-uv pip install -e .
+uv sync
 ```
+Alternatively, you can use conda to manage everything.
+
 
 
 ## Datasets
