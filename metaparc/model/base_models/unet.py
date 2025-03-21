@@ -7,18 +7,34 @@ class UNetDownBlock(nn.Module):
     """
     U-Net Downsampling Block.
 
+    Parameters
+    ----------
+    in_channels : int
+        Number of input channels.
+    out_channels : int
+        Number of output channels after convolution.
+    kernel_size : int, optional
+        Size of the convolutional kernels. Default is 3.
+    padding : Union[int, tuple, str], optional
+        Padding for the convolutional layers. Default is 'same'.
+    padding_mode : str, optional
+        Padding mode for convolutional layers. Default is 'zeros'.
+
+    Notes
+    -----
     Performs two convolutional operations followed by a max pooling operation
     to reduce the spatial dimensions of the input tensor while increasing the
     number of feature channels.
-
-    Args:
-        in_channels (int): Number of input channels.
-        out_channels (int): Number of output channels after convolution.
-        kernel_size (int, optional): Size of the convolutional kernels. Default is 3.
-        padding_mode (str, optional): Padding mode for convolutional layers. Default is 'zeros'.
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size=3, padding_mode="zeros"):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        padding="same",
+        padding_mode="zeros",
+    ):
         super(UNetDownBlock, self).__init__()
         self.padding_mode = padding_mode
 
@@ -27,15 +43,15 @@ class UNetDownBlock(nn.Module):
                 in_channels,
                 out_channels,
                 kernel_size=kernel_size,
-                padding=kernel_size // 2,
+                padding=padding,
                 padding_mode=padding_mode,
             ),
             nn.LeakyReLU(negative_slope=0.2),
             nn.Conv2d(
                 out_channels,
                 out_channels,
-                kernel_size=1,
-                padding=0,
+                kernel_size=kernel_size,
+                padding=padding,
                 padding_mode=padding_mode,
             ),
             nn.LeakyReLU(negative_slope=0.2),
@@ -43,8 +59,8 @@ class UNetDownBlock(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
     def forward(self, x):
-        x = self.pool(x)
         x = self.doubleConv(x)
+        x = self.pool(x)
         return x
 
 
@@ -56,13 +72,20 @@ class UNetUpBlock(nn.Module):
     the corresponding skip connection from the downsampling path, and applies two
     convolutional operations to refine the features.
 
-    Args:
-        in_channels (int): Number of input channels from the previous layer.
-        out_channels (int): Number of output channels after convolution.
-        skip_channels (int, optional): Number of channels from the skip connection. Default is 0.
-        kernel_size (int, optional): Size of the convolutional kernels. Default is 3.
-        padding_mode (str, optional): Padding mode for convolutional layers. Default is 'zeros'.
-        use_concat (bool, optional): Whether to concatenate skip connections. Default is True.
+    Parameters
+    ----------
+    in_channels : int
+        Number of input channels from the previous layer.
+    out_channels : int
+        Number of output channels after convolution.
+    skip_channels : int, optional
+        Number of channels from the skip connection. Default is 0.
+    kernel_size : int, optional
+        Size of the convolutional kernels. Default is 3.
+    padding_mode : str, optional
+        Padding mode for convolutional layers. Default is 'zeros'.
+    use_concat : bool, optional
+        Whether to concatenate skip connections. Default is True.
     """
 
     def __init__(
@@ -71,6 +94,7 @@ class UNetUpBlock(nn.Module):
         out_channels,
         skip_channels=0,
         kernel_size=3,
+        padding="same",
         padding_mode="zeros",
         use_concat=True,
     ):
@@ -94,15 +118,15 @@ class UNetUpBlock(nn.Module):
                 conv_in_channels,
                 out_channels,
                 kernel_size=kernel_size,
-                padding=kernel_size // 2,
+                padding=padding,
                 padding_mode=padding_mode,
             ),
             nn.LeakyReLU(negative_slope=0.2),
             nn.Conv2d(
                 out_channels,
                 out_channels,
-                kernel_size=1,
-                padding=0,
+                kernel_size=kernel_size,
+                padding=padding,
                 padding_mode=padding_mode,
             ),
             nn.LeakyReLU(negative_slope=0.2),
@@ -120,20 +144,83 @@ class UNetUpBlock(nn.Module):
         return x
 
 
-class ReactionNet(nn.Module):
+class DoubleConv(nn.Module):
+    """
+    Double Convolution Block.
+
+    Performs two convolutional operations followed by a LeakyReLU activation.
+
+    Parameters
+    ----------
+    in_channels : int
+        Number of input channels.
+    out_channels : int
+        Number of output channels after convolution.
+    kernel_size : int, optional
+        Size of the convolutional kernels. Default is 3.
+    padding : Union[int, tuple, str], optional
+        Padding for the convolutional layers. Default is 'same'.
+    padding_mode : str, optional
+        Padding mode for convolutional layers. Default is 'zeros'.
+    """
+
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        padding="same",
+        padding_mode="zeros",
+    ):
+        super(DoubleConv, self).__init__()
+        self.padding_mode = padding_mode
+
+        self.doubleConv = nn.Sequential(
+            nn.Conv2d(
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                padding=padding,
+                padding_mode=padding_mode,
+            ),
+            nn.LeakyReLU(negative_slope=0.2),
+            nn.Conv2d(
+                out_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                padding=padding,
+                padding_mode=padding_mode,
+            ),
+            nn.LeakyReLU(negative_slope=0.2),
+        )
+
+    def forward(self, x):
+        return self.doubleConv(x)
+
+
+class Unet(nn.Module):
     """
     U-Net Model.
 
     Constructs a U-Net architecture with customizable depth and feature dimensions.
     Supports selective use of skip connections and concatenation in the upsampling path.
 
-    Args:
-        block_dimensions (list of int): List of feature dimensions for each block.
-        output_channels (int): Number of output channels of the final layer.
-        kernel_size (int, optional): Size of the convolutional kernels. Default is 3.
-        padding_mode (str, optional): Padding mode for convolutional layers. Default is 'zeros'.
-        up_block_use_concat (list of bool, optional): Flags indicating whether to concatenate skip connections in each up block.
-        skip_connection_indices (list of int, optional): Indices of skip connections to use in the upsampling path.
+    Parameters
+    ----------
+    block_dimensions : list of int
+        List of feature dimensions for each block.
+    output_channels : int
+        Number of output channels of the final layer.
+    kernel_size : int, optional
+        Size of the convolutional kernels. Default is 3.
+    padding : Union[int, tuple, str], optional
+        Padding for the convolutional layers. Default is 'same'.
+    padding_mode : str, optional
+        Padding mode for convolutional layers. Default is 'zeros'.
+    up_block_use_concat : list of bool, optional
+        Flags indicating whether to concatenate skip connections in each up block.
+    skip_connection_indices : list of int, optional
+        Indices of skip connections to use in the upsampling path.
     """
 
     def __init__(
@@ -142,11 +229,12 @@ class ReactionNet(nn.Module):
         input_channels,
         output_channels,
         kernel_size=3,
+        padding="same",
         padding_mode="zeros",
         up_block_use_concat=None,
         skip_connection_indices=None,
     ):
-        super(ReactionNet, self).__init__()
+        super(Unet, self).__init__()
         self.padding_mode = padding_mode
 
         # Store the concatenation flags and skip connection indices
@@ -154,25 +242,9 @@ class ReactionNet(nn.Module):
         self.skip_connection_indices = skip_connection_indices
 
         # Initial double convolution layer with LeakyReLU activations
-        self.doubleConv = nn.Sequential(
-            nn.Conv2d(
-                input_channels,
-                block_dimensions[0],
-                kernel_size=kernel_size,
-                padding=kernel_size // 2,
-                padding_mode=padding_mode,
-            ),
-            nn.LeakyReLU(negative_slope=0.2),
-            nn.Conv2d(
-                block_dimensions[0],
-                block_dimensions[0],
-                kernel_size=1,
-                padding=0,
-                padding_mode=padding_mode,
-            ),
-            nn.LeakyReLU(negative_slope=0.2),
+        self.doubleConv = DoubleConv(
+            input_channels, block_dimensions[0], kernel_size, padding, padding_mode
         )
-
         # Downsampling path
         self.downBlocks = nn.ModuleList()  # List to hold downsampling blocks
         in_channels = block_dimensions[0]  # Initialize input channels
@@ -234,23 +306,8 @@ class ReactionNet(nn.Module):
             in_channels = out_channels
 
         # Final convolution to map to the desired number of output channels
-        self.finalConv = nn.Sequential(
-            nn.Conv2d(
-                output_channels,
-                output_channels,
-                kernel_size=1,
-                padding=0,
-                padding_mode=padding_mode,
-            ),
-            nn.LeakyReLU(negative_slope=0.2),
-            nn.Conv2d(
-                output_channels,
-                output_channels,
-                kernel_size=1,
-                padding=0,
-                padding_mode=padding_mode,
-            ),
-            nn.LeakyReLU(negative_slope=0.2),
+        self.finalConv = DoubleConv(
+            output_channels, output_channels, kernel_size, padding, padding_mode
         )
 
     def forward(self, x):
