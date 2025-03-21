@@ -1,18 +1,28 @@
 from pathlib import Path
 from typing import Optional
 import einops
+
 import torch
-import torchvision.transforms.v2 as transforms
-from torch.utils.data import DataLoader, default_collate
+from torch.utils.data import default_collate, DataLoader
+
 from the_well.data.datasets import WellDataset
+from the_well.data.augmentation import (
+    Compose,
+    RandomAxisFlip,
+    RandomAxisRoll,
+    RandomAxisPermute,
+    # NOTE: Image Resize should come here as well
+)
 
 
-def get_rng_transforms(p_h_flip: float, p_v_flip: float) -> transforms.Compose:
-    return transforms.Compose(
+def get_rng_transforms(p_flip: float) -> Compose:
+    """Get a list of transforms to apply to the data."""
+    p = p_flip / 3
+    return Compose(
         [
-            transforms.ToTensor(),
-            transforms.RandomHorizontalFlip(p=p_h_flip),
-            transforms.RandomVerticalFlip(p=p_v_flip),
+            RandomAxisFlip(p=p),
+            RandomAxisRoll(p=p),
+            RandomAxisPermute(p=p),
         ]
     )
 
@@ -60,10 +70,49 @@ def collate_fn(data: list[dict]) -> torch.Tensor:
     return batch
 
 
+def get_dataloader(
+    dataset: WellDataset,
+    batch_size: int,
+    shuffle: bool = True,
+    num_workers: int = 0,
+) -> DataLoader:
+    return DataLoader(
+        dataset=dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        collate_fn=collate_fn,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+
+
 class PhysicsDataset(WellDataset):
     """Wrapper around the WellDataset.
 
     Enables data augmentation.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Path to the data directory (e.g. "data/physics_data/train")
+    n_steps_input : int
+        Number of input time steps per sample
+        By default 1
+    n_steps_output : int
+        Number of output time steps per sample
+        By default 1
+    split : str
+        Split to load ("train", "val", "test")
+        By default "train"
+    normalization_path: Optional[Path]
+        Path to the normalization file (e.g. "data/physics_data/normalization.yaml")
+        By default None
+    use_normalization: bool
+        Whether to use normalization
+        By default False
+    dt_stride: int
+        Time step stride between samples
+        By default 1
     """
 
     def __init__(
@@ -72,14 +121,21 @@ class PhysicsDataset(WellDataset):
         n_steps_input: int = 1,
         n_steps_output: int = 1,
         split: str = "train",
+        normalization_path: Path = Path("stats.yaml"),
+        use_normalization: bool = False,
+        dt_stride: int = 1,
     ):
         super().__init__(
             path=str(data_dir),
             well_split_name=split,
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
+            normalization_path=str(normalization_path),
+            use_normalization=use_normalization,
+            min_dt_stride=dt_stride,
+            max_dt_stride=dt_stride,
         )
 
     def __getitem__(self, index):
-        data = super().__getitem__(index)
+        data = super().__getitem__(index)  # returns (time, h, w, c)
         return data
