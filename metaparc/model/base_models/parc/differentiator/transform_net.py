@@ -31,7 +31,7 @@ class TransformNet(nn.Module):
         self.resnet = ResNet(
             n_base_features,
             [n_base_features, n_base_features],
-            kernel_size=1,
+            kernel_size=3,
             pooling=False,
             padding_mode=padding_mode,
         )

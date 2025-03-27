@@ -7,7 +7,9 @@ from metaparc.model.base_models.parc.differentiator.num_differentiation import (
     FiniteDifference,
 )
 from metaparc.model.base_models.unet import Unet
-from metaparc.model.base_models.parc.differentiator.transform_net import TransformNet
+from metaparc.model.base_models.parc.differentiator.transform_net import (
+    TransformNet,
+)
 
 
 class Differentiator(nn.Module):
@@ -34,19 +36,11 @@ class Differentiator(nn.Module):
             input_channels=num_input_channels,  # Number of input channels: p, re, u, v
             output_channels=128,  # Number of output features (feature extraction capacity)
             kernel_size=3,
+            padding="same",
             padding_mode="zeros",
-            up_block_use_concat=[
-                False,
-                True,
-                False,
-                True,
-            ],  # Control whether to use concatenation in upsampling blocks
-            skip_connection_indices=[
-                2,
-                0,
-            ],  # Indices of skip connections for UNet (residual connections)
         )
 
+        #
         self.transform_net_states = TransformNet()
         self.transform_net_velocities = TransformNet()
 
