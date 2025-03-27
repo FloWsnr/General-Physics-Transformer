@@ -41,7 +41,6 @@ def test_unet_up_block_with_skip():
         in_channels=in_channels,
         out_channels=out_channels,
         skip_channels=skip_channels,
-        use_concat=True,
     )
 
     # Create input and skip connection tensors
@@ -55,32 +54,9 @@ def test_unet_up_block_with_skip():
     assert output.shape == (batch_size, out_channels, height * 2, width * 2)
 
 
-def test_unet_up_block_without_skip():
+def test_unet_shape():
     """
-    Test the UNetUpBlock without skip connections.
-    """
-    batch_size = 4
-    height = 16
-    width = 16
-    in_channels = 128
-    out_channels = 64
-
-    # Create block without skip connection
-    block = UNetUpBlock(
-        in_channels=in_channels, out_channels=out_channels, use_concat=False
-    )
-
-    # Forward pass without skip connection
-    x = torch.randn(batch_size, in_channels, height, width)
-    output = block(x, None)
-
-    # Check output shape
-    assert output.shape == (batch_size, out_channels, height * 2, width * 2)
-
-
-def test_reactionnet_shape():
-    """
-    Test if ReactionNet maintains expected shapes throughout the network.
+    Test if UNet maintains expected shapes throughout the network.
     """
     batch_size = 4
     height = 64
@@ -94,8 +70,6 @@ def test_reactionnet_shape():
         block_dimensions=block_dimensions,
         input_channels=input_channels,
         output_channels=output_channels,
-        up_block_use_concat=[True, True],
-        skip_connection_indices=[0, 1],
     )
 
     x = torch.randn(batch_size, input_channels, height, width)
@@ -105,63 +79,9 @@ def test_reactionnet_shape():
     assert output.shape == (batch_size, output_channels, height, width)
 
 
-def test_reactionnet_no_skip_connections():
+def test_unet_gradient_flow():
     """
-    Test ReactionNet without skip connections.
-    """
-    batch_size = 4
-    height = 64
-    width = 64
-    input_channels = 3
-    output_channels = 2
-    block_dimensions = [64, 128, 256]
-
-    # Create model without skip connections
-    model = Unet(
-        block_dimensions=block_dimensions,
-        input_channels=input_channels,
-        output_channels=output_channels,
-        up_block_use_concat=[False, False],
-        skip_connection_indices=[],
-    )
-
-    x = torch.randn(batch_size, input_channels, height, width)
-    output = model(x)
-
-    # Check output shape
-    assert output.shape == (batch_size, output_channels, height, width)
-
-
-def test_reactionnet_selective_skip_connections():
-    """
-    Test ReactionNet with selective skip connections.
-    """
-    batch_size = 4
-    height = 64
-    width = 64
-    input_channels = 3
-    output_channels = 2
-    block_dimensions = [64, 128, 256]
-
-    # Create model with selective skip connections
-    model = Unet(
-        block_dimensions=block_dimensions,
-        input_channels=input_channels,
-        output_channels=output_channels,
-        up_block_use_concat=[True, False],
-        skip_connection_indices=[1],  # Only use skip connection from middle layer
-    )
-
-    x = torch.randn(batch_size, input_channels, height, width)
-    output = model(x)
-
-    # Check output shape
-    assert output.shape == (batch_size, output_channels, height, width)
-
-
-def test_reactionnet_gradient_flow():
-    """
-    Test if gradients flow properly through the ReactionNet.
+    Test if gradients flow properly through the UNet.
     """
     batch_size = 4
     height = 64
@@ -174,8 +94,6 @@ def test_reactionnet_gradient_flow():
         block_dimensions=block_dimensions,
         input_channels=input_channels,
         output_channels=output_channels,
-        up_block_use_concat=[True, True],
-        skip_connection_indices=[0, 1],
     )
 
     x = torch.randn(batch_size, input_channels, height, width, requires_grad=True)
@@ -189,9 +107,9 @@ def test_reactionnet_gradient_flow():
     assert torch.all(torch.isfinite(x.grad))
 
 
-def test_reactionnet_padding_modes():
+def test_unet_padding_modes():
     """
-    Test if ReactionNet works with different padding modes.
+    Test if UNet works with different padding modes.
     """
     batch_size = 4
     height = 64
@@ -208,8 +126,6 @@ def test_reactionnet_padding_modes():
             input_channels=input_channels,
             output_channels=output_channels,
             padding_mode=mode,
-            up_block_use_concat=[True],
-            skip_connection_indices=[0],
         )
 
         x = torch.randn(batch_size, input_channels, height, width)
