@@ -11,74 +11,25 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torchvision import transforms
 
-import einops
-
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from metaparc.data.datasets import PhysicsDataset
-from metaparc.model.base_models.conv_model import ConvModel
+from metaparc.model.base_models.fno import FourierNeuralOperator
+from metaparc.data.datasets import PhysicsDataset, get_dataloader
 
 
-def get_data_loaders(
-    data_dir: Path,
-    batch_size: int,
-    n_steps_input: int,
-    n_steps_output: int,
-    num_workers: int,
-) -> tuple[DataLoader, DataLoader]:
-    """Create data loaders for training and validation.
-
-    Parameters
-    ----------
-    data_dir : Path
-        Directory containing the dataset
-    batch_size : int
-        Batch size for training
-    n_steps_input : int
-        Number of consecutive time steps in the input
-    n_steps_output : int
-        Number of consecutive time steps in the output
-
-    Returns
-    -------
-    tuple
-        (train_loader, val_loader)
-    """
-    # Define transformations
-    transform = transforms.Compose(
-        [
-            transforms.Resize((32, 32)),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-        ]
-    )
-
-    train_loader = DataLoader(
-        train_loader, batch_size=batch_size, shuffle=True, num_workers=num_workers
-    )
-    val_loader = DataLoader(
-        val_loader, batch_size=batch_size, shuffle=False, num_workers=num_workers
-    )
-
-    return train_loader, val_loader
-
-
-def get_model(input_channels, output_dim, hidden_channels, dropout_rate):
+def get_model(input_channels, output_dim, hidden_channels):
     """Get the model.
 
     Parameters
     ----------
     input_channels : int
     """
-    return ConvModel(
+    return FourierNeuralOperator(
         input_channels=input_channels,
         output_channels=output_dim,
         hidden_channels=hidden_channels,
     )
-
 
 
 def train_epoch(
@@ -114,11 +65,9 @@ def train_epoch(
     pbar = tqdm(train_loader, desc="Training one epoch")
     for batch_idx, batch in enumerate(pbar):
         x = batch["input_fields"]
-        x = collate_fn(x)
         x = x.to(device)
 
         y = batch["output_fields"]
-        y = collate_fn(y)
         y = y.to(device)
 
         optimizer.zero_grad()
@@ -161,11 +110,9 @@ def validate(model, device, val_loader, criterion):
     with torch.no_grad():
         for batch_idx, batch in enumerate(pbar):
             x = batch["input_fields"]
-            x = collate_fn(x)
             x = x.to(device)
 
             y = batch["output_fields"]
-            y = collate_fn(y)
             y = y.to(device)
 
             output = model(x)
@@ -181,11 +128,12 @@ def validate(model, device, val_loader, criterion):
 def main():
     """Main training function."""
     data_dir = Path("C:/Users/zsa8rk/Coding/MetaPARC/data/datasets/shear_flow/data")
+    model_checkpoint_dir = Path("/Users/zsa8rk/Coding/MetaPARC/model_checkpoints")
+    # Training parameters
     batch_size = 4
     input_channels = 4
     output_dim = 128 * 256
     hidden_channels = 32
-    dropout_rate = 0.1
     lr = 0.001
     epochs = 10
 
@@ -199,8 +147,29 @@ def main():
     print(f"Using device: {device}")
 
     # Create data loaders
-    train_loader, val_loader = get_data_loaders(
-        data_dir, batch_size, n_steps_input, n_steps_output, num_workers
+    train_loader = get_dataloader(
+        PhysicsDataset(
+            data_dir,
+            split="train",
+            n_steps_input=n_steps_input,
+            n_steps_output=n_steps_output,
+            dt_stride=1,
+        ),
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+    )
+    val_loader = get_dataloader(
+        PhysicsDataset(
+            data_dir,
+            split="val",
+            n_steps_input=n_steps_input,
+            n_steps_output=n_steps_output,
+            dt_stride=1,
+        ),
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
     )
 
     # Create model
@@ -208,7 +177,6 @@ def main():
         input_channels=input_channels * n_steps_input,
         output_dim=output_dim * n_steps_output * input_channels,
         hidden_channels=hidden_channels,
-        dropout_rate=dropout_rate,
     )
     model.to(device)
 
@@ -217,7 +185,7 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     # Create save directory if it doesn't exist
-    save_dir = Path("models")
+    save_dir = model_checkpoint_dir / "fno"
     save_dir.mkdir(parents=True, exist_ok=True)
 
     # Training loop
@@ -260,26 +228,6 @@ def main():
             },
             save_dir / f"checkpoint_epoch_{epoch}.pth",
         )
-
-    # Plot training curves
-    plt.figure(figsize=(12, 5))
-
-    plt.subplot(1, 2, 1)
-    plt.plot(train_losses, label="Train Loss")
-    plt.plot(val_losses, label="Validation Loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.legend()
-
-    plt.subplot(1, 2, 2)
-    plt.plot(val_losses, label="Validation Loss")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.legend()
-
-    plt.tight_layout()
-    plt.savefig(save_dir / "training_curves.png")
-    plt.show()
 
 
 if __name__ == "__main__":
