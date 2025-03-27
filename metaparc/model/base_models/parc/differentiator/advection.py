@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
 
-from metaparc.model.base_models.parc.num_differentiation import FiniteDifference
+from metaparc.model.base_models.parc.differentiator.num_differentiation import (
+    FiniteDifference,
+)
 
 
 class Advection(nn.Module):
