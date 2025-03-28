@@ -27,16 +27,17 @@ def get_rng_transforms(p_flip: float) -> Compose:
     )
 
 
-def collate_fn(data: list[dict]) -> torch.Tensor:
+def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
     """Collate function for the dataset.
-    Get dict with input and output fields from the WellDataset.
-    The fields are of shape (Time steps, H, W, C)
+
+    Get input and target field tensors.
+    The fields are of shape (Time steps, C, H, W)
     We want to get a batch of shape (B, Time steps & C, H, W)
 
     Parameters
     ----------
-    data : dict
-        Dict with input and output fields from the WellDataset
+    data : tuple[torch.Tensor, torch.Tensor]
+        Tuple of input and target field tensors
 
     Returns
     -------
@@ -45,29 +46,29 @@ def collate_fn(data: list[dict]) -> torch.Tensor:
     """
 
     batch = default_collate(data)
-    input_fields = batch["input_fields"]
-    output_fields = batch["output_fields"]
+    x = batch[0]
+    y = batch[1]
 
     # rearrange to (B, Time steps & C, H, W)
-    input_fields = einops.rearrange(
-        input_fields, "batch time h w c -> batch (time c) h w"
+    x = einops.rearrange(
+        x, "batch time c h w -> batch (time c) h w"
     )
-    output_fields = einops.rearrange(
-        output_fields, "batch time h w c -> batch (time c) h w"
+    y = einops.rearrange(
+        y, "batch time c h w -> batch (time c) h w"
     )
 
     # Replace NaNs with 0
-    batch["input_fields"] = torch.where(
-        torch.isnan(input_fields),
-        torch.zeros_like(input_fields),
-        input_fields,
+    x = torch.where(
+        torch.isnan(x),
+        torch.zeros_like(x),
+        x,
     )
-    batch["output_fields"] = torch.where(
-        torch.isnan(output_fields),
-        torch.zeros_like(output_fields),
-        output_fields,
+    y = torch.where(
+        torch.isnan(y),
+        torch.zeros_like(y),
+        y,
     )
-    return batch
+    return x, y
 
 
 def get_dataloader(
@@ -89,7 +90,7 @@ def get_dataloader(
 class PhysicsDataset(WellDataset):
     """Wrapper around the WellDataset.
 
-    Enables data augmentation.
+    Returns a tuple of input and target field tensors.
 
     Parameters
     ----------
@@ -141,9 +142,40 @@ class PhysicsDataset(WellDataset):
             transform=transform,
         )
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
         data = super().__getitem__(index)  # returns (time, h, w, c)
-        return data
+        x = data["input_fields"]
+        y = data["output_fields"]
+        x = einops.rearrange(x, "time h w c -> time c h w")
+        y = einops.rearrange(y, "time h w c -> time c h w")
+        return x, y
+
+
+class SuperDataset:
+    """Wrapper around a list of datasets.
+    
+    Allows to concatenate multiple datasets and randomly sample from them.
+    """
+
+    def __init__(self, datasets: list[WellDataset], out_shape: tuple[int, int, int]):
+        self.datasets = datasets
+        self.lengths = [len(dataset) for dataset in self.datasets]
+        self.out_shape = out_shape
+
+    def __len__(self):
+        return sum(self.lengths)
+
+    def __getitem__(self, index):
+        for i, length in enumerate(self.lengths):
+            if index < length:
+                x, y = self.datasets[i][index]
+                break
+            index -= length
+        
+        # Reshape to out_shape
+        x = torch.nn.functional.interpolate(x, size=self.out_shape, mode="bilinear", align_corners=False)
+        y = torch.nn.functional.interpolate(y, size=self.out_shape, mode="bilinear", align_corners=False)
+        return x, y
 
 
 class SuperDataloader:

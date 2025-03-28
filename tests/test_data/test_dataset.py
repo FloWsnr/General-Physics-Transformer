@@ -8,6 +8,7 @@ from metaparc.data.datasets import (
     collate_fn,
     get_dataloader,
     SuperDataloader,
+    SuperDataset,
     get_rng_transforms,
 )
 
@@ -15,30 +16,32 @@ from metaparc.data.datasets import (
 def test_physics_dataset(dummy_datapath: Path):
     dataset = PhysicsDataset(dummy_datapath.parent)
     assert len(dataset) == 18
-    assert dataset[0]["input_fields"].shape == (1, 32, 32, 2)
-    assert dataset[0]["output_fields"].shape == (1, 32, 32, 2)
+    x, y = dataset[0]
+    assert x.shape == (1, 2, 32, 32)
+    assert y.shape == (1, 2, 32, 32)
 
 
 def test_physics_dataset_more_fields(dummy_datapath: Path):
     dataset = PhysicsDataset(dummy_datapath.parent, n_steps_input=2, n_steps_output=2)
-    assert dataset[0]["input_fields"].shape == (2, 32, 32, 2)
-    assert dataset[0]["output_fields"].shape == (2, 32, 32, 2)
+    x, y = dataset[0]
+    assert x.shape == (2, 2, 32, 32)
+    assert y.shape == (2, 2, 32, 32)
 
 
 def test_physics_dataset_collate_fn(dummy_datapath: Path):
     dataset = PhysicsDataset(dummy_datapath.parent, n_steps_input=2, n_steps_output=2)
     batch = [dataset[0], dataset[1]]
     collated = collate_fn(batch)
-    assert collated["input_fields"].shape == (2, 4, 32, 32)
-    assert collated["output_fields"].shape == (2, 4, 32, 32)
+    assert collated[0].shape == (2, 4, 32, 32)
+    assert collated[1].shape == (2, 4, 32, 32)
 
 
 def test_dataloader_with_collate_fn(dummy_datapath: Path):
     dataset = PhysicsDataset(dummy_datapath.parent, n_steps_input=2, n_steps_output=2)
     dataloader = get_dataloader(dataset, batch_size=2, num_workers=0)
     batch = next(iter(dataloader))
-    assert batch["input_fields"].shape == (2, 4, 32, 32)
-    assert batch["output_fields"].shape == (2, 4, 32, 32)
+    assert batch[0].shape == (2, 4, 32, 32)
+    assert batch[1].shape == (2, 4, 32, 32)
 
 
 def test_super_dataloader(dummy_datapath: Path):
@@ -60,18 +63,25 @@ def test_super_dataloader(dummy_datapath: Path):
     batch_count = 0
     for batch in super_dataloader:
         batch_count += 1
-        # Check that we have the expected keys in the batch
-        assert "input_fields" in batch
-        assert "output_fields" in batch
 
         # The shape should be either from dataloader1 or dataloader2
-        input_shape = batch["input_fields"].shape
+        input_shape = batch[0].shape
         assert input_shape[0] == 2  # batch size
         assert input_shape[1] == 2 or input_shape[1] == 4  # channels
         assert input_shape[2:] == (32, 32)  # spatial dimensions
 
     # Verify we got the expected number of batches
     assert batch_count == len(super_dataloader)
+
+
+def test_super_dataset(dummy_datapath: Path):
+    dataset1 = PhysicsDataset(dummy_datapath.parent, n_steps_input=1, n_steps_output=1)
+    dataset2 = PhysicsDataset(dummy_datapath.parent, n_steps_input=1, n_steps_output=1)
+    super_dataset = SuperDataset([dataset1, dataset2], (32, 16))
+    assert len(super_dataset) == len(dataset1) + len(dataset2)
+    x, y = super_dataset[0]
+    assert x.shape == (1, 2, 32, 16)
+    assert y.shape == (1, 2, 32, 16)
 
 
 def test_rng_transforms(dummy_datapath: Path):
@@ -93,8 +103,8 @@ def test_rng_transforms(dummy_datapath: Path):
     # Get a sample from the dataset
     sample_t = dataset_t[0]
     sample_nt = dataset_nt[0]
-    input_fields_t = sample_t["input_fields"]
-    input_fields_nt = sample_nt["input_fields"]
+    input_fields_t = sample_t[0]
+    input_fields_nt = sample_nt[0]
 
     # Check that the transformed data has the same shape
     assert input_fields_t.shape == input_fields_nt.shape
