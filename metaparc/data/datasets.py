@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+
 import einops
 
 import torch
@@ -139,3 +139,43 @@ class PhysicsDataset(WellDataset):
     def __getitem__(self, index):
         data = super().__getitem__(index)  # returns (time, h, w, c)
         return data
+
+
+class SuperDataloader:
+    """Wrapper around DataLoader.
+
+    Allows to concatenate multiple DataLoaders and randomly sample from them.
+    """
+
+    def __init__(self, dataloaders: list[DataLoader]):
+        self.dataloaders = dataloaders
+        self.iterators = None
+        self.length = sum(len(dataloader) for dataloader in dataloaders)
+
+    def __iter__(self):
+        # Create fresh iterators for each dataloader
+        self.iterators = [iter(dataloader) for dataloader in self.dataloaders]
+        return self
+
+    def __next__(self):
+        if not self.iterators:
+            raise StopIteration
+
+        # Randomly select a dataloader
+        loader_idx = torch.randint(0, len(self.dataloaders), (1,)).item()
+
+        try:
+            # Get next batch from the selected dataloader
+            return next(self.iterators[loader_idx])
+        except StopIteration:
+            # If this dataloader is exhausted, remove it and try again
+            self.iterators.pop(loader_idx)
+            self.dataloaders.pop(loader_idx)
+
+            if not self.dataloaders:
+                raise StopIteration
+
+            return next(self)
+
+    def __len__(self):
+        return self.length
