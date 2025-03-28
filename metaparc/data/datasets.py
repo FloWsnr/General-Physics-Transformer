@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import einops
 
@@ -17,12 +18,11 @@ from the_well.data.augmentation import (
 
 def get_rng_transforms(p_flip: float) -> Compose:
     """Get a list of transforms to apply to the data."""
-    p = p_flip / 3
     return Compose(
-        [
-            RandomAxisFlip(p=p),
-            RandomAxisRoll(p=p),
-            RandomAxisPermute(p=p),
+        *[
+            RandomAxisFlip(p=p_flip),
+            RandomAxisRoll(p=p_flip),
+            RandomAxisPermute(p=p_flip),
         ]
     )
 
@@ -113,6 +113,9 @@ class PhysicsDataset(WellDataset):
     dt_stride: int
         Time step stride between samples
         By default 1
+    transform: Optional[Compose]
+        Transform to apply to the data
+        By default None
     """
 
     def __init__(
@@ -124,6 +127,7 @@ class PhysicsDataset(WellDataset):
         normalization_path: Path = Path("stats.yaml"),
         use_normalization: bool = False,
         dt_stride: int = 1,
+        transform: Optional[Compose] = None,
     ):
         super().__init__(
             path=str(data_dir),
@@ -134,6 +138,7 @@ class PhysicsDataset(WellDataset):
             use_normalization=use_normalization,
             min_dt_stride=dt_stride,
             max_dt_stride=dt_stride,
+            transform=transform,
         )
 
     def __getitem__(self, index):
