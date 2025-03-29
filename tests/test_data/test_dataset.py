@@ -77,11 +77,21 @@ def test_super_dataloader(dummy_datapath: Path):
 def test_super_dataset(dummy_datapath: Path):
     dataset1 = PhysicsDataset(dummy_datapath.parent, n_steps_input=1, n_steps_output=1)
     dataset2 = PhysicsDataset(dummy_datapath.parent, n_steps_input=1, n_steps_output=1)
-    super_dataset = SuperDataset([dataset1, dataset2], (32, 16))
+    super_dataset = SuperDataset([dataset1, dataset2], (32, 16), n_channels=2)
     assert len(super_dataset) == len(dataset1) + len(dataset2)
     x, y = super_dataset[0]
     assert x.shape == (1, 2, 32, 16)
     assert y.shape == (1, 2, 32, 16)
+
+
+def test_super_dataset_with_n_channels(dummy_datapath: Path):
+    dataset1 = PhysicsDataset(dummy_datapath.parent, n_steps_input=1, n_steps_output=1)
+    dataset2 = PhysicsDataset(dummy_datapath.parent, n_steps_input=1, n_steps_output=1)
+    super_dataset = SuperDataset([dataset1, dataset2], (32, 16), n_channels=3)
+
+    x, y = super_dataset[0]
+    assert x.shape == (1, 3, 32, 16)
+    assert y.shape == (1, 3, 32, 16)
 
 
 def test_rng_transforms(dummy_datapath: Path):

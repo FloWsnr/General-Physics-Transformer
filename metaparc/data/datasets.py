@@ -155,12 +155,24 @@ class SuperDataset:
     """Wrapper around a list of datasets.
     
     Allows to concatenate multiple datasets and randomly sample from them.
+
+    Parameters
+    ----------
+    datasets : list[WellDataset]
+        List of datasets to concatenate
+    out_shape : tuple[int, int]
+        Output shape (h, w) of the concatenated dataset. 
+        This is needed to account for the different shapes of the datasets.
+    n_channels : int
+        Number of channels of the concatenated dataset. Should be the largest number of channels in the datasets.
+        Samples with less than n_channels will be padded with zeros.
     """
 
-    def __init__(self, datasets: list[WellDataset], out_shape: tuple[int, int, int]):
+    def __init__(self, datasets: list[WellDataset], out_shape: tuple[int, int], n_channels: int):
         self.datasets = datasets
         self.lengths = [len(dataset) for dataset in self.datasets]
         self.out_shape = out_shape
+        self.n_channels = n_channels
 
     def __len__(self):
         return sum(self.lengths)
@@ -168,14 +180,23 @@ class SuperDataset:
     def __getitem__(self, index):
         for i, length in enumerate(self.lengths):
             if index < length:
-                x, y = self.datasets[i][index]
+                x, y = self.datasets[i][index] # (time, n_channels, h, w)
                 break
             index -= length
         
         # Reshape to out_shape
         x = torch.nn.functional.interpolate(x, size=self.out_shape, mode="bilinear", align_corners=False)
         y = torch.nn.functional.interpolate(y, size=self.out_shape, mode="bilinear", align_corners=False)
+
+        # if x,z has less than n_channels, add channels with zeros
+        if x.shape[1] < self.n_channels:
+            x = torch.cat([x, torch.zeros(x.shape[0], self.n_channels - x.shape[1], *x.shape[2:])], dim=1)
+        if y.shape[1] < self.n_channels:
+            y = torch.cat([y, torch.zeros(y.shape[0], self.n_channels - y.shape[1], *y.shape[2:])], dim=1)
+
         return x, y
+
+
 
 
 class SuperDataloader:
