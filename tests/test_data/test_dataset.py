@@ -94,6 +94,16 @@ def test_super_dataset_with_n_channels(dummy_datapath: Path):
     assert y.shape == (1, 3, 32, 16)
 
 
+def test_super_dataset_with_dataloader(dummy_datapath: Path):
+    dataset1 = PhysicsDataset(dummy_datapath.parent, n_steps_input=1, n_steps_output=1)
+    dataset2 = PhysicsDataset(dummy_datapath.parent, n_steps_input=1, n_steps_output=1)
+    super_dataset = SuperDataset([dataset1, dataset2], (32, 16), n_channels=3)
+    dataloader = get_dataloader(super_dataset, batch_size=2, num_workers=0)
+    batch = next(iter(dataloader))
+    assert batch[0].shape == (2, 3, 32, 16)
+    assert batch[1].shape == (2, 3, 32, 16)
+
+
 def test_rng_transforms(dummy_datapath: Path):
     # Create a dataset
     dataset_t = PhysicsDataset(
