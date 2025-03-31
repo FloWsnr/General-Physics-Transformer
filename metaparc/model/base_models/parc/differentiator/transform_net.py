@@ -23,8 +23,8 @@ class TransformNet(nn.Module):
             in_channels=n_base_features,
             mask_channels=n_mask_channel,
             out_channels=n_base_features,
-            padding_mode=padding_mode,
             kernel_size=1,
+            spade_kernel_size=3,
         )
 
         # Initialize ResNet block
@@ -33,6 +33,7 @@ class TransformNet(nn.Module):
             [n_base_features, n_base_features],
             kernel_size=3,
             pooling=False,
+            padding="same",
             padding_mode=padding_mode,
         )
         # Final convolution layer
@@ -40,7 +41,7 @@ class TransformNet(nn.Module):
             in_channels=n_base_features,
             out_channels=output_channel,
             kernel_size=1,
-            padding=0,
+            padding="same",
         )
 
     def forward(self, reaction: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:

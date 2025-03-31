@@ -41,8 +41,7 @@ class Differentiator(nn.Module):
         )
 
         #
-        self.transform_net_states = TransformNet()
-        self.transform_net_velocities = TransformNet()
+        self.transform_net = TransformNet()
 
     def forward(self, states: torch.Tensor, velocities: torch.Tensor) -> torch.Tensor:
         x = torch.cat([states, velocities], dim=1)
@@ -55,7 +54,6 @@ class Differentiator(nn.Module):
         diffusion = self.diffusion(states)
 
         # Transform all features into final states derivatives wrt time
-        states_dot = self.transform_net_states(reaction, mask=[advection, diffusion])
-        vel_dot = self.transform_net_velocities(reaction, mask=[advection, diffusion])
+        states_dot = self.transform_net(reaction, mask=[advection, diffusion])
 
-        return torch.cat([states_dot, vel_dot], dim=1)
+        return states_dot
