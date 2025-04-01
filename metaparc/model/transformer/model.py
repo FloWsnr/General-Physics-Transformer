@@ -10,4 +10,12 @@ class PhysicsTransformer(nn.Module):
         self.attention_block = AttentionBlock(hidden_dim, num_heads, dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.attention_block(x)
+        # Split into patches
+
+        # Apply positional encodings
+
+        # Apply N attention blocks (norm, att, norm, mlp)
+
+        # Apply de-patching
+
+        return None
