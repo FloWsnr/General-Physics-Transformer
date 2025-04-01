@@ -41,6 +41,19 @@ class Attention(nn.Module):
         return x
 
 
+class MLP(nn.Module):
+    def __init__(self, hidden_dim: int, dropout: float = 0.0):
+        super().__init__()
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.mlp(x)
+
+
 class AttentionBlock(nn.Module):
     """
     Attention block with axial attention and MLP.
@@ -64,7 +77,7 @@ class AttentionBlock(nn.Module):
         self.attention = Attention(hidden_dim, num_heads, dropout)
         self.norm1 = nn.InstanceNorm2d(hidden_dim, affine=True)
         self.norm2 = nn.InstanceNorm2d(hidden_dim, affine=True)
-        self.mlp = nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1)
+        self.mlp = MLP(hidden_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         skip = x.clone()

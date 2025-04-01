@@ -50,12 +50,8 @@ def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
     y = batch[1]
 
     # rearrange to (B, Time steps & C, H, W)
-    x = einops.rearrange(
-        x, "batch time c h w -> batch (time c) h w"
-    )
-    y = einops.rearrange(
-        y, "batch time c h w -> batch (time c) h w"
-    )
+    x = einops.rearrange(x, "batch time c h w -> batch (time c) h w")
+    y = einops.rearrange(y, "batch time c h w -> batch (time c) h w")
 
     # Replace NaNs with 0
     x = torch.where(
@@ -117,6 +113,9 @@ class PhysicsDataset(WellDataset):
     transform: Optional[Compose]
         Transform to apply to the data
         By default None
+    channels_first: bool
+        Whether to have (time, channels, height, width) or (height, width, time, channels)
+        By default (time, channels, height, width)
     """
 
     def __init__(
@@ -129,6 +128,7 @@ class PhysicsDataset(WellDataset):
         use_normalization: bool = False,
         dt_stride: int = 1,
         transform: Optional[Compose] = None,
+        channels_first: bool = True,
     ):
         super().__init__(
             path=str(data_dir),
@@ -141,19 +141,21 @@ class PhysicsDataset(WellDataset):
             max_dt_stride=dt_stride,
             transform=transform,
         )
+        self.channels_first = channels_first
 
     def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
         data = super().__getitem__(index)  # returns (time, h, w, c)
         x = data["input_fields"]
         y = data["output_fields"]
-        x = einops.rearrange(x, "time h w c -> time c h w")
-        y = einops.rearrange(y, "time h w c -> time c h w")
+        if self.channels_first:
+            x = einops.rearrange(x, "time h w c -> time c h w")
+            y = einops.rearrange(y, "time h w c -> time c h w")
         return x, y
 
 
 class SuperDataset:
     """Wrapper around a list of datasets.
-    
+
     Allows to concatenate multiple datasets and randomly sample from them.
 
     Parameters
@@ -161,14 +163,16 @@ class SuperDataset:
     datasets : list[WellDataset]
         List of datasets to concatenate
     out_shape : tuple[int, int]
-        Output shape (h, w) of the concatenated dataset. 
+        Output shape (h, w) of the concatenated dataset.
         This is needed to account for the different shapes of the datasets.
     n_channels : int
         Number of channels of the concatenated dataset. Should be the largest number of channels in the datasets.
         Samples with less than n_channels will be padded with zeros.
     """
 
-    def __init__(self, datasets: list[WellDataset], out_shape: tuple[int, int], n_channels: int):
+    def __init__(
+        self, datasets: list[WellDataset], out_shape: tuple[int, int], n_channels: int
+    ):
         self.datasets = datasets
         self.lengths = [len(dataset) for dataset in self.datasets]
         self.out_shape = out_shape
@@ -180,23 +184,37 @@ class SuperDataset:
     def __getitem__(self, index):
         for i, length in enumerate(self.lengths):
             if index < length:
-                x, y = self.datasets[i][index] # (time, n_channels, h, w)
+                x, y = self.datasets[i][index]  # (time, n_channels, h, w)
                 break
             index -= length
-        
+
         # Reshape to out_shape
-        x = torch.nn.functional.interpolate(x, size=self.out_shape, mode="bilinear", align_corners=False)
-        y = torch.nn.functional.interpolate(y, size=self.out_shape, mode="bilinear", align_corners=False)
+        x = torch.nn.functional.interpolate(
+            x, size=self.out_shape, mode="bilinear", align_corners=False
+        )
+        y = torch.nn.functional.interpolate(
+            y, size=self.out_shape, mode="bilinear", align_corners=False
+        )
 
         # if x,z has less than n_channels, add channels with zeros
         if x.shape[1] < self.n_channels:
-            x = torch.cat([x, torch.zeros(x.shape[0], self.n_channels - x.shape[1], *x.shape[2:])], dim=1)
+            x = torch.cat(
+                [
+                    x,
+                    torch.zeros(x.shape[0], self.n_channels - x.shape[1], *x.shape[2:]),
+                ],
+                dim=1,
+            )
         if y.shape[1] < self.n_channels:
-            y = torch.cat([y, torch.zeros(y.shape[0], self.n_channels - y.shape[1], *y.shape[2:])], dim=1)
+            y = torch.cat(
+                [
+                    y,
+                    torch.zeros(y.shape[0], self.n_channels - y.shape[1], *y.shape[2:]),
+                ],
+                dim=1,
+            )
 
         return x, y
-
-
 
 
 class SuperDataloader:
