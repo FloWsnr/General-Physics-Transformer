@@ -68,7 +68,7 @@ class RevIN(nn.Module):
         return x
 
     def _get_statistics(self, x):
-        # For (B, T, C, H, W), reduce over T, H, W dimensions (1, 3, 4)
+        # For (B, T, C, H, W), reduce over time, height, width dimensions (1, 3, 4)
         dim2reduce = (1, 3, 4)
         self.mean = torch.mean(x, dim=dim2reduce, keepdim=True)
         self.stdev = torch.sqrt(
