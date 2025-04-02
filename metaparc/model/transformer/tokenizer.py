@@ -89,8 +89,6 @@ class SpatioTemporalDetokenization(nn.Module):
     """
     Converts back spatio-temporal tokens into a physical tensor.
 
-    The detokenization is done by two transposed convolutions with GELU and instance normalization.
-
     Parameters
     ----------
     dim_embed : int
@@ -100,10 +98,10 @@ class SpatioTemporalDetokenization(nn.Module):
         Number of channels in the output tensor (number of physics states).
 
     conv1_size : tuple (time, height, width)
-        Size of the patch for the first transposed convolutional layer.
+        Size of the patch for the first convolutional layer.
 
     conv2_size : tuple (time, height, width)
-        Size of the patch for the second transposed convolutional layer.
+        Size of the patch for the second convolutional layer.
     """
 
     def __init__(
@@ -117,6 +115,7 @@ class SpatioTemporalDetokenization(nn.Module):
         self.register_buffer("patch_size", torch.tensor(16))
         self.in_channels = dim_embed
         self.out_channels = out_channels
+
         de_patch_net = [
             nn.ConvTranspose3d(
                 in_channels=self.in_channels,

@@ -14,21 +14,26 @@ from torch.utils.data import DataLoader
 
 from tqdm import tqdm
 
-from metaparc.model.base_models.fno import FourierNeuralOperator
+from metaparc.model.transformer.model import PhysicsTransformer
 from metaparc.data.datasets import PhysicsDataset, get_dataloader
 
 
-def get_model(input_channels, output_dim, hidden_channels):
-    """Get the model.
-
-    Parameters
-    ----------
-    input_channels : int
-    """
-    return FourierNeuralOperator(
+def get_model(
+    input_channels,
+    hidden_channels,
+    num_heads,
+    dropout,
+    patch_size,
+    num_layers,
+):
+    """Get the model."""
+    return PhysicsTransformer(
         input_channels=input_channels,
-        output_channels=output_dim,
-        hidden_channels=hidden_channels,
+        hidden_dim=hidden_channels,
+        num_heads=num_heads,
+        dropout=dropout,
+        patch_size=patch_size,
+        num_layers=num_layers,
     )
 
 
@@ -64,22 +69,21 @@ def train_epoch(
 
     pbar = tqdm(train_loader, desc="Training one epoch")
     for batch_idx, batch in enumerate(pbar):
-        x = batch["input_fields"]
+        x, y = batch
         x = x.to(device)
-
-        y = batch["output_fields"]
         y = y.to(device)
+
+        target = torch.cat((x[:, 1:, :, :, :], y), dim=1, device=device)
 
         optimizer.zero_grad()
         output = model(x)
-        loss = criterion(output, y)
+        loss = criterion(output, target)
         loss.backward()
         optimizer.step()
 
         train_loss += loss.item()
 
         pbar.set_postfix({"loss": train_loss / (batch_idx + 1)})
-        break
 
     return train_loss / len(train_loader)
 
@@ -109,14 +113,14 @@ def validate(model, device, val_loader, criterion):
     pbar = tqdm(val_loader, desc="Validation")
     with torch.no_grad():
         for batch_idx, batch in enumerate(pbar):
-            x = batch["input_fields"]
+            x, y = batch
             x = x.to(device)
-
-            y = batch["output_fields"]
             y = y.to(device)
 
+            target = torch.cat((x[:, 1:, :, :, :], y), dim=1, device=device)
+
             output = model(x)
-            loss = criterion(output, y)
+            loss = criterion(output, target)
 
             val_loss += loss.item()
 
@@ -128,12 +132,15 @@ def validate(model, device, val_loader, criterion):
 def main():
     """Main training function."""
     data_dir = Path("C:/Users/zsa8rk/Coding/MetaPARC/data/datasets/shear_flow/data")
-    model_checkpoint_dir = Path("/Users/zsa8rk/Coding/MetaPARC/model_checkpoints")
+    model_checkpoint_dir = Path("C:/Users/zsa8rk/Coding/MetaPARC/model_checkpoints")
     # Training parameters
-    batch_size = 4
+    batch_size = 16
     input_channels = 4
-    output_dim = 128 * 256
-    hidden_channels = 32
+    hidden_channels = 96 * 4
+    num_heads = 16
+    dropout = 0.1
+    patch_size = (4, 16, 16)
+    num_layers = 8
     lr = 0.001
     epochs = 10
 
@@ -149,7 +156,7 @@ def main():
     # Create data loaders
     train_loader = get_dataloader(
         PhysicsDataset(
-            data_dir,
+            data_dir / "train",
             split="train",
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
@@ -161,7 +168,7 @@ def main():
     )
     val_loader = get_dataloader(
         PhysicsDataset(
-            data_dir,
+            data_dir / "valid",
             split="val",
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
@@ -174,9 +181,12 @@ def main():
 
     # Create model
     model = get_model(
-        input_channels=input_channels * n_steps_input,
-        output_dim=output_dim * n_steps_output * input_channels,
+        input_channels=input_channels,
         hidden_channels=hidden_channels,
+        num_heads=num_heads,
+        dropout=dropout,
+        patch_size=patch_size,
+        num_layers=num_layers,
     )
     model.to(device)
 
@@ -185,7 +195,7 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     # Create save directory if it doesn't exist
-    save_dir = model_checkpoint_dir / "fno"
+    save_dir = model_checkpoint_dir / "transformer"
     save_dir.mkdir(parents=True, exist_ok=True)
 
     # Training loop
