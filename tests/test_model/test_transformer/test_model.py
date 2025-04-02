@@ -12,6 +12,23 @@ def test_forward():
         hidden_dim=96,
         num_heads=4,
         dropout=0.0,
+        patch_size=(4, 16, 16),
+        num_layers=4,
     )
+    output = transformer(data)
+    assert output.shape == (10, 8, 128, 128, 3)
+
+
+def test_forward_cuda():
+    data = torch.randn(10, 8, 128, 128, 3).cuda()
+    transformer = PhysicsTransformer(
+        input_channels=3,
+        hidden_dim=96,
+        num_heads=4,
+        dropout=0.0,
+        patch_size=(4, 16, 16),
+        num_layers=4,
+    )
+    transformer.cuda()
     output = transformer(data)
     assert output.shape == (10, 8, 128, 128, 3)
