@@ -57,7 +57,7 @@ def test_rotary_positional_embedding_initialization():
         RotaryPositionalEmbedding(95)  # not divisible by 6
 
 
-def test_rotary_positional_embedding_forward():
+def test_rotary_positional_embedding_forward_time():
     """Test forward pass of RotaryPositionalEmbedding."""
     batch_size = 2
     time = 8
@@ -66,8 +66,8 @@ def test_rotary_positional_embedding_forward():
     width = 16
 
     pe = RotaryPositionalEmbedding(channels)
-    q = torch.randn(batch_size, time, height, width, channels)
-    k = torch.randn(batch_size, time, height, width, channels)
+    q = torch.randn(batch_size, height, width, time, channels)
+    k = torch.randn(batch_size, height, width, time, channels)
 
     q_out, k_out = pe(q, k)
 

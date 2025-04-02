@@ -168,6 +168,7 @@ class RotaryPositionalEmbedding(nn.Module):
         tuple
             Tuple containing query and key tensors with rotary embeddings applied
         """
+        B, T, H, W, C = q.shape
 
         time_cos = self.time_cos_cached
         time_sin = self.time_sin_cached
@@ -185,23 +186,23 @@ class RotaryPositionalEmbedding(nn.Module):
 
         # Apply rotary embeddings to each dimension
         # Expand to match the shape of the input tensor
-        # (1, time, 1, 1, dim_per_component)
+        # (1, time_steps, dim_per_component)
         time_cos = time_cos.view(1, time_cos.shape[0], 1, 1, time_cos.shape[1])
         time_sin = time_sin.view(1, time_sin.shape[0], 1, 1, time_sin.shape[1])
         q_time_out = (q_time * time_cos) + (self._rotate_half(q_time) * time_sin)
         k_time_out = (k_time * time_cos) + (self._rotate_half(k_time) * time_sin)
 
         # Expand to match the shape of the input tensor
-        # (1, 1, height, 1, dim_per_component)
-        x_cos = x_cos.view(1, 1, x_cos.shape[0], 1, x_cos.shape[1])
-        x_sin = x_sin.view(1, 1, x_sin.shape[0], 1, x_sin.shape[1])
+        # (1, width, dim_per_component)
+        x_cos = x_cos.view(1, 1, 1, x_cos.shape[0], x_cos.shape[1])
+        x_sin = x_sin.view(1, 1, 1, x_sin.shape[0], x_sin.shape[1])
         q_x_out = (q_x * x_cos) + (self._rotate_half(q_x) * x_sin)
         k_x_out = (k_x * x_cos) + (self._rotate_half(k_x) * x_sin)
 
         # Expand to match the shape of the input tensor
-        # (1, 1, 1, width, dim_per_component)
-        y_cos = y_cos.view(1, 1, 1, y_cos.shape[0], y_cos.shape[1])
-        y_sin = y_sin.view(1, 1, 1, y_sin.shape[0], y_sin.shape[1])
+        # (1, height, dim_per_component)
+        y_cos = y_cos.view(1, 1, y_cos.shape[0], 1, y_cos.shape[1])
+        y_sin = y_sin.view(1, 1, y_sin.shape[0], 1, y_sin.shape[1])
         q_y_out = (q_y * y_cos) + (self._rotate_half(q_y) * y_sin)
         k_y_out = (k_y * y_cos) + (self._rotate_half(k_y) * y_sin)
 
@@ -211,38 +212,41 @@ class RotaryPositionalEmbedding(nn.Module):
 
         return q_out, k_out
 
-    def _compute_time_embeddings(self, x: torch.Tensor) -> torch.Tensor:
-        B, T, H, W, C = x.shape
-
+    def _compute_time_embeddings(self, q: torch.Tensor) -> torch.Tensor:
+        B, T, H, W, C = q.shape
         # Recompute time embeddings if needed
         if T != self.time_len_cached:
+            device = self.time_inv_freq.device
+
             self.time_len_cached = T
-            t = torch.arange(T, device=x.device).type_as(self.time_inv_freq)
+            t = torch.arange(T, device=device).type_as(self.time_inv_freq)
             time_freqs = torch.einsum("i,j->ij", t, self.time_inv_freq)
-            time_emb = torch.cat((time_freqs, time_freqs), dim=-1).to(x.device)
+            time_emb = torch.cat((time_freqs, time_freqs), dim=-1).to(device)
             # Shape: (T, dim_per_component)
             self.time_cos_cached = time_emb.cos()
             self.time_sin_cached = time_emb.sin()
 
-    def _compute_spatial_embeddings(self, x: torch.Tensor) -> torch.Tensor:
-        B, T, H, W, C = x.shape
+    def _compute_spatial_embeddings(self, q: torch.Tensor) -> torch.Tensor:
+        B, T, H, W, C = q.shape
         # Recompute spatial embeddings if needed
         if H != self.height_cached or W != self.width_cached:
+            device = self.spatial_inv_freq.device
+
             self.height_cached = H
             self.width_cached = W
 
             # X-dimension (width)
-            x_pos = torch.arange(W, device=x.device).type_as(self.spatial_inv_freq)
+            x_pos = torch.arange(W, device=device).type_as(self.spatial_inv_freq)
             x_freqs = torch.einsum("i,j->ij", x_pos, self.spatial_inv_freq)
-            x_emb = torch.cat((x_freqs, x_freqs), dim=-1).to(x.device)
+            x_emb = torch.cat((x_freqs, x_freqs), dim=-1).to(device)
             # Shape: (W, dim_per_component)
             self.x_cos_cached = x_emb.cos()
             self.x_sin_cached = x_emb.sin()
 
             # Y-dimension (height)
-            y_pos = torch.arange(H, device=x.device).type_as(self.spatial_inv_freq)
+            y_pos = torch.arange(H, device=device).type_as(self.spatial_inv_freq)
             y_freqs = torch.einsum("i,j->ij", y_pos, self.spatial_inv_freq)
-            y_emb = torch.cat((y_freqs, y_freqs), dim=-1).to(x.device)
+            y_emb = torch.cat((y_freqs, y_freqs), dim=-1).to(device)
             # Shape: (H, dim_per_component)
             self.y_cos_cached = y_emb.cos()
             self.y_sin_cached = y_emb.sin()
