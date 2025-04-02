@@ -8,7 +8,67 @@ Date: 2025-03-31
 import pytest
 import torch
 
-from metaparc.model.transformer.norms import RevIN, RevSPADE_3D, RevSPADE_2D
+from metaparc.model.transformer.norms import RevIN, RevLN, RevSPADE_3D, RevSPADE_2D
+
+
+class Test_RevLN:
+    def test_revln_initialization(self):
+        """Test RevLN layer initialization."""
+        height = 32
+        width = 32
+        revln = RevLN(height, width)
+
+        assert revln.height == height
+        assert revln.width == width
+        assert revln.eps == 1e-5
+        assert revln.affine_weight.shape == (height, width)
+        assert revln.affine_bias.shape == (height, width)
+
+    def test_revln_forward(self):
+        """Test RevLN forward pass in both normalization and denormalization modes."""
+        batch_size = 4
+        time_steps = 10
+        height = 32
+        width = 32
+        num_channels = 64
+        revln = RevLN(height, width)
+
+        # Create random input data
+        x = torch.randn(batch_size, time_steps, height, width, num_channels)
+
+        # Test normalization
+        x_norm = revln(x, mode="norm")
+        assert x_norm.shape == x.shape
+
+        # Test denormalization
+        x_denorm = revln(x_norm, mode="denorm")
+        assert x_denorm.shape == x.shape
+
+        # Check if denormalization approximately reconstructs the original input
+        assert torch.allclose(x, x_denorm, rtol=1e-5, atol=1e-5)
+
+    def test_revln_statistics(self):
+        """Test RevLN statistics computation."""
+        batch_size = 10
+        time_steps = 100
+        height = 32
+        width = 32
+        num_channels = 64
+        revln = RevLN(height, width)
+
+        # Create input with known statistics
+        x = torch.randn(batch_size, time_steps, height, width, num_channels)
+        x = x * 2.0 + 1.0  # Scale and shift
+
+        # Apply normalization
+        x_norm = revln(x, mode="norm")
+
+        # Check if normalized data has approximately zero mean and unit variance
+        mean = torch.mean(x_norm, dim=(1, 4))
+        var = torch.var(x_norm, dim=(1, 4))
+
+        assert torch.allclose(mean, torch.zeros_like(mean), atol=1e-2)
+        assert torch.allclose(var, torch.ones_like(var), atol=1e-2)
 
 
 class Test_RevIN:
@@ -45,7 +105,7 @@ class Test_RevIN:
         revin = RevIN(num_channels)
 
         # Create random input data
-        x = torch.randn(batch_size, time_steps, num_channels, height, width)
+        x = torch.randn(batch_size, time_steps, height, width, num_channels)
 
         # Test normalization
         x_norm = revin(x, mode="norm")
@@ -74,15 +134,15 @@ class Test_RevIN:
         revin = RevIN(num_channels)
 
         # Create input with known statistics
-        x = torch.randn(batch_size, time_steps, num_channels, height, width)
+        x = torch.randn(batch_size, time_steps, height, width, num_channels)
         x = x * 2.0 + 1.0  # Scale and shift
 
         # Apply normalization
         x_norm = revin(x, mode="norm")
 
         # Check if normalized data has approximately zero mean and unit variance
-        mean = torch.mean(x_norm, dim=(1, 3, 4))
-        var = torch.var(x_norm, dim=(1, 3, 4))
+        mean = torch.mean(x_norm, dim=(1, 2, 3))
+        var = torch.var(x_norm, dim=(1, 2, 3))
 
         assert torch.allclose(mean, torch.zeros_like(mean), atol=1e-2)
         assert torch.allclose(var, torch.ones_like(var), atol=1e-2)

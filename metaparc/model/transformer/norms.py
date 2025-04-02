@@ -17,10 +17,88 @@ import torch.nn as nn
 from einops import rearrange
 
 
+class RevLN(nn.Module):
+    def __init__(self, height: int, width: int, eps=1e-5):
+        """
+        Reversible Layer Normalization for tensors with shape (B, Time, H, W, C).
+        Normalize only over the channel dimension.
+
+        Parameters
+        ----------
+        num_channels : int
+            The number of channels
+        eps : float, optional
+            A value added for numerical stability, by default 1e-5
+        """
+        super(RevLN, self).__init__()
+        self.height = height
+        self.width = width
+        self.eps = eps
+        # initialize RevLN params: (C,)
+        self.affine_weight = nn.Parameter(torch.ones(self.height, self.width))
+        self.affine_bias = nn.Parameter(torch.zeros(self.height, self.width))
+
+        self.register_buffer("mean", torch.zeros(self.height, self.width))
+        self.register_buffer("stdev", torch.ones(self.height, self.width))
+
+    def forward(self, x, mode: str):
+        """
+        Forward pass for RevLN.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (B, T, H, W, C)
+        mode : str
+            Mode of operation: 'norm' for normalization, 'denorm' for denormalization
+
+        Returns
+        -------
+        torch.Tensor
+            Normalized or denormalized tensor
+        """
+        if mode == "norm":
+            self._get_statistics(x)
+            x = self._normalize(x)
+        elif mode == "denorm":
+            x = self._denormalize(x)
+        else:
+            raise NotImplementedError
+        return x
+
+    def _get_statistics(self, x):
+        # For (B, T, H, W, C), reduce over time, channel dimension
+        dim2reduce = (1, 4)
+        self.mean = torch.mean(x, dim=dim2reduce, keepdim=True)
+        self.stdev = torch.sqrt(
+            torch.var(x, dim=dim2reduce, keepdim=True, unbiased=False) + self.eps
+        )
+
+    def _normalize(self, x):
+        x = x - self.mean
+        x = x / self.stdev
+        # Reshape affine parameters to match the channel dimension
+        weight = self.affine_weight.view(1, 1, self.height, self.width, 1)
+        bias = self.affine_bias.view(1, 1, self.height, self.width, 1)
+        x = x * weight
+        x = x + bias
+        return x
+
+    def _denormalize(self, x):
+        # Reshape affine parameters to match the channel dimension
+        weight = self.affine_weight.view(1, 1, self.height, self.width, 1)
+        bias = self.affine_bias.view(1, 1, self.height, self.width, 1)
+        x = x - bias
+        x = x / (weight + self.eps * self.eps)
+        x = x * self.stdev
+        x = x + self.mean
+        return x
+
+
 class RevIN(nn.Module):
     def __init__(self, num_channels: int, eps=1e-5):
         """
-        Reversible Instance Normalization for tensors with shape (B, Time, C, H, W).
+        Reversible Instance Normalization for tensors with shape (B, Time, H, W, C).
         Normalizes each channel independently over the Time, Height, and Width dimensions.
         Affine transformation is done over the channel dimension, one parameter for all
         timesteps.
@@ -49,7 +127,7 @@ class RevIN(nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor of shape (B, T, C, H, W)
+            Input tensor of shape (B, T, H, W, C)
         mode : str
             Mode of operation: 'norm' for normalization, 'denorm' for denormalization
 
@@ -68,8 +146,8 @@ class RevIN(nn.Module):
         return x
 
     def _get_statistics(self, x):
-        # For (B, T, C, H, W), reduce over time, height, width dimensions (1, 3, 4)
-        dim2reduce = (1, 3, 4)
+        # For (B, T, H, W, C), reduce over time, height, width dimensions (1, 3, 4)
+        dim2reduce = (1, 2, 3)
         self.mean = torch.mean(x, dim=dim2reduce, keepdim=True)
         self.stdev = torch.sqrt(
             torch.var(x, dim=dim2reduce, keepdim=True, unbiased=False) + self.eps
@@ -79,16 +157,16 @@ class RevIN(nn.Module):
         x = x - self.mean
         x = x / self.stdev
         # Reshape affine parameters to match the channel dimension
-        weight = self.affine_weight.view(1, 1, -1, 1, 1)
-        bias = self.affine_bias.view(1, 1, -1, 1, 1)
+        weight = self.affine_weight.view(1, 1, 1, 1, -1)
+        bias = self.affine_bias.view(1, 1, 1, 1, -1)
         x = x * weight
         x = x + bias
         return x
 
     def _denormalize(self, x):
         # Reshape affine parameters to match the channel dimension
-        weight = self.affine_weight.view(1, 1, -1, 1, 1)
-        bias = self.affine_bias.view(1, 1, -1, 1, 1)
+        weight = self.affine_weight.view(1, 1, 1, 1, -1)
+        bias = self.affine_bias.view(1, 1, 1, 1, -1)
         x = x - bias
         x = x / (weight + self.eps * self.eps)
         x = x * self.stdev
