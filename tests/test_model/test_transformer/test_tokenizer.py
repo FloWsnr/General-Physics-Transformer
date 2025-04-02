@@ -30,7 +30,7 @@ class TestImage2Patch:
         Test the forward pass of the Image2Patch class.
         """
         batch_size = 2
-        time_steps = 3
+        time_steps = 4
         channels = 3
         height = 32
         width = 32
@@ -41,16 +41,16 @@ class TestImage2Patch:
             time_steps=time_steps,
             dim_embed=dim_embed,
         )
-        x = torch.randn(batch_size, time_steps, channels, height, width)
+        x = torch.randn(batch_size, time_steps, height, width, channels)
         output = tokenizer(x)
 
         # Expected shape: (batch_size, time_steps, dim_embed, height/patch_size, width/patch_size)
         expected_shape = (
             batch_size,
             time_steps,
-            dim_embed,
             height // 16,
             width // 16,
+            dim_embed,
         )
         assert output.shape == expected_shape
 
@@ -92,9 +92,9 @@ class TestPatch2Image:
             out_channels=channels,
             time_steps=time_steps,
         )
-        x = torch.randn(batch_size, time_steps, dim_embed, height, width)
+        x = torch.randn(batch_size, time_steps, height, width, dim_embed)
         output = tokenizer(x)
 
         # Expected shape: (batch_size, time_steps, channels, height, width)
-        expected_shape = (batch_size, time_steps, channels, height * 16, width * 16)
+        expected_shape = (batch_size, time_steps, height * 16, width * 16, channels)
         assert output.shape == expected_shape
