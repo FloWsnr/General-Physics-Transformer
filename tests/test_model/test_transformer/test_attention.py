@@ -7,29 +7,30 @@ import torch
 import torch.nn as nn
 
 from metaparc.model.transformer.attention import (
-    Attention,
+    SpatioTemporalAttention,
     MLP,
     AttentionBlock,
     SpatialAttention,
     TemporalAttention,
 )
+from metaparc.model.transformer.pos_encodings import RotaryPositionalEmbedding
 
 
-class TestAttention:
-    """Test suite for the Attention class."""
+class TestSpatioTemporalAttention:
+    """Test suite for the SpatioTemporalAttention class."""
 
     def test_init(self):
-        """Test initialization of Attention module."""
+        """Test initialization of SpatioTemporalAttention module."""
         hidden_dim = 64
         num_heads = 4
-        attention = Attention(hidden_dim, num_heads)
+        attention = SpatioTemporalAttention(hidden_dim, num_heads)
 
         assert attention.num_heads == num_heads
         assert isinstance(attention.to_qkv, nn.Conv3d)
         assert isinstance(attention.attention, nn.MultiheadAttention)
 
     def test_forward(self):
-        """Test forward pass of Attention module."""
+        """Test forward pass of SpatioTemporalAttention module."""
         batch_size = 2
         time = 3
         height = 16
@@ -38,7 +39,26 @@ class TestAttention:
         num_heads = 4
 
         x = torch.randn(batch_size, time, height, width, hidden_dim)
-        attention = Attention(hidden_dim, num_heads)
+        attention = SpatioTemporalAttention(hidden_dim, num_heads)
+
+        output = attention(x)
+
+        # Check output shape
+        assert output.shape == (batch_size, time, height, width, hidden_dim)
+
+    def test_forward_with_positional_encoding(self):
+        """Test forward pass of SpatioTemporalAttention module with positional encoding."""
+        batch_size = 2
+        time = 3
+        height = 16
+        width = 16
+        hidden_dim = 96
+        num_heads = 4
+
+        x = torch.randn(batch_size, time, height, width, hidden_dim)
+        attention = SpatioTemporalAttention(
+            hidden_dim, num_heads, pe=RotaryPositionalEmbedding(hidden_dim)
+        )
 
         output = attention(x)
 
@@ -95,11 +115,13 @@ class TestSpatialAttention:
         time = 3
         height = 16
         width = 16
-        hidden_dim = 64
+        hidden_dim = 96
         num_heads = 4
 
         x = torch.randn(batch_size, time, height, width, hidden_dim)
-        attention = SpatialAttention(hidden_dim, num_heads)
+        attention = SpatialAttention(
+            hidden_dim, num_heads, pe=RotaryPositionalEmbedding(hidden_dim)
+        )
 
         output = attention(x)
 
@@ -128,11 +150,13 @@ class TestTemporalAttention:
         time = 3
         height = 16
         width = 16
-        hidden_dim = 64
+        hidden_dim = 96
         num_heads = 4
 
         x = torch.randn(batch_size, time, height, width, hidden_dim)
-        attention = TemporalAttention(hidden_dim, num_heads)
+        attention = TemporalAttention(
+            hidden_dim, num_heads, pe=RotaryPositionalEmbedding(hidden_dim)
+        )
 
         output = attention(x)
 
@@ -146,7 +170,7 @@ class TestAttentionBlock:
     def test_forward(self):
         """Test forward pass of AttentionBlock module."""
         batch_size = 2
-        channels = 64
+        channels = 96
         time = 3
         height = 8
         width = 8

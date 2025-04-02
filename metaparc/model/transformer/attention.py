@@ -49,11 +49,23 @@ class AbstractAttention(nn.Module):
             q, k = self.pe(q, k)
         return q, k
 
+    def _get_qkv(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        x = rearrange(x, "b t h w c -> b c t h w")
+        qkv = self.to_qkv(x)  # B, 3C, T, H, W
+        qkv = rearrange(qkv, "b c t h w -> b t h w c")
+        q, k, v = qkv.chunk(3, dim=-1)  # B, T, H, W, C
+
+        q, k = self._add_pos_embeddings(q, k)
+
+        return q, k, v
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
 
 
-class Attention(AbstractAttention):
+class SpatioTemporalAttention(AbstractAttention):
     """
     Full attention over time, height, and width.
     Input shape: (B, T, H, W, C)
@@ -67,6 +79,8 @@ class Attention(AbstractAttention):
         Number of attention heads.
     dropout: float
         Dropout rate.
+    pe: Optional[RotaryPositionalEmbedding]
+        Rotary positional embedding.
     """
 
     def __init__(
@@ -80,12 +94,11 @@ class Attention(AbstractAttention):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, H, W, C = x.shape
-        x = rearrange(x, "b t h w c -> b c t h w")
-        qkv = self.to_qkv(x)  # B, 3C, T, H, W
-        qkv = rearrange(qkv, "b c t h w -> b (t h w) c")  # B, num_patches, 3C
-        q, k, v = qkv.chunk(3, dim=-1)  # B, num_patches, C
 
-        q, k = self._add_pos_embeddings(q, k)
+        q, k, v = self._get_qkv(x)  # B, T, H, W, C
+        q = rearrange(q, "b t h w c -> b (t h w) c")
+        k = rearrange(k, "b t h w c -> b (t h w) c")
+        v = rearrange(v, "b t h w c -> b (t h w) c")
 
         # NOTE: potentially also norm qk again?
         x, att_weights = self.attention(q, k, v)
@@ -122,14 +135,13 @@ class SpatialAttention(AbstractAttention):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, H, W, C = x.shape
-        x = rearrange(x, "b t h w c -> b c t h w")
-        qkv = self.to_qkv(x)  # B, 3C, T, H, W
-        qkv = rearrange(qkv, "b c t h w -> (b t) (h w) c")  # B, num_patches, 3C
-        q, k, v = qkv.chunk(3, dim=-1)  # B, num_patches, C
-
-        q, k = self._add_pos_embeddings(q, k)
+        q, k, v = self._get_qkv(x)  # B, T, H, W, C
 
         # NOTE: potentially also norm qk again?
+        q = rearrange(q, "b t h w c -> (b t) (h w) c")
+        k = rearrange(k, "b t h w c -> (b t) (h w) c")
+        v = rearrange(v, "b t h w c -> (b t) (h w) c")
+
         x, att_weights = self.attention(q, k, v)
         x = rearrange(x, "(b t) (h w) c -> b t h w c", t=T, h=H, w=W)
 
@@ -166,14 +178,13 @@ class TemporalAttention(AbstractAttention):
         """
         B, T, H, W, C = x.shape
 
-        x = rearrange(x, "b t h w c -> b c t h w")
-        qkv = self.to_qkv(x)  # B, 3C, T, H, W
-        qkv = rearrange(qkv, "b c t h w -> (b h w) t c")  # B, num_patches, 3C
-        q, k, v = qkv.chunk(3, dim=-1)  # B, num_patches, C
-
-        q, k = self._add_pos_embeddings(q, k)
+        q, k, v = self._get_qkv(x)  # B, T, H, W, C
 
         # NOTE: potentially also norm qk again?
+        q = rearrange(q, "b t h w c -> (b h w) t c")
+        k = rearrange(k, "b t h w c -> (b h w) t c")
+        v = rearrange(v, "b t h w c -> (b h w) t c")
+
         x, att_weights = self.attention(q, k, v)
         x = rearrange(x, "(b h w) t c -> b t h w c", h=H, w=W, t=T)
 
@@ -230,7 +241,7 @@ class AttentionBlock(nn.Module):
     ):
         super().__init__()
         if att_type == "full":
-            self.attention = Attention(hidden_dim, num_heads, dropout, pe)
+            self.attention = SpatioTemporalAttention(hidden_dim, num_heads, dropout, pe)
         elif att_type == "spatial":
             self.attention = SpatialAttention(hidden_dim, num_heads, dropout, pe)
         elif att_type == "temporal":
