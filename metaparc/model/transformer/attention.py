@@ -15,7 +15,7 @@ class Attention(nn.Module):
         super().__init__()
         self.num_heads = num_heads
 
-        self.to_qkv = nn.Conv2d(
+        self.to_qkv = nn.Conv3d(
             hidden_dim, 3 * hidden_dim, kernel_size=1, bias=False
         )  # no bias for qkv projections
 
@@ -29,29 +29,39 @@ class Attention(nn.Module):
         )
 
     def forward(self, x):
-        B, C, H, W = x.shape
-        qkv = self.to_qkv(x)  # B, 3C, H, W
-        qkv = rearrange(qkv, "b c h w -> b (h w) c")
-        q, k, v = qkv.chunk(3, dim=-1)  # B, H*W, C
+        B, T, H, W, C = x.shape
+        x = rearrange(x, "b t h w c -> b c t h w")
+        qkv = self.to_qkv(x)  # B, 3C, T, H, W
+        qkv = rearrange(qkv, "b c t h w -> b (t h w) c")  # B, num_patches, 3C
+        q, k, v = qkv.chunk(3, dim=-1)  # B, num_patches, C
 
         # NOTE: potentially also norm qk again?
-        x = self.attention(q, k, v)
-        x = rearrange(x, "b (h w) c -> b c h w", h=H, w=W)
+        x, att_weights = self.attention(q, k, v)
+        x = rearrange(x, "b (t h w) c -> b t h w c", t=T, h=H, w=W)
 
         return x
 
 
 class MLP(nn.Module):
+    """
+    MLP with 1x1 convolutions.
+    """
+
     def __init__(self, hidden_dim: int, dropout: float = 0.0):
         super().__init__()
         self.mlp = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Conv3d(hidden_dim, hidden_dim, kernel_size=1, padding="valid"),
             nn.GELU(),
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Conv3d(hidden_dim, hidden_dim, kernel_size=1, padding="valid"),
+            nn.Dropout(dropout),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.mlp(x)
+        B, T, H, W, C = x.shape
+        x = rearrange(x, "b t h w c -> b c t h w")
+        x = self.mlp(x)
+        x = rearrange(x, "b c t h w -> b t h w c")
+        return x
 
 
 class AttentionBlock(nn.Module):
@@ -59,8 +69,8 @@ class AttentionBlock(nn.Module):
     Attention block with axial attention and MLP.
     Input is normalized pre-attention and pre-MLP.
 
-    Input shape: (B, C, H, W)
-    Output shape: (B, C, H, W)
+    Input shape: (B, T, H, W, C)
+    Output shape: (B, T, H, W, C)
 
     Parameters
     ----------
@@ -75,14 +85,13 @@ class AttentionBlock(nn.Module):
     def __init__(self, hidden_dim: int, num_heads: int, dropout: float = 0.0):
         super().__init__()
         self.attention = Attention(hidden_dim, num_heads, dropout)
-        self.norm1 = nn.InstanceNorm2d(hidden_dim, affine=True)
-        self.norm2 = nn.InstanceNorm2d(hidden_dim, affine=True)
-        self.mlp = MLP(hidden_dim)
+        self.norm1 = nn.LayerNorm(hidden_dim)
+        self.norm2 = nn.LayerNorm(hidden_dim)
+        self.mlp = MLP(hidden_dim, dropout)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        skip = x.clone()
-        x = self.norm1(x)
-        x = self.attention(x)
-        x = self.norm2(x)
-        x = self.mlp(x)
-        return x + skip
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        x = self.norm1(input)
+        att = self.attention(x) + input  # skip connection across attention and norm
+        x = self.norm2(att)
+        x = self.mlp(x) + att  # skip connection across MLP and norm
+        return x
