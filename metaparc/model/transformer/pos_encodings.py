@@ -102,20 +102,114 @@ class RotaryPositionalEmbedding(nn.Module):
         self.y_cos_cached = None
         self.y_sin_cached = None
 
-    def forward(self, x):
+    def forward(self, q: torch.Tensor, k: torch.Tensor):
         """
-        Compute rotary embeddings for a 5D tensor.
+        Compute rotary embeddings for query and key tensors.
 
         Parameters
         ----------
-        x : torch.Tensor
+        q : torch.Tensor
+            Input tensor of shape (B, T, H, W, C)
+
+        k : torch.Tensor
             Input tensor of shape (B, T, H, W, C)
 
         Returns
         -------
-        tuple
-            Tuple containing cos and sin embeddings for time, x, and y dimensions
+        tuple[torch.Tensor, torch.Tensor]
+            Tuple containing query and key tensors with rotary embeddings applied
         """
+
+        self._compute_time_embeddings(q)
+        self._compute_spatial_embeddings(q)
+
+        q, k = self._apply_rotary_pos_emb(q, k)
+
+        return q, k
+
+    def _rotate_half(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Rotate half of the dimensions of x.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor (..., channels)
+
+        Returns
+        -------
+        torch.Tensor
+            Tensor with half of its dimensions rotated
+        """
+        x1 = x[..., : x.shape[-1] // 2]
+        x2 = x[..., x.shape[-1] // 2 :]
+        return torch.cat((-x2, x1), dim=x1.ndim - 1)
+
+    def _apply_rotary_pos_emb(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Apply rotary positional embeddings to query and key tensors.
+
+        Parameters
+        ----------
+        q : torch.Tensor
+            Query tensor of shape (B, T, H, W, C)
+
+        k : torch.Tensor
+            Key tensor of shape (B, T, H, W, C)
+
+        Returns
+        -------
+        tuple
+            Tuple containing query and key tensors with rotary embeddings applied
+        """
+
+        time_cos = self.time_cos_cached
+        time_sin = self.time_sin_cached
+        x_cos = self.x_cos_cached
+        x_sin = self.x_sin_cached
+        y_cos = self.y_cos_cached
+        y_sin = self.y_sin_cached
+
+        # Split channels into three equal parts for time, x, and y dimensions
+        dim_per_component = q.shape[-1] // 3
+
+        # Split query and key tensors
+        q_time, q_x, q_y = torch.split(q, dim_per_component, dim=-1)
+        k_time, k_x, k_y = torch.split(k, dim_per_component, dim=-1)
+
+        # Apply rotary embeddings to each dimension
+        # Expand to match the shape of the input tensor
+        # (1, time, 1, 1, dim_per_component)
+        time_cos = time_cos.view(1, time_cos.shape[0], 1, 1, time_cos.shape[1])
+        time_sin = time_sin.view(1, time_sin.shape[0], 1, 1, time_sin.shape[1])
+        q_time_out = (q_time * time_cos) + (self._rotate_half(q_time) * time_sin)
+        k_time_out = (k_time * time_cos) + (self._rotate_half(k_time) * time_sin)
+
+        # Expand to match the shape of the input tensor
+        # (1, 1, height, 1, dim_per_component)
+        x_cos = x_cos.view(1, 1, x_cos.shape[0], 1, x_cos.shape[1])
+        x_sin = x_sin.view(1, 1, x_sin.shape[0], 1, x_sin.shape[1])
+        q_x_out = (q_x * x_cos) + (self._rotate_half(q_x) * x_sin)
+        k_x_out = (k_x * x_cos) + (self._rotate_half(k_x) * x_sin)
+
+        # Expand to match the shape of the input tensor
+        # (1, 1, 1, width, dim_per_component)
+        y_cos = y_cos.view(1, 1, 1, y_cos.shape[0], y_cos.shape[1])
+        y_sin = y_sin.view(1, 1, 1, y_sin.shape[0], y_sin.shape[1])
+        q_y_out = (q_y * y_cos) + (self._rotate_half(q_y) * y_sin)
+        k_y_out = (k_y * y_cos) + (self._rotate_half(k_y) * y_sin)
+
+        # Concatenate the results
+        q_out = torch.cat([q_time_out, q_x_out, q_y_out], dim=-1)
+        k_out = torch.cat([k_time_out, k_x_out, k_y_out], dim=-1)
+
+        return q_out, k_out
+
+    def _compute_time_embeddings(self, x: torch.Tensor) -> torch.Tensor:
         B, T, H, W, C = x.shape
 
         # Recompute time embeddings if needed
@@ -128,6 +222,8 @@ class RotaryPositionalEmbedding(nn.Module):
             self.time_cos_cached = time_emb.cos()
             self.time_sin_cached = time_emb.sin()
 
+    def _compute_spatial_embeddings(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, H, W, C = x.shape
         # Recompute spatial embeddings if needed
         if H != self.height_cached or W != self.width_cached:
             self.height_cached = H
@@ -148,102 +244,3 @@ class RotaryPositionalEmbedding(nn.Module):
             # Shape: (H, dim_per_component)
             self.y_cos_cached = y_emb.cos()
             self.y_sin_cached = y_emb.sin()
-
-        return (
-            self.time_cos_cached,
-            self.time_sin_cached,
-            self.x_cos_cached,
-            self.x_sin_cached,
-            self.y_cos_cached,
-            self.y_sin_cached,
-        )
-
-
-def rotate_half(x):
-    """
-    Rotate half of the dimensions of x.
-
-    Parameters
-    ----------
-    x : torch.Tensor
-        Input tensor (..., channels)
-
-    Returns
-    -------
-    torch.Tensor
-        Tensor with half of its dimensions rotated
-    """
-    x1 = x[..., : x.shape[-1] // 2]
-    x2 = x[..., x.shape[-1] // 2 :]
-    return torch.cat((-x2, x1), dim=x1.ndim - 1)
-
-
-def apply_rotary_pos_emb(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    time_cos: torch.Tensor,
-    time_sin: torch.Tensor,
-    x_cos: torch.Tensor,
-    x_sin: torch.Tensor,
-    y_cos: torch.Tensor,
-    y_sin: torch.Tensor,
-):
-    """
-    Apply rotary positional embeddings to query and key tensors.
-
-    Parameters
-    ----------
-    q : torch.Tensor
-        Query tensor of shape (B, T, H, W, C)
-
-    k : torch.Tensor
-        Key tensor of shape (B, T, H, W, C)
-
-    time_cos, time_sin : torch.Tensor
-        Cosine and sine embeddings for time dimension
-
-    x_cos, x_sin : torch.Tensor
-        Cosine and sine embeddings for x spatial dimension
-
-    y_cos, y_sin : torch.Tensor
-        Cosine and sine embeddings for y spatial dimension
-
-    Returns
-    -------
-    tuple
-        Tuple containing query and key tensors with rotary embeddings applied
-    """
-    # Split channels into three equal parts for time, x, and y dimensions
-    dim_per_component = q.shape[-1] // 3
-
-    # Split query and key tensors
-    q_time, q_x, q_y = torch.split(q, dim_per_component, dim=-1)
-    k_time, k_x, k_y = torch.split(k, dim_per_component, dim=-1)
-
-    # Apply rotary embeddings to each dimension
-    # Expand to match the shape of the input tensor
-    # (1, time, 1, 1, dim_per_component)
-    time_cos = time_cos.view(1, time_cos.shape[0], 1, 1, time_cos.shape[1])
-    time_sin = time_sin.view(1, time_sin.shape[0], 1, 1, time_sin.shape[1])
-    q_time_out = (q_time * time_cos) + (rotate_half(q_time) * time_sin)
-    k_time_out = (k_time * time_cos) + (rotate_half(k_time) * time_sin)
-
-    # Expand to match the shape of the input tensor
-    # (1, 1, height, 1, dim_per_component)
-    x_cos = x_cos.view(1, 1, x_cos.shape[0], x_cos.shape[1], 1)
-    x_sin = x_sin.view(1, 1, x_sin.shape[0], x_sin.shape[1], 1)
-    q_x_out = (q_x * x_cos) + (rotate_half(q_x) * x_sin)
-    k_x_out = (k_x * x_cos) + (rotate_half(k_x) * x_sin)
-
-    # Expand to match the shape of the input tensor
-    # (1, 1, 1, width, dim_per_component)
-    y_cos = y_cos.view(1, 1, 1, y_cos.shape[0], y_cos.shape[1])
-    y_sin = y_sin.view(1, 1, 1, y_sin.shape[0], y_sin.shape[1])
-    q_y_out = (q_y * y_cos) + (rotate_half(q_y) * y_sin)
-    k_y_out = (k_y * y_cos) + (rotate_half(k_y) * y_sin)
-
-    # Concatenate the results
-    q_out = torch.cat([q_time_out, q_x_out, q_y_out], dim=-1)
-    k_out = torch.cat([k_time_out, k_x_out, k_y_out], dim=-1)
-
-    return q_out, k_out

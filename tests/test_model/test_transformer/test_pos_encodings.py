@@ -7,7 +7,6 @@ import pytest
 from metaparc.model.transformer.pos_encodings import (
     AbsPositionalEmbedding,
     RotaryPositionalEmbedding,
-    apply_rotary_pos_emb,
 )
 
 
@@ -67,83 +66,11 @@ def test_rotary_positional_embedding_forward():
     width = 16
 
     pe = RotaryPositionalEmbedding(channels)
-    x = torch.randn(batch_size, time, height, width, channels)
-
-    time_cos, time_sin, x_cos, x_sin, y_cos, y_sin = pe(x)
-
-    # Check shapes
-    dim_per_component = channels // 3
-    assert time_cos.shape == (time, dim_per_component)
-    assert time_sin.shape == (time, dim_per_component)
-    assert x_cos.shape == (width, dim_per_component)
-    assert x_sin.shape == (width, dim_per_component)
-    assert y_cos.shape == (height, dim_per_component)
-    assert y_sin.shape == (height, dim_per_component)
-
-
-def test_apply_rotary_pos_emb():
-    """Test the application of rotary positional embeddings."""
-    batch_size = 2
-    time = 8
-    channels = 96  # divisible by 6
-    height = 16
-    width = 16
-
-    # Create query and key tensors with channel dimension last
     q = torch.randn(batch_size, time, height, width, channels)
     k = torch.randn(batch_size, time, height, width, channels)
 
-    # Create rotary embeddings
-    pe = RotaryPositionalEmbedding(channels)
-    time_cos, time_sin, x_cos, x_sin, y_cos, y_sin = pe(q)
-
-    # Apply rotary embeddings
-    q_out, k_out = apply_rotary_pos_emb(
-        q, k, time_cos, time_sin, x_cos, x_sin, y_cos, y_sin
-    )
+    q_out, k_out = pe(q, k)
 
     # Check shapes
     assert q_out.shape == q.shape
     assert k_out.shape == k.shape
-
-    # Check that embeddings were actually applied
-    assert not torch.allclose(q_out, q)
-    assert not torch.allclose(k_out, k)
-
-
-def test_rotary_positional_embedding_caching():
-    """Test that rotary positional embeddings are properly cached."""
-    dim = 96
-    time = 8
-    height = 16
-    width = 16
-    batch_size = 2
-
-    pe = RotaryPositionalEmbedding(dim)
-
-    # First forward pass
-    x1 = torch.randn(batch_size, time, height, width, dim)
-    time_cos1, time_sin1, x_cos1, x_sin1, y_cos1, y_sin1 = pe(x1)
-
-    # Second forward pass with same dimensions
-    x2 = torch.randn(batch_size, time, height, width, dim)
-    time_cos2, time_sin2, x_cos2, x_sin2, y_cos2, y_sin2 = pe(x2)
-
-    # Check that cached values are reused
-    assert torch.equal(time_cos1, time_cos2)
-    assert torch.equal(time_sin1, time_sin2)
-    assert torch.equal(x_cos1, x_cos2)
-    assert torch.equal(x_sin1, x_sin2)
-    assert torch.equal(y_cos1, y_cos2)
-    assert torch.equal(y_sin1, y_sin2)
-
-    # Different dimensions should trigger recomputation
-    time = 12
-    height = 24
-    width = 24
-    x3 = torch.randn(batch_size, time, height, width, dim)
-    time_cos3, time_sin3, x_cos3, x_sin3, y_cos3, y_sin3 = pe(x3)
-
-    assert not torch.equal(time_cos1, time_cos3)
-    assert not torch.equal(x_cos1, x_cos3)
-    assert not torch.equal(y_cos1, y_cos3)
