@@ -9,14 +9,18 @@ import torch.nn as nn
 class AbsPositionalEmbedding(nn.Module):
     """
     Adds absolute positional embeddings to input tensors.
-    Works on B, T, C, H, W tensors.
+    Works on B, T, H, W, C tensors.
 
     Parameters
     ----------
     num_channels : int
         Number of channels in the input tensor
-    max_seq_len : int
-        Maximum sequence length
+    time : int
+        Number of time steps in the input tensor
+    height : int
+        Height of the input tensor
+    width : int
+        Width of the input tensor
     """
 
     def __init__(
@@ -33,7 +37,7 @@ class AbsPositionalEmbedding(nn.Module):
         self.width = width
 
         # Learned positional embeddings
-        self.pe = nn.Parameter(torch.randn(1, time, num_channels, height, width) * 0.02)
+        self.pe = nn.Parameter(torch.randn(1, time, height, width, num_channels) * 0.02)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -42,7 +46,7 @@ class AbsPositionalEmbedding(nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor of shape B, T, C, H, W
+            Input tensor of shape B, T, H, W, C
 
         Returns
         -------
@@ -55,7 +59,7 @@ class AbsPositionalEmbedding(nn.Module):
 
 class RotaryPositionalEmbedding(nn.Module):
     """
-    Rotary Positional Embeddings for 5D tensors (B, T, C, H, W).
+    Rotary Positional Embeddings for 5D tensors (B, T, H, W, C).
 
     Implements separate rotary embeddings for time dimension and spatial dimensions (x, y).
 
@@ -105,14 +109,14 @@ class RotaryPositionalEmbedding(nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor of shape (B, T, C, H, W)
+            Input tensor of shape (B, T, H, W, C)
 
         Returns
         -------
         tuple
             Tuple containing cos and sin embeddings for time, x, and y dimensions
         """
-        B, T, C, H, W = x.shape
+        B, T, H, W, C = x.shape
 
         # Recompute time embeddings if needed
         if T != self.time_len_cached:
@@ -162,7 +166,7 @@ def rotate_half(x):
     Parameters
     ----------
     x : torch.Tensor
-        Input tensor (..., embedding_dim)
+        Input tensor (..., channels)
 
     Returns
     -------
@@ -174,17 +178,26 @@ def rotate_half(x):
     return torch.cat((-x2, x1), dim=x1.ndim - 1)
 
 
-def apply_rotary_pos_emb(q, k, time_cos, time_sin, x_cos, x_sin, y_cos, y_sin):
+def apply_rotary_pos_emb(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    time_cos: torch.Tensor,
+    time_sin: torch.Tensor,
+    x_cos: torch.Tensor,
+    x_sin: torch.Tensor,
+    y_cos: torch.Tensor,
+    y_sin: torch.Tensor,
+):
     """
     Apply rotary positional embeddings to query and key tensors.
 
     Parameters
     ----------
     q : torch.Tensor
-        Query tensor (..., embedding_dim)
+        Query tensor of shape (B, T, H, W, C)
 
     k : torch.Tensor
-        Key tensor (..., embedding_dim)
+        Key tensor of shape (B, T, H, W, C)
 
     time_cos, time_sin : torch.Tensor
         Cosine and sine embeddings for time dimension
@@ -208,12 +221,24 @@ def apply_rotary_pos_emb(q, k, time_cos, time_sin, x_cos, x_sin, y_cos, y_sin):
     k_time, k_x, k_y = torch.split(k, dim_per_component, dim=-1)
 
     # Apply rotary embeddings to each dimension
+    # Expand to match the shape of the input tensor
+    # (1, time, 1, 1, dim_per_component)
+    time_cos = time_cos.view(1, time_cos.shape[0], 1, 1, time_cos.shape[1])
+    time_sin = time_sin.view(1, time_sin.shape[0], 1, 1, time_sin.shape[1])
     q_time_out = (q_time * time_cos) + (rotate_half(q_time) * time_sin)
     k_time_out = (k_time * time_cos) + (rotate_half(k_time) * time_sin)
 
+    # Expand to match the shape of the input tensor
+    # (1, 1, height, 1, dim_per_component)
+    x_cos = x_cos.view(1, 1, x_cos.shape[0], x_cos.shape[1], 1)
+    x_sin = x_sin.view(1, 1, x_sin.shape[0], x_sin.shape[1], 1)
     q_x_out = (q_x * x_cos) + (rotate_half(q_x) * x_sin)
     k_x_out = (k_x * x_cos) + (rotate_half(k_x) * x_sin)
 
+    # Expand to match the shape of the input tensor
+    # (1, 1, 1, width, dim_per_component)
+    y_cos = y_cos.view(1, 1, 1, y_cos.shape[0], y_cos.shape[1])
+    y_sin = y_sin.view(1, 1, 1, y_sin.shape[0], y_sin.shape[1])
     q_y_out = (q_y * y_cos) + (rotate_half(q_y) * y_sin)
     k_y_out = (k_y * y_cos) + (rotate_half(k_y) * y_sin)
 

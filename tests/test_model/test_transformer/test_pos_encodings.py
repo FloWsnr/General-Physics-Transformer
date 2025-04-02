@@ -24,7 +24,7 @@ def test_abs_positional_embedding_initialization():
     assert pe.time == time
     assert pe.height == height
     assert pe.width == width
-    assert pe.pe.shape == (1, time, num_channels, height, width)
+    assert pe.pe.shape == (1, time, height, width, num_channels)
 
 
 def test_abs_positional_embedding_forward():
@@ -36,7 +36,7 @@ def test_abs_positional_embedding_forward():
     width = 16
 
     pe = AbsPositionalEmbedding(num_channels, time, height, width)
-    x = torch.randn(batch_size, time, num_channels, height, width)
+    x = torch.randn(batch_size, time, height, width, num_channels)
 
     output = pe(x)
 
@@ -67,7 +67,7 @@ def test_rotary_positional_embedding_forward():
     width = 16
 
     pe = RotaryPositionalEmbedding(channels)
-    x = torch.randn(batch_size, time, channels, height, width)
+    x = torch.randn(batch_size, time, height, width, channels)
 
     time_cos, time_sin, x_cos, x_sin, y_cos, y_sin = pe(x)
 
@@ -114,14 +114,19 @@ def test_apply_rotary_pos_emb():
 def test_rotary_positional_embedding_caching():
     """Test that rotary positional embeddings are properly cached."""
     dim = 96
+    time = 8
+    height = 16
+    width = 16
+    batch_size = 2
+
     pe = RotaryPositionalEmbedding(dim)
 
     # First forward pass
-    x1 = torch.randn(2, 8, dim, 16, 16)
+    x1 = torch.randn(batch_size, time, height, width, dim)
     time_cos1, time_sin1, x_cos1, x_sin1, y_cos1, y_sin1 = pe(x1)
 
     # Second forward pass with same dimensions
-    x2 = torch.randn(2, 8, dim, 16, 16)
+    x2 = torch.randn(batch_size, time, height, width, dim)
     time_cos2, time_sin2, x_cos2, x_sin2, y_cos2, y_sin2 = pe(x2)
 
     # Check that cached values are reused
@@ -133,7 +138,10 @@ def test_rotary_positional_embedding_caching():
     assert torch.equal(y_sin1, y_sin2)
 
     # Different dimensions should trigger recomputation
-    x3 = torch.randn(2, 12, dim, 24, 24)
+    time = 12
+    height = 24
+    width = 24
+    x3 = torch.randn(batch_size, time, height, width, dim)
     time_cos3, time_sin3, x_cos3, x_sin3, y_cos3, y_sin3 = pe(x3)
 
     assert not torch.equal(time_cos1, time_cos3)
