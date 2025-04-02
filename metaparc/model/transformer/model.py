@@ -1,21 +1,95 @@
 import torch
 import torch.nn as nn
+import math
 
-from metaparc.model.transformer.ax_attention import AttentionBlock
+from metaparc.model.transformer.attention import AttentionBlock
+from metaparc.model.transformer.pos_encodings import RotaryPositionalEmbedding
+from metaparc.model.transformer.tokenizer import (
+    SpatioTemporalTokenization,
+    SpatioTemporalDetokenization,
+)
+
+
+def get_patch_conv_size(patch_size: tuple[int, int, int]) -> tuple[int, int, int]:
+    """
+    Get the conv sizes depending on the desired patch size.
+    """
+
+    t = int(math.sqrt(patch_size[0]))
+    h = int(math.sqrt(patch_size[1]))
+    w = int(math.sqrt(patch_size[2]))
+
+    return (t, h, w)
 
 
 class PhysicsTransformer(nn.Module):
-    def __init__(self, hidden_dim: int, num_heads: int, dropout: float = 0.0):
+    """
+    Physics Transformer model.
+
+    Parameters
+    ----------
+    input_channels: int
+        Number of input channels (physical fields).
+    hidden_dim: int
+        Hidden dimension inside the transformer. Should be divisible by 6 if rotary positional encoding is used.
+    num_heads: int
+        Number of attention heads.
+    dropout: float
+        Dropout rate.
+    patch_size: tuple[int, int, int]
+        Patch size for spatial-temporal embeddings. (time, height, width)
+    num_layers: int
+        Number of attention blocks.
+    """
+
+    def __init__(
+        self,
+        input_channels: int,
+        hidden_dim: int,
+        num_heads: int,
+        dropout: float = 0.0,
+        patch_size: tuple[int, int, int] = (4, 16, 16),
+        num_layers: int = 4,
+    ):
         super().__init__()
-        self.attention_block = AttentionBlock(hidden_dim, num_heads, dropout)
+        self.pos_encodings = RotaryPositionalEmbedding(dim=hidden_dim, base=10000)
+
+        self.attention_blocks = nn.ModuleList(
+            [
+                AttentionBlock(
+                    att_type="full",
+                    hidden_dim=hidden_dim,
+                    num_heads=num_heads,
+                    dropout=dropout,
+                    pe=self.pos_encodings,
+                )
+                for _ in range(num_layers)
+            ]
+        )
+
+        patch_conv_size = get_patch_conv_size(patch_size)
+        self.tokenizer = SpatioTemporalTokenization(
+            in_channels=input_channels,
+            dim_embed=hidden_dim,
+            conv1_size=patch_conv_size,
+            conv2_size=patch_conv_size,
+        )
+        self.detokenizer = SpatioTemporalDetokenization(
+            dim_embed=hidden_dim,
+            out_channels=input_channels,
+            conv1_size=patch_conv_size,
+            conv2_size=patch_conv_size,
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Split into patches
-
-        # Apply positional encodings
+        x = self.tokenizer(x)
 
         # Apply N attention blocks (norm, att, norm, mlp)
+        for block in self.attention_blocks:
+            x = block(x)
 
         # Apply de-patching
+        x = self.detokenizer(x)
 
-        return None
+        return x
