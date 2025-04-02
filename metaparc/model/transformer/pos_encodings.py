@@ -102,7 +102,9 @@ class RotaryPositionalEmbedding(nn.Module):
         self.y_cos_cached = None
         self.y_sin_cached = None
 
-    def forward(self, q: torch.Tensor, k: torch.Tensor):
+    def forward(
+        self, q: torch.Tensor, k: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Compute rotary embeddings for query and key tensors.
 

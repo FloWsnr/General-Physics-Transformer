@@ -6,7 +6,13 @@ import pytest
 import torch
 import torch.nn as nn
 
-from metaparc.model.transformer.attention import Attention, MLP, AttentionBlock
+from metaparc.model.transformer.attention import (
+    Attention,
+    MLP,
+    AttentionBlock,
+    SpatialAttention,
+    TemporalAttention,
+)
 
 
 class TestAttention:
@@ -49,7 +55,7 @@ class TestMLP:
         mlp = MLP(hidden_dim)
 
         assert isinstance(mlp.mlp, nn.Sequential)
-        assert len(mlp.mlp) == 3
+        assert len(mlp.mlp) == 4
 
     def test_forward(self):
         """Test forward pass of MLP module."""
@@ -68,21 +74,74 @@ class TestMLP:
         assert output.shape == (batch_size, time, height, width, hidden_dim)
 
 
-class TestAttentionBlock:
-    """Test suite for the AttentionBlock class."""
+class TestSpatialAttention:
+    """Test suite for the SpatialAttention class."""
 
     def test_init(self):
-        """Test initialization of AttentionBlock module."""
+        """Test initialization of SpatialAttention module."""
         hidden_dim = 64
         num_heads = 4
         dropout = 0.1
 
-        block = AttentionBlock(hidden_dim, num_heads, dropout)
+        attention = SpatialAttention(hidden_dim, num_heads, dropout)
 
-        assert isinstance(block.attention, Attention)
-        assert isinstance(block.norm1, nn.InstanceNorm2d)
-        assert isinstance(block.norm2, nn.InstanceNorm2d)
-        assert isinstance(block.mlp, MLP)
+        assert attention.num_heads == num_heads
+        assert isinstance(attention.to_qkv, nn.Conv3d)
+        assert isinstance(attention.attention, nn.MultiheadAttention)
+
+    def test_forward(self):
+        """Test forward pass of SpatialAttention module."""
+        batch_size = 2
+        time = 3
+        height = 16
+        width = 16
+        hidden_dim = 64
+        num_heads = 4
+
+        x = torch.randn(batch_size, time, height, width, hidden_dim)
+        attention = SpatialAttention(hidden_dim, num_heads)
+
+        output = attention(x)
+
+        # Check output shape
+        assert output.shape == (batch_size, time, height, width, hidden_dim)
+
+
+class TestTemporalAttention:
+    """Test suite for the TemporalAttention class."""
+
+    def test_init(self):
+        """Test initialization of TemporalAttention module."""
+        hidden_dim = 64
+        num_heads = 4
+        dropout = 0.1
+
+        attention = TemporalAttention(hidden_dim, num_heads, dropout)
+
+        assert attention.num_heads == num_heads
+        assert isinstance(attention.to_qkv, nn.Conv3d)
+        assert isinstance(attention.attention, nn.MultiheadAttention)
+
+    def test_forward(self):
+        """Test forward pass of TemporalAttention module."""
+        batch_size = 2
+        time = 3
+        height = 16
+        width = 16
+        hidden_dim = 64
+        num_heads = 4
+
+        x = torch.randn(batch_size, time, height, width, hidden_dim)
+        attention = TemporalAttention(hidden_dim, num_heads)
+
+        output = attention(x)
+
+        # Check output shape
+        assert output.shape == (batch_size, time, height, width, hidden_dim)
+
+
+class TestAttentionBlock:
+    """Test suite for the AttentionBlock class."""
 
     def test_forward(self):
         """Test forward pass of AttentionBlock module."""
@@ -92,9 +151,12 @@ class TestAttentionBlock:
         height = 8
         width = 8
         num_heads = 4
+        dropout = 0.1
 
         x = torch.randn(batch_size, time, height, width, channels)
-        block = AttentionBlock(channels, num_heads)
+        block = AttentionBlock(
+            att_type="full", hidden_dim=channels, num_heads=num_heads, dropout=dropout
+        )
 
         output = block(x)
 
