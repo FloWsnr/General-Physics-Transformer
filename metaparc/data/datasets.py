@@ -31,8 +31,9 @@ def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
     """Collate function for the dataset.
 
     Get input and target field tensors.
-    The fields are of shape (Time steps, C, H, W)
-    We want to get a batch of shape (B, Time steps & C, H, W)
+    The fields are of shape (Time steps, H, W, C)
+    We want to get a batch of shape (B, Time steps, H, W, C).
+    Additionally, we replace NaNs with 0.
 
     Parameters
     ----------
@@ -42,16 +43,16 @@ def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
     Returns
     -------
     batch : torch.Tensor
-        Batch of shape (B, Time steps & C, H, W)
+        Batch of shape (B, Time steps, H, W, C)
     """
 
-    batch = default_collate(data)
+    batch = default_collate(data)  # (B, Time steps, H, W, C)
     x = batch[0]
     y = batch[1]
 
-    # rearrange to (B, Time steps & C, H, W)
-    x = einops.rearrange(x, "batch time c h w -> batch (time c) h w")
-    y = einops.rearrange(y, "batch time c h w -> batch (time c) h w")
+    # # rearrange to (B, Time steps & C, H, W)
+    # x = einops.rearrange(x, "batch time c h w -> batch (time c) h w")
+    # y = einops.rearrange(y, "batch time c h w -> batch (time c) h w")
 
     # Replace NaNs with 0
     x = torch.where(
@@ -114,8 +115,8 @@ class PhysicsDataset(WellDataset):
         Transform to apply to the data
         By default None
     channels_first: bool
-        Whether to have (time, channels, height, width) or (height, width, time, channels)
-        By default (time, channels, height, width)
+        Whether to have (time, channels, height, width) or (time, height, width, channels)
+        By default (time, height, width, channels)
     """
 
     def __init__(
@@ -128,7 +129,7 @@ class PhysicsDataset(WellDataset):
         use_normalization: bool = False,
         dt_stride: int = 1,
         transform: Optional[Compose] = None,
-        channels_first: bool = True,
+        channels_first: bool = False,
     ):
         super().__init__(
             path=str(data_dir),
@@ -167,7 +168,7 @@ class SuperDataset:
         This is needed to account for the different shapes of the datasets.
     n_channels : int
         Number of channels of the concatenated dataset. Should be the largest number of channels in the datasets.
-        Samples with less than n_channels will be padded with zeros.
+        Samples with less than n_channels will be padded with zeros channels.
     """
 
     def __init__(
@@ -184,10 +185,12 @@ class SuperDataset:
     def __getitem__(self, index):
         for i, length in enumerate(self.lengths):
             if index < length:
-                x, y = self.datasets[i][index]  # (time, n_channels, h, w)
+                x, y = self.datasets[i][index]  # (time, h, w, n_channels)
                 break
             index -= length
 
+        x = einops.rearrange(x, "time h w c -> time c h w")
+        y = einops.rearrange(y, "time h w c -> time c h w")
         # Reshape to out_shape
         x = torch.nn.functional.interpolate(
             x, size=self.out_shape, mode="bilinear", align_corners=False
@@ -195,63 +198,71 @@ class SuperDataset:
         y = torch.nn.functional.interpolate(
             y, size=self.out_shape, mode="bilinear", align_corners=False
         )
+        x = einops.rearrange(x, "time c h w -> time h w c")
+        y = einops.rearrange(y, "time c h w -> time h w c")
 
-        # if x,z has less than n_channels, add channels with zeros
-        if x.shape[1] < self.n_channels:
+        # if x,y has less than n_channels, add channels with zeros
+        if x.shape[-1] < self.n_channels:
             x = torch.cat(
                 [
                     x,
-                    torch.zeros(x.shape[0], self.n_channels - x.shape[1], *x.shape[2:]),
+                    torch.zeros(
+                        *x.shape[:-1],
+                        self.n_channels - x.shape[-1],
+                    ),
                 ],
-                dim=1,
+                dim=-1,
             )
-        if y.shape[1] < self.n_channels:
+        if y.shape[-1] < self.n_channels:
             y = torch.cat(
                 [
                     y,
-                    torch.zeros(y.shape[0], self.n_channels - y.shape[1], *y.shape[2:]),
+                    torch.zeros(
+                        *y.shape[:-1],
+                        self.n_channels - y.shape[-1],
+                    ),
                 ],
-                dim=1,
+                dim=-1,
             )
 
         return x, y
 
 
-class SuperDataloader:
-    """Wrapper around DataLoader.
+# class SuperDataloader:
+#     """Wrapper around DataLoader.
 
-    Allows to concatenate multiple DataLoaders and randomly sample from them.
-    """
+#     Allows to concatenate multiple DataLoaders and randomly sample from them.
+#     """
 
-    def __init__(self, dataloaders: list[DataLoader]):
-        self.dataloaders = dataloaders
-        self.iterators = None
-        self.length = sum(len(dataloader) for dataloader in dataloaders)
+#     def __init__(self, dataloaders: list[DataLoader]):
+#         self.dataloaders = dataloaders
+#         self.iterators = None
+#         self.length = sum(len(dataloader) for dataloader in dataloaders)
 
-    def __iter__(self):
-        # Create fresh iterators for each dataloader
-        self.iterators = [iter(dataloader) for dataloader in self.dataloaders]
-        return self
+#     def __iter__(self):
+#         # Create fresh iterators for each dataloader
+#         self.iterators = [iter(dataloader) for dataloader in self.dataloaders]
+#         return self
 
-    def __next__(self):
-        if not self.iterators:
-            raise StopIteration
+#     def __next__(self):
+#         if not self.iterators:
+#             raise StopIteration
 
-        # Randomly select a dataloader
-        loader_idx = torch.randint(0, len(self.dataloaders), (1,)).item()
+#         # Randomly select a dataloader
+#         loader_idx = torch.randint(0, len(self.dataloaders), (1,)).item()
 
-        try:
-            # Get next batch from the selected dataloader
-            return next(self.iterators[loader_idx])
-        except StopIteration:
-            # If this dataloader is exhausted, remove it and try again
-            self.iterators.pop(loader_idx)
-            self.dataloaders.pop(loader_idx)
+#         try:
+#             # Get next batch from the selected dataloader
+#             return next(self.iterators[loader_idx])
+#         except StopIteration:
+#             # If this dataloader is exhausted, remove it and try again
+#             self.iterators.pop(loader_idx)
+#             self.dataloaders.pop(loader_idx)
 
-            if not self.dataloaders:
-                raise StopIteration
+#             if not self.dataloaders:
+#                 raise StopIteration
 
-            return next(self)
+#             return next(self)
 
-    def __len__(self):
-        return self.length
+#     def __len__(self):
+#         return self.length
