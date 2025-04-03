@@ -1,0 +1,31 @@
+model:
+  input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
+  hidden_channels: 96 # number of hidden channels across all layers
+  num_heads: 16 # number of attention heads
+  dropout: 0.1 # dropout rate
+  patch_size: [4, 16, 16] # patch size (usually 4x16x16)
+  num_layers: 8 # number of attention layers
+
+training:
+  batch_size: 16
+  learning_rate: 0.001
+  epochs: 10
+  num_workers: 4
+  optimizer: Adam
+  criterion: MSELoss
+
+data:
+  dt_stride: 1 # take every dt_stride-th timestep
+  n_steps_input: 4 # number of input timesteps
+  n_steps_output: 1 # number of target timesteps
+  out_shape: [256, 128] # output shape (usually 1x16x16)
+
+  data_dir: /Users/zsa8rk/Coding/MetaPARC/data/datasets
+  datasets:
+    - turbulent_radiative_layer_2D
+    - cylinder_sym_flow
+    - rayleigh_benard
+    - shear_flow
+    - euler
+  
+  model_checkpoint_dir: /Users/zsa8rk/Coding/MetaPARC/model_checkpoints

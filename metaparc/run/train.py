@@ -7,6 +7,8 @@ Date: 2025-03-10
 
 from pathlib import Path
 
+import yaml
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -14,28 +16,9 @@ from torch.utils.data import DataLoader
 
 from tqdm import tqdm
 
-from metaparc.model.transformer.model import PhysicsTransformer
-from metaparc.data.datasets import PhysicsDataset, get_dataloader
+from metaparc.data.dataset_utils import get_dataloader
+from metaparc.model.transformer.model import get_model
 from metaparc.utils.train_vis import visualize_predictions
-
-
-def get_model(
-    input_channels,
-    hidden_channels,
-    num_heads,
-    dropout,
-    patch_size,
-    num_layers,
-):
-    """Get the model."""
-    return PhysicsTransformer(
-        input_channels=input_channels,
-        hidden_dim=hidden_channels,
-        num_heads=num_heads,
-        dropout=dropout,
-        patch_size=patch_size,
-        num_layers=num_layers,
-    )
 
 
 def train_epoch(
@@ -143,71 +126,29 @@ def validate(model, device, val_loader, criterion):
 
 def main():
     """Main training function."""
-    data_dir = Path("/Users/zsa8rk/Coding/MetaPARC/data/datasets/turbulent_radiative_layer_2D/data")
-    model_checkpoint_dir = Path("/Users/zsa8rk/Coding/MetaPARC/model_checkpoints")
-    # Training parameters
-    batch_size = 2
-    input_channels = 4
-    hidden_channels = 96 * 4
-    num_heads = 16
-    dropout = 0.1
-    patch_size = (4, 16, 16)
-    num_layers = 8
-    lr = 0.001
-    epochs = 10
-
-    n_steps_input = 4
-    n_steps_output = 1
-    num_workers = 4
+    config_path = Path("/Users/zsa8rk/Coding/MetaPARC/metaparc/run/config.yaml")
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
 
     # Set up device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # device = torch.device("cpu")
     print(f"Using device: {device}")
 
     # Create data loaders
-    train_loader = get_dataloader(
-        PhysicsDataset(
-            data_dir / "train",
-            split="train",
-            n_steps_input=n_steps_input,
-            n_steps_output=n_steps_output,
-            dt_stride=1,
-        ),
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-    )
-    val_loader = get_dataloader(
-        PhysicsDataset(
-            data_dir / "valid",
-            split="val",
-            n_steps_input=n_steps_input,
-            n_steps_output=n_steps_output,
-            dt_stride=1,
-        ),
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-    )
+    train_loader = get_dataloader(config["data"], config["training"], split="train")
+    val_loader = get_dataloader(config["data"], config["training"], split="val")
 
     # Create model
-    model = get_model(
-        input_channels=input_channels,
-        hidden_channels=hidden_channels,
-        num_heads=num_heads,
-        dropout=dropout,
-        patch_size=patch_size,
-        num_layers=num_layers,
-    )
+    model = get_model(model_config=config["model"])
     model.to(device)
 
     # Define loss function and optimizer
+    lr = config["training"]["learning_rate"]
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     # Create save directory if it doesn't exist
-    save_dir = model_checkpoint_dir / "transformer"
+    save_dir = config["model_checkpoint_dir"] / "transformer"
     save_dir.mkdir(parents=True, exist_ok=True)
 
     # Training loop
@@ -216,6 +157,7 @@ def main():
 
     best_loss = float("inf")
 
+    epochs = config["training"]["epochs"]
     for epoch in range(1, epochs + 1):
         print(f"\nEpoch {epoch}/{epochs}")
 

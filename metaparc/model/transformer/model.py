@@ -10,6 +10,18 @@ from metaparc.model.transformer.tokenizer import (
 )
 
 
+def get_model(model_config: dict):
+    """Get the model."""
+    return PhysicsTransformer(
+        input_channels=model_config["input_channels"],
+        hidden_dim=model_config["hidden_channels"],
+        num_heads=model_config["num_heads"],
+        dropout=model_config["dropout"],
+        patch_size=model_config["patch_size"],
+        num_layers=model_config["num_layers"],
+    )
+
+
 def get_patch_conv_size(patch_size: tuple[int, int, int]) -> tuple[int, int, int]:
     """
     Get the conv sizes depending on the desired patch size.
