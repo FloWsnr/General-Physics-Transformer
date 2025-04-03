@@ -22,10 +22,17 @@ data:
 
   data_dir: /Users/zsa8rk/Coding/MetaPARC/data/datasets
   datasets:
+    - cylinder_sym_flow_water
+    - cylinder_pipe_flow_water
+    - object_periodic_flow_water
+    # - object_sym_flow_water
+    # - object_sym_flow_air
+
+    # - heated_flow_air
+
     - turbulent_radiative_layer_2D
-    - cylinder_sym_flow
     - rayleigh_benard
     - shear_flow
-    - euler
+    # - euler
   
   model_checkpoint_dir: /Users/zsa8rk/Coding/MetaPARC/model_checkpoints

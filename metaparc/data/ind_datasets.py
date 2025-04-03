@@ -17,6 +17,49 @@ import torch
 from metaparc.data.phys_dataset import PhysicsDataset
 
 
+class ComsolIncompressibleFlowDataset(PhysicsDataset):
+    def __init__(self, *args, **kwargs):
+        include_field_names = {
+            "t0_fields": ["pressure"],
+            "t1_fields": ["velocity"],
+        }
+
+        super().__init__(include_field_names=include_field_names, *args, **kwargs)
+
+    def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
+        x, y = super().__getitem__(index)  # (time, h, w, c)
+
+        # create a zero tensor with the same shape as the input
+        zero_tensor = torch.zeros_like(x[:, :, :, 0])
+        zero_tensor = zero_tensor.unsqueeze(-1)
+
+        # density and temperature are not present in the input
+        # so we need to add them at the correct position (1, 2)
+
+        x = torch.cat(
+            [x[:, :, :, :1], zero_tensor, zero_tensor, x[:, :, :, 1:]], dim=-1
+        )
+        y = torch.cat(
+            [y[:, :, :, :1], zero_tensor, zero_tensor, y[:, :, :, 1:]], dim=-1
+        )
+
+        return x, y
+
+
+class ComsolHeatedFlowDataset(PhysicsDataset):
+    def __init__(self, *args, **kwargs):
+        include_field_names = {
+            "t0_fields": ["pressure", "density", "temperature"],
+            "t1_fields": ["velocity"],
+        }
+
+        super().__init__(include_field_names=include_field_names, *args, **kwargs)
+
+    def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
+        x, y = super().__getitem__(index)  # (time, h, w, c)
+        return x, y
+
+
 class RayleighBenardDataset(PhysicsDataset):
     def __init__(self, *args, **kwargs):
         include_field_names = {
