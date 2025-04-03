@@ -1,0 +1,82 @@
+"""
+Test the individual datasets
+These tests only work if the datasets are present.
+"""
+
+import pytest
+import torch
+from pathlib import Path
+from metaparc.data.ind_datasets import (
+    RayleighBenardDataset,
+    ShearFlowDataset,
+    TurbulentRadiativeDataset,
+    EulerDataset,
+)
+
+
+def test_rayleigh_benard_dataset():
+    """Test RayleighBenardDataset returns correct tensor shapes and field order."""
+    path = Path("data/datasets/rayleigh_benard/data/train")
+    dataset = RayleighBenardDataset(data_dir=path)
+
+    # Call the method - parent returns (time, h, w, c) with c=[pressure, buoyancy]
+    x, y = dataset[0]
+
+    # Check shapes - should now have 5 channels (pressure, density, temperature, velocities)
+    assert x.shape == (1, 512, 128, 5)
+    assert y.shape == (1, 512, 128, 5)
+
+    # Verify we don't have NaN values (which could happen in temperature calculation)
+    assert not torch.isnan(x).any()
+    assert not torch.isnan(y).any()
+
+
+def test_shear_flow_dataset():
+    """Test ShearFlowDataset returns correct tensor shapes and field order."""
+    path = Path("data/datasets/shear_flow/data/train")
+    dataset = ShearFlowDataset(data_dir=path)
+
+    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
+    x, y = dataset[0]
+
+    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+    assert x.shape == (1, 512, 256, 5)
+    assert y.shape == (1, 512, 256, 5)
+
+    # check that the density and temperature are zero
+    assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+
+
+def test_turbulent_radiative_dataset():
+    """Test TurbulentRadiativeDataset returns correct tensor shapes and field order."""
+    path = Path("data/datasets/turbulent_radiative_layer_2D/data/train")
+    dataset = TurbulentRadiativeDataset(data_dir=path)
+
+    # Call the method - parent returns (time, h, w, c) with c=[pressure, density, velocity]
+    x, y = dataset[0]
+
+    # Check shapes - should now have 4 channels (pressure, density, temperature, velocity)
+    assert x.shape == (1, 384, 128, 5)
+    assert y.shape == (1, 384, 128, 5)
+
+    # check that the temperature is zero
+    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+    assert torch.allclose(y[:, :, :, 2], torch.zeros_like(y[:, :, :, 2]))
+
+
+def test_euler_dataset():
+    """Test EulerDataset returns correct tensor shapes and field order."""
+    path = Path("data/datasets/euler_multi_quadrants_periodicBC/data/train")
+    dataset = EulerDataset(data_dir=path)
+
+    # Call the method - parent returns (time, h, w, c) with c=[pressure, density, velocity]
+    x, y = dataset[0]
+
+    # Check shapes - should now have 4 channels (pressure, density, temperature, velocity)
+    assert x.shape == (1, 512, 512, 5)
+    assert y.shape == (1, 512, 512, 5)
+
+    # check that the temperature is zero
+    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+    assert torch.allclose(y[:, :, :, 2], torch.zeros_like(y[:, :, :, 2]))
