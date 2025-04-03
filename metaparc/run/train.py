@@ -16,6 +16,7 @@ from tqdm import tqdm
 
 from metaparc.model.transformer.model import PhysicsTransformer
 from metaparc.data.datasets import PhysicsDataset, get_dataloader
+from metaparc.utils.train_vis import visualize_predictions
 
 
 def get_model(
@@ -43,6 +44,7 @@ def train_epoch(
     train_loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     criterion: nn.Module,
+    save_dir: Path,
 ) -> float:
     """Train the model for one epoch.
 
@@ -59,6 +61,9 @@ def train_epoch(
     criterion : nn.Module
         Loss function
 
+    save_dir : Path
+        The directory to save the predictions
+
     Returns
     -------
     float
@@ -73,7 +78,7 @@ def train_epoch(
         x = x.to(device)
         y = y.to(device)
 
-        target = torch.cat((x[:, 1:, :, :, :], y), dim=1, device=device)
+        target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
 
         optimizer.zero_grad()
         output = model(x)
@@ -83,6 +88,13 @@ def train_epoch(
 
         train_loss += loss.item()
 
+        if batch_idx % 100 == 0:
+            # Visualize predictions
+            visualize_predictions(
+                save_path=save_dir / f"pred_target_{batch_idx:04d}.png",
+                predictions=output,
+                targets=target,
+            )
         pbar.set_postfix({"loss": train_loss / (batch_idx + 1)})
 
     return train_loss / len(train_loader)
@@ -131,10 +143,10 @@ def validate(model, device, val_loader, criterion):
 
 def main():
     """Main training function."""
-    data_dir = Path("C:/Users/zsa8rk/Coding/MetaPARC/data/datasets/shear_flow/data")
-    model_checkpoint_dir = Path("C:/Users/zsa8rk/Coding/MetaPARC/model_checkpoints")
+    data_dir = Path("/Users/zsa8rk/Coding/MetaPARC/data/datasets/turbulent_radiative_layer_2D/data")
+    model_checkpoint_dir = Path("/Users/zsa8rk/Coding/MetaPARC/model_checkpoints")
     # Training parameters
-    batch_size = 16
+    batch_size = 2
     input_channels = 4
     hidden_channels = 96 * 4
     num_heads = 16
@@ -214,6 +226,7 @@ def main():
             train_loader=train_loader,
             optimizer=optimizer,
             criterion=criterion,
+            save_dir=save_dir / f"epoch_{epoch:03d}",
         )
         train_losses.append(train_loss)
 
