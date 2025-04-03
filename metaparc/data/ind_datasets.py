@@ -30,17 +30,21 @@ class ComsolIncompressibleFlowDataset(PhysicsDataset):
         x, y = super().__getitem__(index)  # (time, h, w, c)
 
         # create a zero tensor with the same shape as the input
-        zero_tensor = torch.zeros_like(x[:, :, :, 0])
-        zero_tensor = zero_tensor.unsqueeze(-1)
+        zero_tensor_x = torch.zeros_like(x[:, :, :, 0])
+        zero_tensor_y = torch.zeros_like(y[:, :, :, 0])
+        zero_tensor_x = zero_tensor_x.unsqueeze(-1)
+        zero_tensor_y = zero_tensor_y.unsqueeze(-1)
 
         # density and temperature are not present in the input
         # so we need to add them at the correct position (1, 2)
-
+        pressure_x = x[:, :, :, 0].unsqueeze(-1)
         x = torch.cat(
-            [x[:, :, :, :1], zero_tensor, zero_tensor, x[:, :, :, 1:]], dim=-1
+            [pressure_x, zero_tensor_x, zero_tensor_x, x[:, :, :, 1:]], dim=-1
         )
+
+        pressure_y = y[:, :, :, 0].unsqueeze(-1)
         y = torch.cat(
-            [y[:, :, :, :1], zero_tensor, zero_tensor, y[:, :, :, 1:]], dim=-1
+            [pressure_y, zero_tensor_y, zero_tensor_y, y[:, :, :, 1:]], dim=-1
         )
 
         return x, y
@@ -85,20 +89,27 @@ class RayleighBenardDataset(PhysicsDataset):
         x, y = super().__getitem__(index)  # (time, h, w, c)
 
         # density and temperature are represented by buoyancy
-        buoyancy = x[:, :, :, 1]
-        density = buoyancy.unsqueeze(-1)
+        buoyancy_x = x[:, :, :, 1]
+        density_x = buoyancy_x.unsqueeze(-1)
         # use ideal gas law to get temperature
-        pressure = x[:, :, :, 0]
-        temperature = pressure.unsqueeze(-1) / (density)
+        pressure_x = x[:, :, :, 0].unsqueeze(-1)
+        temperature_x = pressure_x / (density_x)
 
         # so we need to add density at position 1 (override buoyancy)
         # and then add temperature at position 2
         x = torch.cat(
-            [x[:, :, :, :1], density, temperature, x[:, :, :, 2:]],
+            [pressure_x, density_x, temperature_x, x[:, :, :, 2:]],
             dim=-1,
         )
+
+        buoyancy_y = y[:, :, :, 1]
+        density_y = buoyancy_y.unsqueeze(-1)
+        # use ideal gas law to get temperature
+        pressure_y = y[:, :, :, 0].unsqueeze(-1)
+        temperature_y = pressure_y / (density_y)
+
         y = torch.cat(
-            [y[:, :, :, :1], density, temperature, y[:, :, :, 2:]],
+            [pressure_y, density_y, temperature_y, y[:, :, :, 2:]],
             dim=-1,
         )
 
@@ -132,17 +143,21 @@ class ShearFlowDataset(PhysicsDataset):
         y[:, :, :, 1], y[:, :, :, 2] = y_vel_y, y_vel_x
 
         # create a zero tensor with the same shape as the input
-        zero_tensor = torch.zeros_like(x[:, :, :, 0])
-        zero_tensor = zero_tensor.unsqueeze(-1)
+        zero_tensor_x = torch.zeros_like(x[:, :, :, 0])
+        zero_tensor_y = torch.zeros_like(y[:, :, :, 0])
+        zero_tensor_x = zero_tensor_x.unsqueeze(-1)
+        zero_tensor_y = zero_tensor_y.unsqueeze(-1)
 
         # density and temperature are not present in the input
         # so we need to add them at the correct position (1, 2)
-
+        pressure_x = x[:, :, :, 0].unsqueeze(-1)
         x = torch.cat(
-            [x[:, :, :, :1], zero_tensor, zero_tensor, x[:, :, :, 1:]], dim=-1
+            [pressure_x, zero_tensor_x, zero_tensor_x, x[:, :, :, 1:]], dim=-1
         )
+
+        pressure_y = y[:, :, :, 0].unsqueeze(-1)
         y = torch.cat(
-            [y[:, :, :, :1], zero_tensor, zero_tensor, y[:, :, :, 1:]], dim=-1
+            [pressure_y, zero_tensor_y, zero_tensor_y, y[:, :, :, 1:]], dim=-1
         )
 
         return x, y
@@ -174,13 +189,16 @@ class TurbulentRadiativeDataset(PhysicsDataset):
         y_vel_y = y[:, :, :, 2]
         y[:, :, :, 1], y[:, :, :, 2] = y_vel_y, y_vel_x
 
-        zero_tensor = torch.zeros_like(x[:, :, :, 1])
-        zero_tensor = zero_tensor.unsqueeze(-1)
+        zero_tensor_x = torch.zeros_like(x[:, :, :, 1])
+        zero_tensor_y = torch.zeros_like(y[:, :, :, 1])
+        zero_tensor_x = zero_tensor_x.unsqueeze(-1)
+        zero_tensor_y = zero_tensor_y.unsqueeze(-1)
 
         # temperature is not present in the input
         # so we need to add it
-        x = torch.cat([x[:, :, :, :2], zero_tensor, x[:, :, :, 2:]], dim=-1)
-        y = torch.cat([y[:, :, :, :2], zero_tensor, y[:, :, :, 2:]], dim=-1)
+
+        x = torch.cat([x[:, :, :, :2], zero_tensor_x, x[:, :, :, 2:]], dim=-1)
+        y = torch.cat([y[:, :, :, :2], zero_tensor_y, y[:, :, :, 2:]], dim=-1)
         return x, y
 
 
@@ -209,8 +227,11 @@ class EulerDataset(PhysicsDataset):
         y[:, :, :, 2], y[:, :, :, 3] = vel_x, vel_y
 
         # no temperature is available, so we add it
-        zero_tensor = torch.zeros_like(x[:, :, :, 0])
-        zero_tensor = zero_tensor.unsqueeze(-1)
-        x = torch.cat([x[:, :, :, :2], zero_tensor, x[:, :, :, 2:]], dim=-1)
-        y = torch.cat([y[:, :, :, :2], zero_tensor, y[:, :, :, 2:]], dim=-1)
+        zero_tensor_x = torch.zeros_like(x[:, :, :, 0])
+        zero_tensor_y = torch.zeros_like(y[:, :, :, 0])
+        zero_tensor_x = zero_tensor_x.unsqueeze(-1)
+        zero_tensor_y = zero_tensor_y.unsqueeze(-1)
+
+        x = torch.cat([x[:, :, :, :2], zero_tensor_x, x[:, :, :, 2:]], dim=-1)
+        y = torch.cat([y[:, :, :, :2], zero_tensor_y, y[:, :, :, 2:]], dim=-1)
         return x, y

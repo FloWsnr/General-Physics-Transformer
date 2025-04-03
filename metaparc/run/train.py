@@ -148,7 +148,7 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     # Create save directory if it doesn't exist
-    save_dir = config["model_checkpoint_dir"] / "transformer"
+    save_dir = Path(config["data"]["model_checkpoint_dir"]) / "transformer"
     save_dir.mkdir(parents=True, exist_ok=True)
 
     # Training loop

@@ -86,7 +86,7 @@ def get_dataloader(data_config: dict, train_config: dict, split: str) -> DataLoa
         Split to load ("train", "val", "test")
     """
     datasets = get_datasets(data_config, split)
-    train_super_dataset = SuperDataset(datasets)
+    train_super_dataset = SuperDataset(datasets, out_shape=data_config["out_shape"])
 
     dataloader = DataLoader(
         dataset=train_super_dataset,

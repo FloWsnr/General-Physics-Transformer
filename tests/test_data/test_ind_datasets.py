@@ -6,6 +6,7 @@ These tests only work if the datasets are present.
 import pytest
 import torch
 from pathlib import Path
+from torch.utils.data import DataLoader
 from metaparc.data.ind_datasets import (
     RayleighBenardDataset,
     ShearFlowDataset,
@@ -21,7 +22,7 @@ def test_rayleigh_benard_dataset():
     dataset = RayleighBenardDataset(data_dir=path)
 
     # Call the method - parent returns (time, h, w, c) with c=[pressure, buoyancy]
-    x, y = dataset[0]
+    x, y = dataset[1]
 
     # Check shapes - should now have 5 channels (pressure, density, temperature, velocities)
     assert x.shape == (1, 512, 128, 5)
@@ -98,6 +99,26 @@ def test_cylinder_pipe_flow_water_dataset():
     # check that the density and temperature are zero
     assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
     assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+
+
+def test_cylinder_pipe_flow_water_dataset_with_dataloader():
+    """Test ComsolIncompressibleFlowDataset returns correct tensor shapes and field order."""
+    path = Path("data/datasets/cylinder_pipe_flow_water/data/train")
+    dataset = ComsolIncompressibleFlowDataset(data_dir=path)
+
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=True)
+
+    for batch in dataloader:
+        x, y = batch
+        break
+
+    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+    assert x.shape == (2, 1, 336, 128, 5)
+    assert y.shape == (2, 1, 336, 128, 5)
+
+    # check that the density and temperature are zero
+    assert torch.allclose(x[..., 1], torch.zeros_like(x[..., 1]))
+    assert torch.allclose(x[..., 2], torch.zeros_like(x[..., 2]))
 
 
 def test_cylinder_sym_flow_water_dataset():
