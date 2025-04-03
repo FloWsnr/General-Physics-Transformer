@@ -1,6 +1,8 @@
 data/datasets/*
 data/raw_comsol/*
 
+model_checkpoints/*
+
 .vscode/*
 
 # Byte-compiled / optimized / DLL files
