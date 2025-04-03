@@ -11,6 +11,7 @@ from metaparc.data.ind_datasets import (
     ShearFlowDataset,
     TurbulentRadiativeDataset,
     EulerDataset,
+    ComsolIncompressibleFlowDataset,
 )
 
 
@@ -80,3 +81,54 @@ def test_euler_dataset():
     # check that the temperature is zero
     assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
     assert torch.allclose(y[:, :, :, 2], torch.zeros_like(y[:, :, :, 2]))
+
+
+def test_cylinder_pipe_flow_water_dataset():
+    """Test ComsolIncompressibleFlowDataset returns correct tensor shapes and field order."""
+    path = Path("data/datasets/cylinder_pipe_flow_water/data/train")
+    dataset = ComsolIncompressibleFlowDataset(data_dir=path)
+
+    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
+    x, y = dataset[0]
+
+    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+    assert x.shape == (1, 336, 128, 5)
+    assert y.shape == (1, 336, 128, 5)
+
+    # check that the density and temperature are zero
+    assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+
+
+def test_cylinder_sym_flow_water_dataset():
+    """Test ComsolIncompressibleFlowDataset returns correct tensor shapes and field order."""
+    path = Path("data/datasets/cylinder_sym_flow_water/data/train")
+    dataset = ComsolIncompressibleFlowDataset(data_dir=path)
+
+    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
+    x, y = dataset[0]
+
+    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+    assert x.shape == (1, 336, 128, 5)
+    assert y.shape == (1, 336, 128, 5)
+
+    # check that the density and temperature are zero
+    assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+
+
+def test_object_periodic_flow_water_dataset():
+    """Test ComsolIncompressibleFlowDataset returns correct tensor shapes and field order."""
+    path = Path("data/datasets/object_periodic_flow_water/data/train")
+    dataset = ComsolIncompressibleFlowDataset(data_dir=path)
+
+    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
+    x, y = dataset[0]
+
+    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+    assert x.shape == (1, 256, 128, 5)
+    assert y.shape == (1, 256, 128, 5)
+
+    # check that the density and temperature are zero
+    assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))

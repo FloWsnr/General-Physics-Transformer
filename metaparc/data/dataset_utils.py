@@ -153,7 +153,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
         )
         datasets.append(euler_dataset)
 
-    if "cylinder_pipe_flow" in data_config["datasets"]:
+    if "cylinder_pipe_flow_water" in data_config["datasets"]:
         cylinder_pipe_flow_dataset = ComsolIncompressibleFlowDataset(
             data_dir=data_dir / f"cylinder_pipe_flow_water/data/{split_name}",
             split=split,
@@ -163,7 +163,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
         )
         datasets.append(cylinder_pipe_flow_dataset)
 
-    if "cylinder_symmetry_flow" in data_config["datasets"]:
+    if "cylinder_sym_flow_water" in data_config["datasets"]:
         cylinder_symmetry_flow_dataset = ComsolIncompressibleFlowDataset(
             data_dir=data_dir / f"cylinder_sym_flow_water/data/{split_name}",
             split=split,
