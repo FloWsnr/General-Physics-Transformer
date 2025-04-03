@@ -111,6 +111,7 @@ class BoundaryCondition(Enum):
     WALL = 0
     OPEN = 1
     PERIODIC = 2
+    SYMMETRIC = 3
 
 
 def flatten_field_names(metadata, include_constants=True):
