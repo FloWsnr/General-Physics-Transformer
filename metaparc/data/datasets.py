@@ -5,8 +5,6 @@ import einops
 
 import torch
 from torch.utils.data import default_collate, DataLoader
-
-from the_well.data.datasets import WellDataset
 from the_well.data.augmentation import (
     Compose,
     RandomAxisFlip,
@@ -14,6 +12,7 @@ from the_well.data.augmentation import (
     RandomAxisPermute,
     # NOTE: Image Resize should come here as well
 )
+from metaparc.data.well_dataset import WellDataset
 
 
 def get_rng_transforms(p_flip: float) -> Compose:
@@ -117,6 +116,10 @@ class PhysicsDataset(WellDataset):
     channels_first: bool
         Whether to have (time, channels, height, width) or (time, height, width, channels)
         By default (time, height, width, channels)
+    include_field_names: dict[str, list[str]]
+        Dictionary of field names to include in the dataset.
+        The keys are the order of the field (t0, t1, t2) and the values are lists of field names.
+        By default {}
     """
 
     def __init__(
@@ -130,6 +133,7 @@ class PhysicsDataset(WellDataset):
         dt_stride: int = 1,
         transform: Optional[Compose] = None,
         channels_first: bool = False,
+        include_field_names: dict[str, list[str]] = {},
     ):
         super().__init__(
             path=str(data_dir),
@@ -141,6 +145,7 @@ class PhysicsDataset(WellDataset):
             min_dt_stride=dt_stride,
             max_dt_stride=dt_stride,
             transform=transform,
+            include_field_names=include_field_names,
         )
         self.channels_first = channels_first
 
@@ -226,43 +231,3 @@ class SuperDataset:
             )
 
         return x, y
-
-
-# class SuperDataloader:
-#     """Wrapper around DataLoader.
-
-#     Allows to concatenate multiple DataLoaders and randomly sample from them.
-#     """
-
-#     def __init__(self, dataloaders: list[DataLoader]):
-#         self.dataloaders = dataloaders
-#         self.iterators = None
-#         self.length = sum(len(dataloader) for dataloader in dataloaders)
-
-#     def __iter__(self):
-#         # Create fresh iterators for each dataloader
-#         self.iterators = [iter(dataloader) for dataloader in self.dataloaders]
-#         return self
-
-#     def __next__(self):
-#         if not self.iterators:
-#             raise StopIteration
-
-#         # Randomly select a dataloader
-#         loader_idx = torch.randint(0, len(self.dataloaders), (1,)).item()
-
-#         try:
-#             # Get next batch from the selected dataloader
-#             return next(self.iterators[loader_idx])
-#         except StopIteration:
-#             # If this dataloader is exhausted, remove it and try again
-#             self.iterators.pop(loader_idx)
-#             self.dataloaders.pop(loader_idx)
-
-#             if not self.dataloaders:
-#                 raise StopIteration
-
-#             return next(self)
-
-#     def __len__(self):
-#         return self.length
