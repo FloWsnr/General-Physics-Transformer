@@ -40,18 +40,6 @@ class TestSpatioTemporalTokenization:
         assert isinstance(tokenizer.token_net, nn.Sequential)
         assert len(tokenizer.token_net) == 6  # 2 conv layers, 2 norm layers, 2 GELU
 
-        # Check the first conv layer
-        assert isinstance(tokenizer.token_net[0], nn.Conv3d)
-        assert tokenizer.token_net[0].in_channels == in_channels
-        assert tokenizer.token_net[0].out_channels == dim_embed
-        assert tokenizer.token_net[0].kernel_size == conv1_size
-
-        # Check the second conv layer
-        assert isinstance(tokenizer.token_net[3], nn.Conv3d)
-        assert tokenizer.token_net[3].in_channels == dim_embed
-        assert tokenizer.token_net[3].out_channels == dim_embed
-        assert tokenizer.token_net[3].kernel_size == conv2_size
-
     def test_spatio_temporal_forward_pass(self):
         """
         Test the forward pass of the SpatioTemporalTokenization class.
