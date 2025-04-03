@@ -6,15 +6,15 @@ All final outputs should include the following fields in that order:
 - pressure
 - density
 - temperature
-- velocity
+- velocity_x
+- velocity_y
 
 By: Florian Wiesner
 Date: 2025-04-03
 """
 
-from pathlib import Path
 import torch
-from metaparc.data.datasets import PhysicsDataset
+from metaparc.data.phys_dataset import PhysicsDataset
 
 
 class RayleighBenardDataset(PhysicsDataset):

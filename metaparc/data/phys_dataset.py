@@ -1,86 +1,11 @@
-from pathlib import Path
 from typing import Optional
-
-import einops
+from pathlib import Path
 
 import torch
-from torch.utils.data import default_collate, DataLoader
-from the_well.data.augmentation import (
-    Compose,
-    RandomAxisFlip,
-    RandomAxisRoll,
-    RandomAxisPermute,
-    # NOTE: Image Resize should come here as well
-)
+import einops
+from the_well.data.augmentation import Compose
+
 from metaparc.data.well_dataset import WellDataset
-
-
-def get_rng_transforms(p_flip: float) -> Compose:
-    """Get a list of transforms to apply to the data."""
-    return Compose(
-        *[
-            RandomAxisFlip(p=p_flip),
-            RandomAxisRoll(p=p_flip),
-            RandomAxisPermute(p=p_flip),
-        ]
-    )
-
-
-def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
-    """Collate function for the dataset.
-
-    Get input and target field tensors.
-    The fields are of shape (Time steps, H, W, C)
-    We want to get a batch of shape (B, Time steps, H, W, C).
-    Additionally, we replace NaNs with 0.
-
-    Parameters
-    ----------
-    data : tuple[torch.Tensor, torch.Tensor]
-        Tuple of input and target field tensors
-
-    Returns
-    -------
-    batch : torch.Tensor
-        Batch of shape (B, Time steps, H, W, C)
-    """
-
-    batch = default_collate(data)  # (B, Time steps, H, W, C)
-    x = batch[0]
-    y = batch[1]
-
-    # # rearrange to (B, Time steps & C, H, W)
-    # x = einops.rearrange(x, "batch time c h w -> batch (time c) h w")
-    # y = einops.rearrange(y, "batch time c h w -> batch (time c) h w")
-
-    # Replace NaNs with 0
-    x = torch.where(
-        torch.isnan(x),
-        torch.zeros_like(x),
-        x,
-    )
-    y = torch.where(
-        torch.isnan(y),
-        torch.zeros_like(y),
-        y,
-    )
-    return x, y
-
-
-def get_dataloader(
-    dataset: WellDataset,
-    batch_size: int,
-    shuffle: bool = True,
-    num_workers: int = 0,
-) -> DataLoader:
-    return DataLoader(
-        dataset=dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        collate_fn=collate_fn,
-        num_workers=num_workers,
-        pin_memory=True,
-    )
 
 
 class PhysicsDataset(WellDataset):
@@ -166,23 +91,17 @@ class SuperDataset:
 
     Parameters
     ----------
-    datasets : list[WellDataset]
+    datasets : list[PhysicsDataset]
         List of datasets to concatenate
     out_shape : tuple[int, int]
         Output shape (h, w) of the concatenated dataset.
         This is needed to account for the different shapes of the datasets.
-    n_channels : int
-        Number of channels of the concatenated dataset. Should be the largest number of channels in the datasets.
-        Samples with less than n_channels will be padded with zeros channels.
     """
 
-    def __init__(
-        self, datasets: list[WellDataset], out_shape: tuple[int, int], n_channels: int
-    ):
+    def __init__(self, datasets: list[PhysicsDataset], out_shape: tuple[int, int]):
         self.datasets = datasets
         self.lengths = [len(dataset) for dataset in self.datasets]
         self.out_shape = out_shape
-        self.n_channels = n_channels
 
     def __len__(self):
         return sum(self.lengths)
@@ -205,29 +124,5 @@ class SuperDataset:
         )
         x = einops.rearrange(x, "time c h w -> time h w c")
         y = einops.rearrange(y, "time c h w -> time h w c")
-
-        # if x,y has less than n_channels, add channels with zeros
-        if x.shape[-1] < self.n_channels:
-            x = torch.cat(
-                [
-                    x,
-                    torch.zeros(
-                        *x.shape[:-1],
-                        self.n_channels - x.shape[-1],
-                    ),
-                ],
-                dim=-1,
-            )
-        if y.shape[-1] < self.n_channels:
-            y = torch.cat(
-                [
-                    y,
-                    torch.zeros(
-                        *y.shape[:-1],
-                        self.n_channels - y.shape[-1],
-                    ),
-                ],
-                dim=-1,
-            )
 
         return x, y
