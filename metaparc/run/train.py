@@ -111,6 +111,7 @@ class Trainer:
         self.model.train()
         train_loss = 0
 
+        total_batches = len(self.train_loader)
         for batch_idx, batch in enumerate(self.train_loader):
             x, y = batch
             x = x.to(self.device)
@@ -139,7 +140,7 @@ class Trainer:
                 lr = self.optimizer.param_groups[0]["lr"]
 
             self.logger.info(
-                f"\t Batch {batch_idx}, Loss: {loss.item():.4f}, LR: {lr:.6f}"
+                f"\t Batch {batch_idx}/{total_batches}, Loss: {loss.item():.4f}, LR: {lr:.6f}"
             )
 
             # Log to wandb
@@ -147,18 +148,19 @@ class Trainer:
                 self.wandb_run.log(
                     {
                         "training/batch_idx": batch_idx,
-                        "training/batch_loss": loss,
+                        "training/batch_loss": train_loss / (batch_idx + 1),
                         "training/learning_rate": lr,
                     }
                 )
 
-        return train_loss / len(self.train_loader)
+        return train_loss / total_batches
 
     def validate(self) -> float:
         """Validate the model."""
         self.model.eval()
         val_loss = 0
 
+        total_batches = len(self.val_loader)
         with torch.no_grad():
             for batch_idx, batch in enumerate(self.val_loader):
                 x, y = batch
@@ -172,14 +174,16 @@ class Trainer:
 
                 val_loss += loss.item()
 
-                self.logger.info(f"\t Batch {batch_idx}, Loss: {loss.item():.4f}")
+                self.logger.info(
+                    f"\t Batch {batch_idx}/{total_batches}, Loss: {loss.item():.4f}"
+                )
 
                 # Log to wandb
                 if batch_idx % self.config["wandb"]["log_interval"] == 0:
                     self.wandb_run.log(
                         {
                             "validation/batch_idx": batch_idx,
-                            "validation/batch_loss": loss,
+                            "validation/batch_loss": val_loss / (batch_idx + 1),
                         }
                     )
 
@@ -190,7 +194,7 @@ class Trainer:
             targets=target,
         )
 
-        return val_loss / len(self.val_loader)
+        return val_loss / total_batches
 
     def train(self):
         """Train the model."""
