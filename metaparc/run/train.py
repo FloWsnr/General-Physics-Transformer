@@ -28,6 +28,7 @@ def train_epoch(
     optimizer: torch.optim.Optimizer,
     criterion: nn.Module,
     save_dir: Path,
+    scheduler: optim.lr_scheduler.SequentialLR,
 ) -> float:
     """Train the model for one epoch.
 
@@ -43,6 +44,8 @@ def train_epoch(
         Optimizer for training
     criterion : nn.Module
         Loss function
+    scheduler : optim.lr_scheduler.SequentialLR
+        Learning rate scheduler
     save_dir : Path
         The directory to save the predictions
 
@@ -69,7 +72,6 @@ def train_epoch(
 
         # Clip gradients to norm 1
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-
         optimizer.step()
 
         train_loss += loss.item()
@@ -81,7 +83,11 @@ def train_epoch(
                 predictions=output,
                 targets=target,
             )
-        pbar.set_postfix({"loss": train_loss / (batch_idx + 1)})
+        # Step learning rate scheduler
+        scheduler.step()
+        lr = scheduler.get_last_lr()[0]
+
+        pbar.set_postfix({"loss": train_loss / (batch_idx + 1), "lr": lr})
 
     return train_loss / len(train_loader)
 
@@ -179,6 +185,41 @@ def get_lr_scheduler(
     return scheduler
 
 
+def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
+    """Create an optimizer.
+
+    Parameters
+    ----------
+    model : nn.Module
+        The model to optimize
+    config : dict
+        Configuration dictionary for the optimizer
+
+    Returns
+    -------
+    torch.optim.Optimizer
+        Optimizer
+    """
+    if config["name"] == "Adam":
+        betas = config["betas"]
+        optimizer = optim.Adam(
+            model.parameters(), lr=config["learning_rate"], betas=betas
+        )
+    elif config["name"] == "AdamW":
+        weight_decay = config["weight_decay"]
+        betas = config["betas"]
+        optimizer = optim.AdamW(
+            model.parameters(),
+            lr=config["learning_rate"],
+            weight_decay=weight_decay,
+            betas=betas,
+        )
+    else:
+        raise ValueError(f"Optimizer {config['name']} not supported")
+
+    return optimizer
+
+
 def main():
     """Main training function."""
     config_path = Path("/Users/zsa8rk/Coding/MetaPARC/metaparc/run/config.yaml")
@@ -197,12 +238,13 @@ def main():
     # Create model
     model = get_model(model_config=config["model"])
     model.to(device)
-    model = torch.compile(model)
+    # model = torch.compile(model)
 
     # Define loss function and optimizer
     lrs_config = config["training"]["lr_scheduler"]
+    opt_config = config["training"]["optimizer"]
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=lrs_config["learning_rate"])
+    optimizer = get_optimizer(model, opt_config)
 
     # Create learning rate schedulers
     scheduler = get_lr_scheduler(optimizer, lrs_config, epoch_size)
@@ -228,6 +270,7 @@ def main():
             train_loader=train_loader,
             optimizer=optimizer,
             criterion=criterion,
+            scheduler=scheduler,
             save_dir=save_dir / f"epoch_{epoch:03d}",
         )
         train_losses.append(train_loss)
@@ -235,9 +278,6 @@ def main():
         # Validate
         val_loss = validate(model, device, val_loader, criterion)
         val_losses.append(val_loss)
-
-        # Update learning rate
-        scheduler.step()
 
         # Save best model
         if val_loss < best_loss:
@@ -253,6 +293,7 @@ def main():
                 "optimizer_state_dict": optimizer.state_dict(),
                 "train_loss": train_loss,
                 "val_loss": val_loss,
+                "scheduler_state_dict": scheduler.state_dict(),
             },
             save_dir / f"checkpoint_epoch_{epoch}.pth",
         )

@@ -16,10 +16,11 @@ training:
     name: Adam
     betas: [0.9, 0.999]
     grad_clip: 1.0 # gradient clipping
-    criterion:
-      name: MSELoss
-  lr_scheduler:
     learning_rate: 0.001
+  criterion:
+    name: MSELoss
+
+  lr_scheduler:
     name: SequentialLR
     schedulers:
       - name: LinearLR # linear warmup scheduler
