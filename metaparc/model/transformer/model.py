@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import math
 
+from torchvision.ops import stochastic_depth
+
 from metaparc.model.transformer.attention import AttentionBlock
 from metaparc.model.transformer.pos_encodings import RotaryPositionalEmbedding
 from metaparc.model.transformer.tokenizer import (
@@ -64,12 +66,14 @@ class PhysicsTransformer(nn.Module):
         num_heads: int,
         mlp_dim: int,
         dropout: float = 0.0,
+        stochastic_depth_rate: float = 0.1,
         patch_size: tuple[int, int, int] = (4, 16, 16),
         num_layers: int = 4,
     ):
         super().__init__()
-        self.pos_encodings = RotaryPositionalEmbedding(dim=hidden_dim, base=10000)
+        self.stochastic_depth_rate = stochastic_depth_rate
 
+        self.pos_encodings = RotaryPositionalEmbedding(dim=hidden_dim, base=10000)
         self.attention_blocks = nn.ModuleList(
             [
                 AttentionBlock(
@@ -105,6 +109,9 @@ class PhysicsTransformer(nn.Module):
         # Apply N attention blocks (norm, att, norm, mlp)
         for block in self.attention_blocks:
             x = block(x)
+            x = stochastic_depth(
+                x, p=self.stochastic_depth_rate, mode="row", training=self.training
+            )
 
         # Apply de-patching
         x = self.detokenizer(x)
