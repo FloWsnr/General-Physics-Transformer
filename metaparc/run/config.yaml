@@ -2,7 +2,7 @@ wandb:
   project: General Physics Model
   entity: wsnr-florian
   api_key: xxx
-  id: test_run-3
+  id: test_run-4
   tags:
     - TestRun
   log_model: all # log :all", "parameters" or "gradients"
@@ -52,20 +52,20 @@ training:
   criterion:
     name: MSELoss
 
-  lr_scheduler:
-    name: SequentialLR
-    schedulers:
-      - name: LinearLR # linear warmup scheduler
-        start_factor: 0.001
-        end_factor: 1.0
-        total_iters: 10000 # number of training steps for linear warmup
-      # - name: CosineAnnealingWarmRestarts # cosine annealing scheduler
-      #   T_0: 10 # number epochs for one cosine annealing cycle
-      #   T_mult: 2 # multiplicative factor for the number of epochs in each cycle
-      #   min_lr: 0.0001
-      - name: CosineAnnealingLR # cosine annealing scheduler
-        T_max: 10 # Number of epochs for one cosine annealing cycle
-        min_lr: 0.0001
+  # lr_scheduler:
+  #   name: SequentialLR
+  #   schedulers:
+  #     - name: LinearLR # linear warmup scheduler
+  #       start_factor: 0.001
+  #       end_factor: 1.0
+  #       total_iters: 10000 # number of training steps for linear warmup
+  #     # - name: CosineAnnealingWarmRestarts # cosine annealing scheduler
+  #     #   T_0: 10 # number epochs for one cosine annealing cycle
+  #     #   T_mult: 2 # multiplicative factor for the number of epochs in each cycle
+  #     #   min_lr: 0.0001
+  #     - name: CosineAnnealingLR # cosine annealing scheduler
+  #       T_max: 10 # Number of epochs for one cosine annealing cycle
+  #       min_lr: 0.0001
 data:
   dt_stride: 1 # take every dt_stride-th timestep
   n_steps_input: 4 # number of input timesteps

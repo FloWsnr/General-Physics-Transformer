@@ -66,8 +66,8 @@ class Trainer:
             self.config["data"], self.config["training"], split="val"
         )
         self.logger.info(f"Training for {self.config['training']['epochs']} epochs")
-        self.logger.info(f"Training on {len(self.train_loader)} samples per epoch")
-        self.logger.info(f"Validating on {len(self.val_loader)} samples per epoch")
+        self.logger.info(f"Training on {len(self.train_loader)} batches per epoch")
+        self.logger.info(f"Validating on {len(self.val_loader)} batches per epoch")
 
         ################################################################
         ########### Initialize loss function and optimizer ###########
@@ -136,6 +136,11 @@ class Trainer:
             if self.scheduler is not None:
                 self.scheduler.step()
                 lr = self.scheduler.get_last_lr()[0]
+            elif isinstance(self.optimizer, DAdaptAdam):
+                lr = (
+                    self.optimizer.param_groups[0]["lr"]
+                    * self.optimizer.param_groups[0]["d"]
+                )
             else:
                 lr = self.optimizer.param_groups[0]["lr"]
 
@@ -148,7 +153,7 @@ class Trainer:
                 self.wandb_run.log(
                     {
                         "training/batch_idx": batch_idx,
-                        "training/batch_loss": train_loss / (batch_idx + 1),
+                        "training/acc_batch_loss": train_loss / (batch_idx + 1),
                         "training/learning_rate": lr,
                     }
                 )
@@ -183,7 +188,7 @@ class Trainer:
                     self.wandb_run.log(
                         {
                             "validation/batch_idx": batch_idx,
-                            "validation/batch_loss": val_loss / (batch_idx + 1),
+                            "validation/acc_batch_loss": val_loss / (batch_idx + 1),
                         }
                     )
 
