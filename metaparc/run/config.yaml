@@ -14,6 +14,7 @@ training:
   num_workers: 8
   optimizer: Adam
   criterion: MSELoss
+  lr_scheduler: CosineAnnealingLR
 
 data:
   dt_stride: 1 # take every dt_stride-th timestep
