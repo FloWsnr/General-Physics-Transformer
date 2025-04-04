@@ -51,7 +51,7 @@ class Trainer:
         self.model = get_model(model_config=self.config["model"])
 
         total_params = sum(p.numel() for p in self.model.parameters())
-        self.logger.info(f"Model size: {total_params}")
+        self.logger.info(f"Model size: {total_params / 1e6:.2f}M parameters")
         self.logger.info(f"Model architecture: {self.model}")
         self.model.to(self.device)
 
@@ -94,7 +94,7 @@ class Trainer:
         self.wandb_run.watch(
             self.model,
             criterion=self.criterion,
-            log=self.config["wandb"]["log"],
+            log=self.config["wandb"]["log_model"],
             log_freq=log_interval,
         )
 
@@ -146,8 +146,9 @@ class Trainer:
             if batch_idx % self.config["wandb"]["log_interval"] == 0:
                 self.wandb_run.log(
                     {
-                        "Training batch loss": loss,
-                        "Learning rate": lr,
+                        "training/batch_idx": batch_idx,
+                        "training/batch_loss": loss,
+                        "training/learning_rate": lr,
                     }
                 )
 
@@ -177,7 +178,8 @@ class Trainer:
                 if batch_idx % self.config["wandb"]["log_interval"] == 0:
                     self.wandb_run.log(
                         {
-                            "Validation batch loss": loss,
+                            "validation/batch_idx": batch_idx,
+                            "validation/batch_loss": loss,
                         }
                     )
 
@@ -203,7 +205,8 @@ class Trainer:
             self.logger.info(f"Epoch {epoch}, Training loss: {train_loss:.4f}")
             self.wandb_run.log(
                 {
-                    "Training epoch loss": train_loss,
+                    "epoch": epoch,
+                    "training/epoch_loss": train_loss,
                 }
             )
             ######################################################################
@@ -214,7 +217,8 @@ class Trainer:
             self.logger.info(f"Epoch {epoch}, Validation loss: {val_loss:.4f}")
             self.wandb_run.log(
                 {
-                    "Validation epoch loss": val_loss,
+                    "epoch": epoch,
+                    "validation/epoch_loss": val_loss,
                 }
             )
             # Save best model
