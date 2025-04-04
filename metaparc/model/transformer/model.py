@@ -20,6 +20,7 @@ def get_model(model_config: dict):
         mlp_dim=model_config["mlp_dim"],
         num_heads=model_config["num_heads"],
         dropout=model_config["dropout"],
+        stochastic_depth_rate=model_config["stochastic_depth"],
         patch_size=model_config["patch_size"],
         num_layers=model_config["num_layers"],
     )

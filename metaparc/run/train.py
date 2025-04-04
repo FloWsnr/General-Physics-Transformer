@@ -15,6 +15,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from tqdm import tqdm
+from dadaptation import DAdaptAdam
 
 from metaparc.data.dataset_utils import get_dataloader
 from metaparc.model.transformer.model import get_model
@@ -27,8 +28,8 @@ def train_epoch(
     train_loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     criterion: nn.Module,
-    save_dir: Path,
-    scheduler: optim.lr_scheduler.SequentialLR,
+    scheduler: optim.lr_scheduler.SequentialLR | None = None,
+    grad_clip: float = 1.0,
 ) -> float:
     """Train the model for one epoch.
 
@@ -44,10 +45,10 @@ def train_epoch(
         Optimizer for training
     criterion : nn.Module
         Loss function
-    scheduler : optim.lr_scheduler.SequentialLR
+    scheduler : optim.lr_scheduler.SequentialLR | None
         Learning rate scheduler
-    save_dir : Path
-        The directory to save the predictions
+    grad_clip : float
+        Gradient clipping value
 
     Returns
     -------
@@ -71,21 +72,17 @@ def train_epoch(
         loss.backward()
 
         # Clip gradients to norm 1
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
         optimizer.step()
 
         train_loss += loss.item()
 
-        if batch_idx % 100 == 0:
-            # Visualize predictions
-            visualize_predictions(
-                save_path=save_dir / f"pred_target_{batch_idx:04d}.png",
-                predictions=output,
-                targets=target,
-            )
         # Step learning rate scheduler
-        scheduler.step()
-        lr = scheduler.get_last_lr()[0]
+        if scheduler is not None:
+            scheduler.step()
+            lr = scheduler.get_last_lr()[0]
+        else:
+            lr = optimizer.param_groups[0]["lr"]
 
         pbar.set_postfix({"loss": train_loss / (batch_idx + 1), "lr": lr})
 
@@ -93,7 +90,11 @@ def train_epoch(
 
 
 def validate(
-    model: nn.Module, device: torch.device, val_loader: DataLoader, criterion: nn.Module
+    model: nn.Module,
+    device: torch.device,
+    val_loader: DataLoader,
+    criterion: nn.Module,
+    save_dir: Path,
 ) -> float:
     """Validate the model.
 
@@ -107,6 +108,8 @@ def validate(
         DataLoader for validation data
     criterion : nn.Module
         Loss function
+    save_dir : Path
+        The directory to save the predictions
 
     Returns
     -------
@@ -131,6 +134,13 @@ def validate(
             val_loss += loss.item()
 
             pbar.set_postfix({"loss": val_loss / (batch_idx + 1)})
+
+    # Visualize predictions
+    visualize_predictions(
+        save_path=save_dir,
+        predictions=output,
+        targets=target,
+    )
 
     return val_loss / len(val_loader)
 
@@ -214,6 +224,8 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
             weight_decay=weight_decay,
             betas=betas,
         )
+    elif config["name"] == "DAdaptAdam":
+        optimizer = DAdaptAdam(model.parameters(), betas=config["betas"])
     else:
         raise ValueError(f"Optimizer {config['name']} not supported")
 
@@ -240,14 +252,17 @@ def main():
     model.to(device)
     # model = torch.compile(model)
 
-    # Define loss function and optimizer
-    lrs_config = config["training"]["lr_scheduler"]
+    # Define loss function and optimize
     opt_config = config["training"]["optimizer"]
     criterion = nn.MSELoss()
     optimizer = get_optimizer(model, opt_config)
 
     # Create learning rate schedulers
-    scheduler = get_lr_scheduler(optimizer, lrs_config, epoch_size)
+    if "lr_scheduler" in config["training"]:
+        lrs_config = config["training"]["lr_scheduler"]
+        scheduler = get_lr_scheduler(optimizer, lrs_config, epoch_size)
+    else:
+        scheduler = None
 
     # Create save directory if it doesn't exist
     save_dir = Path(config["data"]["model_checkpoint_dir"]) / "transformer"
@@ -270,13 +285,19 @@ def main():
             train_loader=train_loader,
             optimizer=optimizer,
             criterion=criterion,
-            scheduler=scheduler,
-            save_dir=save_dir / f"epoch_{epoch:03d}",
+            scheduler=None if scheduler is None else scheduler,
+            grad_clip=config["training"]["grad_clip"],
         )
         train_losses.append(train_loss)
 
         # Validate
-        val_loss = validate(model, device, val_loader, criterion)
+        val_loss = validate(
+            model=model,
+            device=device,
+            val_loader=val_loader,
+            criterion=criterion,
+            save_dir=save_dir / f"epoch_{epoch:03d}_pred_target.png",
+        )
         val_losses.append(val_loss)
 
         # Save best model
@@ -286,17 +307,16 @@ def main():
             print(f"Model saved with loss: {best_loss:.4f}")
 
         # Save checkpoint
-        torch.save(
-            {
-                "epoch": epoch,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "train_loss": train_loss,
-                "val_loss": val_loss,
-                "scheduler_state_dict": scheduler.state_dict(),
-            },
-            save_dir / f"checkpoint_epoch_{epoch}.pth",
-        )
+        checkpoint = {
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+        }
+        if scheduler is not None:
+            checkpoint["scheduler_state_dict"] = scheduler.state_dict()
+        torch.save(checkpoint, save_dir / f"checkpoint_epoch_{epoch}.pth")
 
 
 if __name__ == "__main__":
