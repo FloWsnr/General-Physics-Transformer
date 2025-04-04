@@ -7,142 +7,225 @@ Date: 2025-03-10
 
 from pathlib import Path
 
+import wandb.wandb_run
 import yaml
+from tqdm import tqdm
+import wandb
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
-
-from tqdm import tqdm
 from dadaptation import DAdaptAdam
 
 from metaparc.data.dataset_utils import get_dataloader
 from metaparc.model.transformer.model import get_model
 from metaparc.utils.train_vis import visualize_predictions
+from metaparc.utils.logger import get_logger
 
 
-def train_epoch(
-    model: nn.Module,
-    device: torch.device,
-    train_loader: DataLoader,
-    optimizer: torch.optim.Optimizer,
-    criterion: nn.Module,
-    scheduler: optim.lr_scheduler.SequentialLR | None = None,
-    grad_clip: float = 1.0,
-) -> float:
-    """Train the model for one epoch.
+class Trainer:
+    def __init__(self, config_path: Path):
+        with open(config_path, "r") as f:
+            self.config = yaml.safe_load(f)
 
-    Parameters
-    ----------
-    model : nn.Module
-        The model to train
-    device : torch.device
-        Device to use for training
-    train_loader : DataLoader
-        DataLoader for training data
-    optimizer : torch.optim.Optimizer
-        Optimizer for training
-    criterion : nn.Module
-        Loss function
-    scheduler : optim.lr_scheduler.SequentialLR | None
-        Learning rate scheduler
-    grad_clip : float
-        Gradient clipping value
+        self.logger = get_logger(
+            "Trainer",
+            log_file=self.config["logging"]["log_file"],
+            log_level=self.config["logging"]["log_level"],
+        )
+        ################################################################
+        ########### Initialize logging #################################
+        ################################################################
+        self.log_dir = (
+            Path(self.config["logging"]["log_dir"]) / self.config["wandb"]["id"]
+        )
+        self.log_dir.mkdir(parents=True, exist_ok=True)
 
-    Returns
-    -------
-    float
-        Average training loss for the epoch
-    """
-    model.train()
-    train_loss = 0
+        self.wandb_run = login_wandb(self.config)
 
-    pbar = tqdm(train_loader, desc="Training one epoch")
-    for batch_idx, batch in enumerate(pbar):
-        x, y = batch
-        x = x.to(device)
-        y = y.to(device)
+        ################################################################
+        ########### Initialize model ##################################
+        ################################################################
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.logger.info(f"Using device: {self.device}")
 
-        target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
+        self.model = get_model(model_config=self.config["model"])
+        self.logger.info(f"Model: {self.model}")
+        self.model.to(self.device)
 
-        optimizer.zero_grad()
-        output = model(x)
-        loss = criterion(output, target)
-        loss.backward()
+        ################################################################
+        ########### Initialize data loaders ##########################
+        ################################################################
+        self.train_loader = get_dataloader(
+            self.config["data"], self.config["training"], split="train"
+        )
+        self.epoch_size = len(self.train_loader)
+        self.val_loader = get_dataloader(
+            self.config["data"], self.config["training"], split="val"
+        )
+        self.logger.info(f"Training on {len(self.train_loader)} samples")
 
-        # Clip gradients to norm 1
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
-        optimizer.step()
+        ################################################################
+        ########### Initialize loss function and optimizer ###########
+        ################################################################
+        opt_config = self.config["training"]["optimizer"]
+        self.criterion = nn.MSELoss()
+        self.optimizer = get_optimizer(self.model, opt_config)
 
-        train_loss += loss.item()
-
-        # Step learning rate scheduler
-        if scheduler is not None:
-            scheduler.step()
-            lr = scheduler.get_last_lr()[0]
+        ################################################################
+        ########### Initialize learning rate scheduler ################
+        ################################################################
+        if "lr_scheduler" in self.config["training"]:
+            lrs_config = self.config["training"]["lr_scheduler"]
+            self.scheduler = get_lr_scheduler(
+                self.optimizer, lrs_config, self.epoch_size
+            )
         else:
-            lr = optimizer.param_groups[0]["lr"]
+            self.scheduler = None
 
-        pbar.set_postfix({"loss": train_loss / (batch_idx + 1), "lr": lr})
+        ################################################################
+        ########### Watch model ########################################
+        ################################################################
+        log_interval = self.config["wandb"]["log_interval"]
+        self.wandb_run.watch(
+            self.model,
+            criterion=self.criterion,
+            log=self.config["wandb"]["log"],
+            log_freq=log_interval,
+        )
 
-    return train_loss / len(train_loader)
+    def train_epoch(self) -> float:
+        """Train the model for one epoch.
 
+        Parameters
+        ----------
+        Returns
+        -------
+        float
+            Average training loss for the epoch
+        """
+        self.model.train()
+        train_loss = 0
 
-def validate(
-    model: nn.Module,
-    device: torch.device,
-    val_loader: DataLoader,
-    criterion: nn.Module,
-    save_dir: Path,
-) -> float:
-    """Validate the model.
-
-    Parameters
-    ----------
-    model : nn.Module
-        The model to validate
-    device : torch.device
-        Device to use for validation
-    val_loader : DataLoader
-        DataLoader for validation data
-    criterion : nn.Module
-        Loss function
-    save_dir : Path
-        The directory to save the predictions
-
-    Returns
-    -------
-    float
-        Average validation loss for the epoch
-    """
-    model.eval()
-    val_loss = 0
-
-    pbar = tqdm(val_loader, desc="Validation")
-    with torch.no_grad():
+        pbar = tqdm(self.train_loader, desc="Training one epoch")
         for batch_idx, batch in enumerate(pbar):
             x, y = batch
-            x = x.to(device)
-            y = y.to(device)
+            x = x.to(self.device)
+            y = y.to(self.device)
 
             target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
 
-            output = model(x)
-            loss = criterion(output, target)
+            self.optimizer.zero_grad()
+            output = self.model(x)
+            loss = self.criterion(output, target)
+            loss.backward()
 
-            val_loss += loss.item()
+            # Clip gradients to norm 1
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), max_norm=self.config["training"]["grad_clip"]
+            )
+            self.optimizer.step()
 
-            pbar.set_postfix({"loss": val_loss / (batch_idx + 1)})
+            train_loss += loss.item()
 
-    # Visualize predictions
-    visualize_predictions(
-        save_path=save_dir,
-        predictions=output,
-        targets=target,
-    )
+            # Step learning rate scheduler
+            if self.scheduler is not None:
+                self.scheduler.step()
+                lr = self.scheduler.get_last_lr()[0]
+            else:
+                lr = self.optimizer.param_groups[0]["lr"]
 
-    return val_loss / len(val_loader)
+            pbar.set_postfix({"loss": train_loss / (batch_idx + 1), "lr": lr})
+            self.logger.info(f"Batch {batch_idx}, Loss: {loss.item()}, LR: {lr}")
+
+            # Log to wandb
+            if batch_idx % self.config["wandb"]["log_interval"] == 0:
+                self.wandb_run.log(
+                    {
+                        "Training batch loss": loss,
+                        "Learning rate": lr,
+                    }
+                )
+
+        return train_loss / len(self.train_loader)
+
+    def validate(self) -> float:
+        """Validate the model."""
+        self.model.eval()
+        val_loss = 0
+
+        pbar = tqdm(self.val_loader, desc="Validation")
+        with torch.no_grad():
+            for batch_idx, batch in enumerate(pbar):
+                x, y = batch
+                x = x.to(self.device)
+                y = y.to(self.device)
+
+                target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
+
+                output = self.model(x)
+                loss = self.criterion(output, target)
+
+                val_loss += loss.item()
+
+                pbar.set_postfix({"loss": val_loss / (batch_idx + 1)})
+                self.logger.info(f"Batch {batch_idx}, Loss: {loss.item()}")
+
+                # Log to wandb
+                if batch_idx % self.config["wandb"]["log_interval"] == 0:
+                    self.wandb_run.log(
+                        {
+                            "Validation batch loss": loss,
+                        }
+                    )
+
+        # Visualize predictions
+        visualize_predictions(
+            save_path=self.log_dir / f"epoch_{self.epoch}_vis.png",
+            predictions=output,
+            targets=target,
+        )
+
+        return val_loss / len(self.val_loader)
+
+    def train(self):
+        """Train the model."""
+        best_loss = float("inf")
+        for epoch in range(1, self.config["training"]["epochs"] + 1):
+            self.epoch = epoch
+            train_loss = self.train_epoch()
+            self.logger.info(f"Epoch {epoch}, Training loss: {train_loss:.4f}")
+            self.wandb_run.log(
+                {
+                    "Training epoch loss": train_loss,
+                }
+            )
+            val_loss = self.validate()
+            self.logger.info(f"Epoch {epoch}, Validation loss: {val_loss:.4f}")
+            self.wandb_run.log(
+                {
+                    "Validation epoch loss": val_loss,
+                }
+            )
+            # Save best model
+            if val_loss < best_loss:
+                best_loss = val_loss
+                torch.save(self.model.state_dict(), self.log_dir / "best_model.pth")
+                self.logger.info(f"Model saved with loss: {best_loss:.4f}")
+
+            # Save checkpoint
+            checkpoint = {
+                "epoch": epoch,
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+            }
+            if self.scheduler is not None:
+                checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
+            torch.save(checkpoint, self.log_dir / f"checkpoint_epoch_{epoch}.pth")
+
+        self.wandb_run.finish()
 
 
 def get_lr_scheduler(
@@ -225,98 +308,44 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
             betas=betas,
         )
     elif config["name"] == "DAdaptAdam":
-        optimizer = DAdaptAdam(model.parameters(), betas=config["betas"])
+        optimizer = DAdaptAdam(
+            model.parameters(),
+            lr=1,
+            betas=config["betas"],
+            weight_decay=config["weight_decay"],
+        )
+    elif config["name"] == "DAdaptAdamW":
+        optimizer = DAdaptAdam(
+            model.parameters(),
+            lr=1,
+            betas=config["betas"],
+            weight_decay=config["weight_decay"],
+            decouple=True,
+        )
     else:
         raise ValueError(f"Optimizer {config['name']} not supported")
 
     return optimizer
 
 
+def login_wandb(config: dict) -> wandb.wandb_run.Run:
+    """Log into wandb."""
+    wandb.login(key=config["wandb"]["api_key"])
+    run = wandb.init(
+        project=config["wandb"]["project"],
+        entity=config["wandb"]["entity"],
+        config=config,
+        id=config["wandb"]["id"],
+        tags=config["wandb"]["tags"],
+    )
+    return run
+
+
 def main():
     """Main training function."""
     config_path = Path("/Users/zsa8rk/Coding/MetaPARC/metaparc/run/config.yaml")
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-
-    # Set up device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-
-    # Create data loaders
-    train_loader = get_dataloader(config["data"], config["training"], split="train")
-    epoch_size = len(train_loader)
-    val_loader = get_dataloader(config["data"], config["training"], split="val")
-
-    # Create model
-    model = get_model(model_config=config["model"])
-    model.to(device)
-    # model = torch.compile(model)
-
-    # Define loss function and optimize
-    opt_config = config["training"]["optimizer"]
-    criterion = nn.MSELoss()
-    optimizer = get_optimizer(model, opt_config)
-
-    # Create learning rate schedulers
-    if "lr_scheduler" in config["training"]:
-        lrs_config = config["training"]["lr_scheduler"]
-        scheduler = get_lr_scheduler(optimizer, lrs_config, epoch_size)
-    else:
-        scheduler = None
-
-    # Create save directory if it doesn't exist
-    save_dir = Path(config["data"]["model_checkpoint_dir"]) / "transformer"
-    save_dir.mkdir(parents=True, exist_ok=True)
-
-    # Training loop
-    train_losses = []
-    val_losses = []
-
-    best_loss = float("inf")
-
-    epochs = config["training"]["epochs"]
-    for epoch in range(1, epochs + 1):
-        print(f"\nEpoch {epoch}/{epochs}")
-
-        # Train
-        train_loss = train_epoch(
-            model=model,
-            device=device,
-            train_loader=train_loader,
-            optimizer=optimizer,
-            criterion=criterion,
-            scheduler=None if scheduler is None else scheduler,
-            grad_clip=config["training"]["grad_clip"],
-        )
-        train_losses.append(train_loss)
-
-        # Validate
-        val_loss = validate(
-            model=model,
-            device=device,
-            val_loader=val_loader,
-            criterion=criterion,
-            save_dir=save_dir / f"epoch_{epoch:03d}_pred_target.png",
-        )
-        val_losses.append(val_loss)
-
-        # Save best model
-        if val_loss < best_loss:
-            best_loss = val_loss
-            torch.save(model.state_dict(), save_dir / "best_model.pth")
-            print(f"Model saved with loss: {best_loss:.4f}")
-
-        # Save checkpoint
-        checkpoint = {
-            "epoch": epoch,
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "train_loss": train_loss,
-            "val_loss": val_loss,
-        }
-        if scheduler is not None:
-            checkpoint["scheduler_state_dict"] = scheduler.state_dict()
-        torch.save(checkpoint, save_dir / f"checkpoint_epoch_{epoch}.pth")
+    trainer = Trainer(config_path)
+    trainer.train()
 
 
 if __name__ == "__main__":
