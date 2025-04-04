@@ -2,6 +2,8 @@ data/datasets/*
 data/raw_comsol/*
 
 model_checkpoints/*
+logs/*
+wandb/*
 
 .vscode/*
 
