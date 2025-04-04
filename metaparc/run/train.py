@@ -43,7 +43,6 @@ def train_epoch(
         Optimizer for training
     criterion : nn.Module
         Loss function
-
     save_dir : Path
         The directory to save the predictions
 
@@ -67,6 +66,10 @@ def train_epoch(
         output = model(x)
         loss = criterion(output, target)
         loss.backward()
+
+        # Clip gradients to norm 1
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
         optimizer.step()
 
         train_loss += loss.item()
@@ -83,7 +86,9 @@ def train_epoch(
     return train_loss / len(train_loader)
 
 
-def validate(model, device, val_loader, criterion):
+def validate(
+    model: nn.Module, device: torch.device, val_loader: DataLoader, criterion: nn.Module
+) -> float:
     """Validate the model.
 
     Parameters
@@ -112,7 +117,7 @@ def validate(model, device, val_loader, criterion):
             x = x.to(device)
             y = y.to(device)
 
-            target = torch.cat((x[:, 1:, :, :, :], y), dim=1, device=device)
+            target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
 
             output = model(x)
             loss = criterion(output, target)
@@ -122,6 +127,56 @@ def validate(model, device, val_loader, criterion):
             pbar.set_postfix({"loss": val_loss / (batch_idx + 1)})
 
     return val_loss / len(val_loader)
+
+
+def get_lr_scheduler(
+    optimizer: torch.optim.Optimizer, config: dict, epoch_size: int
+) -> optim.lr_scheduler.SequentialLR:
+    """Create a learning rate scheduler.
+
+    Parameters
+    ----------
+    optimizer : torch.optim.Optimizer
+        Optimizer for training
+    config : dict
+        Configuration dictionary for the learning rate scheduler
+    epoch_size : int
+        Number of training steps per epoch
+
+    Returns
+    -------
+    optim.lr_scheduler.SequentialLR
+        Learning rate scheduler
+    """
+
+    lrs1 = config["schedulers"][0]
+    lrs2 = config["schedulers"][1]
+
+    warmup_scheduler = optim.lr_scheduler.LinearLR(
+        optimizer,
+        start_factor=lrs1["start_factor"],
+        end_factor=lrs1["end_factor"],
+        total_iters=lrs1["total_iters"],
+    )
+
+    if lrs2["name"] == "CosineAnnealingWarmRestarts":
+        t_steps = epoch_size * lrs2["T_0"]
+        cosine_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer, T_0=t_steps, eta_min=lrs2["min_lr"]
+        )
+    elif lrs2["name"] == "CosineAnnealingLR":
+        t_steps = epoch_size * lrs2["T_max"]
+        cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=t_steps, eta_min=lrs2["min_lr"]
+        )
+
+    scheduler = optim.lr_scheduler.SequentialLR(
+        optimizer,
+        schedulers=[warmup_scheduler, cosine_scheduler],
+        milestones=[lrs1["total_iters"]],
+    )
+
+    return scheduler
 
 
 def main():
@@ -136,19 +191,21 @@ def main():
 
     # Create data loaders
     train_loader = get_dataloader(config["data"], config["training"], split="train")
+    epoch_size = len(train_loader)
     val_loader = get_dataloader(config["data"], config["training"], split="val")
 
     # Create model
     model = get_model(model_config=config["model"])
     model.to(device)
+    model = torch.compile(model)
 
     # Define loss function and optimizer
-    lr = config["training"]["learning_rate"]
-    # Learning rate scheduler
-
+    lrs_config = config["training"]["lr_scheduler"]
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config["training"]["epochs"])
+    optimizer = optim.Adam(model.parameters(), lr=lrs_config["learning_rate"])
+
+    # Create learning rate schedulers
+    scheduler = get_lr_scheduler(optimizer, lrs_config, epoch_size)
 
     # Create save directory if it doesn't exist
     save_dir = Path(config["data"]["model_checkpoint_dir"]) / "transformer"

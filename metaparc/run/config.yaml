@@ -6,16 +6,33 @@ model:
   dropout: 0.1 # dropout rate
   patch_size: [4, 16, 16] # patch size (usually 4x16x16)
   num_layers: 12 # number of attention layers
+  stochastic_depth: 0.1 # stochastic depth rate
 
 training:
   batch_size: 16
-  learning_rate: 0.001
   epochs: 10
   num_workers: 8
-  optimizer: Adam
-  criterion: MSELoss
-  lr_scheduler: CosineAnnealingLR
-
+  optimizer:
+    name: Adam
+    betas: [0.9, 0.999]
+    grad_clip: 1.0 # gradient clipping
+    criterion:
+      name: MSELoss
+  lr_scheduler:
+    learning_rate: 0.001
+    name: SequentialLR
+    schedulers:
+      - name: LinearLR # linear warmup scheduler
+        start_factor: 0.001
+        end_factor: 1.0
+        total_iters: 10000 # number of training steps for linear warmup
+      - name: CosineAnnealingWarmRestarts # cosine annealing scheduler
+        T_0: 10 # number epochs for one cosine annealing cycle
+        T_mult: 2 # multiplicative factor for the number of epochs in each cycle
+        min_lr: 0.0001
+      # - name: CosineAnnealingLR # cosine annealing scheduler
+      #   T_max: 10 # Number of epochs for one cosine annealing cycle
+      #   min_lr: 0.0001
 data:
   dt_stride: 1 # take every dt_stride-th timestep
   n_steps_input: 4 # number of input timesteps
