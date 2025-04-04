@@ -2,9 +2,10 @@ wandb:
   project: General Physics Model
   entity: wsnr-florian
   api_key: xxx
-  id: 0
+  id: test_run-2
   tags:
     - TestRun
+  log: all # log :all", "parameters" or "gradients"
   log_interval: 100
 
 logging:

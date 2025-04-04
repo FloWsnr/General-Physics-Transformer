@@ -9,7 +9,6 @@ from pathlib import Path
 
 import wandb.wandb_run
 import yaml
-from tqdm import tqdm
 import wandb
 
 import torch
@@ -50,7 +49,10 @@ class Trainer:
         self.logger.info(f"Using device: {self.device}")
 
         self.model = get_model(model_config=self.config["model"])
-        self.logger.info(f"Model: {self.model}")
+
+        total_params = sum(p.numel() for p in self.model.parameters())
+        self.logger.info(f"Model size: {total_params}")
+        self.logger.info(f"Model architecture: {self.model}")
         self.model.to(self.device)
 
         ################################################################
@@ -63,7 +65,9 @@ class Trainer:
         self.val_loader = get_dataloader(
             self.config["data"], self.config["training"], split="val"
         )
-        self.logger.info(f"Training on {len(self.train_loader)} samples")
+        self.logger.info(f"Training for {self.config['training']['epochs']} epochs")
+        self.logger.info(f"Training on {len(self.train_loader)} samples per epoch")
+        self.logger.info(f"Validating on {len(self.val_loader)} samples per epoch")
 
         ################################################################
         ########### Initialize loss function and optimizer ###########
@@ -107,8 +111,7 @@ class Trainer:
         self.model.train()
         train_loss = 0
 
-        pbar = tqdm(self.train_loader, desc="Training one epoch")
-        for batch_idx, batch in enumerate(pbar):
+        for batch_idx, batch in enumerate(self.train_loader):
             x, y = batch
             x = x.to(self.device)
             y = y.to(self.device)
@@ -135,8 +138,9 @@ class Trainer:
             else:
                 lr = self.optimizer.param_groups[0]["lr"]
 
-            pbar.set_postfix({"loss": train_loss / (batch_idx + 1), "lr": lr})
-            self.logger.info(f"Batch {batch_idx}, Loss: {loss.item()}, LR: {lr}")
+            self.logger.info(
+                f"\t Batch {batch_idx}, Loss: {loss.item():.4f}, LR: {lr:.6f}"
+            )
 
             # Log to wandb
             if batch_idx % self.config["wandb"]["log_interval"] == 0:
@@ -154,9 +158,8 @@ class Trainer:
         self.model.eval()
         val_loss = 0
 
-        pbar = tqdm(self.val_loader, desc="Validation")
         with torch.no_grad():
-            for batch_idx, batch in enumerate(pbar):
+            for batch_idx, batch in enumerate(self.val_loader):
                 x, y = batch
                 x = x.to(self.device)
                 y = y.to(self.device)
@@ -168,8 +171,7 @@ class Trainer:
 
                 val_loss += loss.item()
 
-                pbar.set_postfix({"loss": val_loss / (batch_idx + 1)})
-                self.logger.info(f"Batch {batch_idx}, Loss: {loss.item()}")
+                self.logger.info(f"\t Batch {batch_idx}, Loss: {loss.item():.4f}")
 
                 # Log to wandb
                 if batch_idx % self.config["wandb"]["log_interval"] == 0:
@@ -193,6 +195,10 @@ class Trainer:
         best_loss = float("inf")
         for epoch in range(1, self.config["training"]["epochs"] + 1):
             self.epoch = epoch
+            ######################################################################
+            ########### Training ###############################################
+            ######################################################################
+            self.logger.info(f"Training epoch {epoch}")
             train_loss = self.train_epoch()
             self.logger.info(f"Epoch {epoch}, Training loss: {train_loss:.4f}")
             self.wandb_run.log(
@@ -200,6 +206,10 @@ class Trainer:
                     "Training epoch loss": train_loss,
                 }
             )
+            ######################################################################
+            ########### Validation ###############################################
+            ######################################################################
+            self.logger.info(f"Validating epoch {epoch}")
             val_loss = self.validate()
             self.logger.info(f"Epoch {epoch}, Validation loss: {val_loss:.4f}")
             self.wandb_run.log(
