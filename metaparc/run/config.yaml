@@ -1,4 +1,25 @@
+wandb:
+  project: General Physics Model
+  entity: wsnr-florian
+  api_key: xxx
+  id: 0
+  tags:
+    - TestRun
+  log_interval: 100
+
+logging:
+  log_dir: /Users/zsa8rk/Coding/MetaPARC/logs
+  log_file: null #log.txt
+  log_level: INFO
+
 model:
+  architecture:
+    name: Spatial-Temporal Transformer
+    backbone: spatial temporal attention
+    normalization: None
+    activation: GELU
+    patch_net: 2xConv3D
+
   input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
   hidden_channels: 768 # number of hidden channels across all layers
   mlp_dim: 3072 # number of hidden channels in the MLP
@@ -21,8 +42,12 @@ training:
     # learning_rate: 0.001
     # weight_decay: 0.01
     # betas: [0.9, 0.999]
-    name: DAdaptAdam
+    # name: DAdaptAdam
+    # betas: [0.9, 0.999]
+    # weight_decay: 0.01
+    name: DAdaptAdamW
     betas: [0.9, 0.999]
+    weight_decay: 0.01
   criterion:
     name: MSELoss
 
@@ -33,13 +58,13 @@ training:
         start_factor: 0.001
         end_factor: 1.0
         total_iters: 10000 # number of training steps for linear warmup
-      - name: CosineAnnealingWarmRestarts # cosine annealing scheduler
-        T_0: 10 # number epochs for one cosine annealing cycle
-        T_mult: 2 # multiplicative factor for the number of epochs in each cycle
-        min_lr: 0.0001
-      # - name: CosineAnnealingLR # cosine annealing scheduler
-      #   T_max: 10 # Number of epochs for one cosine annealing cycle
+      # - name: CosineAnnealingWarmRestarts # cosine annealing scheduler
+      #   T_0: 10 # number epochs for one cosine annealing cycle
+      #   T_mult: 2 # multiplicative factor for the number of epochs in each cycle
       #   min_lr: 0.0001
+      - name: CosineAnnealingLR # cosine annealing scheduler
+        T_max: 10 # Number of epochs for one cosine annealing cycle
+        min_lr: 0.0001
 data:
   dt_stride: 1 # take every dt_stride-th timestep
   n_steps_input: 4 # number of input timesteps
@@ -60,5 +85,3 @@ data:
     # - rayleigh_benard
     # - shear_flow
     # - euler
-  
-  model_checkpoint_dir: /Users/zsa8rk/Coding/MetaPARC/model_checkpoints
