@@ -196,12 +196,12 @@ class MLP(nn.Module):
     MLP with 1x1 convolutions.
     """
 
-    def __init__(self, hidden_dim: int, dropout: float = 0.0):
+    def __init__(self, hidden_dim: int, mlp_dim: int, dropout: float = 0.0):
         super().__init__()
         self.mlp = nn.Sequential(
-            nn.Conv3d(hidden_dim, hidden_dim, kernel_size=1, padding="valid"),
+            nn.Conv3d(hidden_dim, mlp_dim, kernel_size=1, padding="valid"),
             nn.GELU(),
-            nn.Conv3d(hidden_dim, hidden_dim, kernel_size=1, padding="valid"),
+            nn.Conv3d(mlp_dim, hidden_dim, kernel_size=1, padding="valid"),
             nn.Dropout(dropout),
         )
 
@@ -225,6 +225,8 @@ class AttentionBlock(nn.Module):
     ----------
     hidden_dim: int
         Hidden dimension of the input.
+    mlp_dim: int
+        Hidden dimension of the MLP.
     num_heads: int
         Number of attention heads.
     dropout: float
@@ -235,6 +237,7 @@ class AttentionBlock(nn.Module):
         self,
         att_type: str,
         hidden_dim: int,
+        mlp_dim: int,
         num_heads: int,
         dropout: float = 0.0,
         pe: Optional[RotaryPositionalEmbedding] = None,
@@ -250,7 +253,7 @@ class AttentionBlock(nn.Module):
             raise ValueError(f"Invalid attention type: {att_type}")
         self.norm1 = nn.LayerNorm(hidden_dim)
         self.norm2 = nn.LayerNorm(hidden_dim)
-        self.mlp = MLP(hidden_dim, dropout)
+        self.mlp = MLP(hidden_dim, mlp_dim, dropout)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         x = self.norm1(input)

@@ -10,6 +10,7 @@ def test_forward():
     transformer = PhysicsTransformer(
         input_channels=3,
         hidden_dim=96,
+        mlp_dim=256,
         num_heads=4,
         dropout=0.0,
         patch_size=(4, 16, 16),
@@ -24,6 +25,7 @@ def test_forward_cuda():
     transformer = PhysicsTransformer(
         input_channels=3,
         hidden_dim=96,
+        mlp_dim=256,
         num_heads=4,
         dropout=0.0,
         patch_size=(4, 16, 16),

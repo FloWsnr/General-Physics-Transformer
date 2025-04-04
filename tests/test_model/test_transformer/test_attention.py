@@ -72,7 +72,8 @@ class TestMLP:
     def test_init(self):
         """Test initialization of MLP module."""
         hidden_dim = 64
-        mlp = MLP(hidden_dim)
+        mlp_dim = 256
+        mlp = MLP(hidden_dim, mlp_dim)
 
         assert isinstance(mlp.mlp, nn.Sequential)
         assert len(mlp.mlp) == 4
@@ -84,9 +85,10 @@ class TestMLP:
         height = 16
         width = 16
         hidden_dim = 64
+        mlp_dim = 256
 
         x = torch.randn(batch_size, time, height, width, hidden_dim)
-        mlp = MLP(hidden_dim)
+        mlp = MLP(hidden_dim, mlp_dim)
 
         output = mlp(x)
 
@@ -171,6 +173,7 @@ class TestAttentionBlock:
         """Test forward pass of AttentionBlock module."""
         batch_size = 2
         channels = 96
+        mlp_dim = 256
         time = 3
         height = 8
         width = 8
@@ -179,7 +182,11 @@ class TestAttentionBlock:
 
         x = torch.randn(batch_size, time, height, width, channels)
         block = AttentionBlock(
-            att_type="full", hidden_dim=channels, num_heads=num_heads, dropout=dropout
+            att_type="full",
+            hidden_dim=channels,
+            mlp_dim=mlp_dim,
+            num_heads=num_heads,
+            dropout=dropout,
         )
 
         output = block(x)

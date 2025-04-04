@@ -144,8 +144,11 @@ def main():
 
     # Define loss function and optimizer
     lr = config["training"]["learning_rate"]
+    # Learning rate scheduler
+
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config["training"]["epochs"])
 
     # Create save directory if it doesn't exist
     save_dir = Path(config["data"]["model_checkpoint_dir"]) / "transformer"
@@ -175,6 +178,9 @@ def main():
         # Validate
         val_loss = validate(model, device, val_loader, criterion)
         val_losses.append(val_loss)
+
+        # Update learning rate
+        scheduler.step()
 
         # Save best model
         if val_loss < best_loss:

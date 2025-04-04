@@ -15,6 +15,7 @@ def get_model(model_config: dict):
     return PhysicsTransformer(
         input_channels=model_config["input_channels"],
         hidden_dim=model_config["hidden_channels"],
+        mlp_dim=model_config["mlp_dim"],
         num_heads=model_config["num_heads"],
         dropout=model_config["dropout"],
         patch_size=model_config["patch_size"],
@@ -43,7 +44,9 @@ class PhysicsTransformer(nn.Module):
     input_channels: int
         Number of input channels (physical fields).
     hidden_dim: int
-        Hidden dimension inside the transformer. Should be divisible by 6 if rotary positional encoding is used.
+        Hidden dimension inside the attention blocks. Should be divisible by 6 if rotary positional encoding is used.
+    mlp_dim: int
+        Hidden dimension inside the MLP.
     num_heads: int
         Number of attention heads.
     dropout: float
@@ -59,6 +62,7 @@ class PhysicsTransformer(nn.Module):
         input_channels: int,
         hidden_dim: int,
         num_heads: int,
+        mlp_dim: int,
         dropout: float = 0.0,
         patch_size: tuple[int, int, int] = (4, 16, 16),
         num_layers: int = 4,
@@ -71,6 +75,7 @@ class PhysicsTransformer(nn.Module):
                 AttentionBlock(
                     att_type="full",
                     hidden_dim=hidden_dim,
+                    mlp_dim=mlp_dim,
                     num_heads=num_heads,
                     dropout=dropout,
                     pe=self.pos_encodings,
