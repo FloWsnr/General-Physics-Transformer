@@ -4,7 +4,34 @@ import torch.nn as nn
 from metaparc.model.transformer.tokenizer import (
     SpatioTemporalDetokenization,
     SpatioTemporalTokenization,
+    LinearPatchifier,
 )
+
+class TestLinearPatchifier:
+    """
+    Tests for the LinearPatchifier class.
+    """
+
+    def test_linear_patchifier_forward_pass(self):
+        """
+        Test that the LinearPatchifier class initializes correctly.
+        """
+        batch_size = 2
+        img_size = (4, 256, 128)
+        patch_size = (2, 4, 4)
+        in_channels = 5
+        dim_embed = 256
+
+        patchifier = LinearPatchifier(img_size, patch_size, in_channels, dim_embed)
+        x = torch.randn(batch_size, *img_size, in_channels)
+        output = patchifier(x)
+
+        num_t_patches = img_size[0] // patch_size[0]
+        num_h_patches = img_size[1] // patch_size[1]
+        num_w_patches = img_size[2] // patch_size[2]
+        patch_dim = in_channels * patch_size[0] * patch_size[1] * patch_size[2]
+
+        assert output.shape == (batch_size, num_t_patches, num_h_patches, num_w_patches, dim_embed)
 
 
 class TestSpatioTemporalTokenization:

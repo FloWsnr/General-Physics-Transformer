@@ -8,8 +8,9 @@ import torch
 import torch.nn as nn
 
 from einops import rearrange
+from einops.layers.torch import Rearrange
 
-class PatchNet(nn.Module):
+class LinearPatchifier(nn.Module):
     """
     Use a linear layer to project the input tensor into patches.
 
@@ -38,18 +39,19 @@ class PatchNet(nn.Module):
         patch_dim = in_channels * patch_time * patch_height * patch_width
 
         self.to_patch_embedding = nn.Sequential(
-            rearrange('b t (h p1) (w p2) c -> b (t h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
+            Rearrange("b (t p_t) (h p_h) (w p_w) c -> b (t h w) (p_t p_h p_w c)", p_t = patch_time, p_h = patch_height, p_w = patch_width),
             nn.LayerNorm(patch_dim),
             nn.Linear(patch_dim, dim_embed),
             nn.LayerNorm(dim_embed),
-            rearrange('b (t h w) d -> b t h w d', t = num_t_patches, h = num_h_patches, w = num_w_patches),
+            Rearrange("b (t h w) d -> b t h w d", t = num_t_patches, h = num_h_patches, w = num_w_patches),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Project the input tensor into patches.
         """
-        return self.to_patch_embedding(x)
+        x = self.to_patch_embedding(x)
+        return x
 
 
 class SpatioTemporalTokenization(nn.Module):
