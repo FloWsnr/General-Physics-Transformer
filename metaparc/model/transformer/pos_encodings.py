@@ -62,6 +62,8 @@ class RotaryPositionalEmbedding(nn.Module):
     Rotary Positional Embeddings for 5D tensors (B, T, H, W, C).
 
     Implements separate rotary embeddings for time dimension and spatial dimensions (x, y).
+    A third of the channels are used for the time dimension, a third for the x dimension, and a third for the y dimension.
+    Order = (t, x, y)
 
     Parameters
     ----------
