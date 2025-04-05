@@ -9,6 +9,48 @@ import torch.nn as nn
 
 from einops import rearrange
 
+class PatchNet(nn.Module):
+    """
+    Use a linear layer to project the input tensor into patches.
+
+    Parameters
+    ----------
+    img_size : tuple
+        The size of the input (time, height, width).
+
+    patch_size : tuple
+        The size of the patches to split the image into (time, height, width).
+
+    in_channels : int
+        The number of channels in the input image.
+
+    dim_embed : int
+        The dimension of the embedding.
+    """
+    def __init__(self, img_size: tuple, patch_size: tuple, in_channels: int, dim_embed: int):
+        super().__init__()
+        img_time, img_height, img_width = img_size
+        patch_time, patch_height, patch_width = patch_size
+
+        num_t_patches = img_time // patch_time
+        num_h_patches = img_height // patch_height
+        num_w_patches = img_width // patch_width
+        patch_dim = in_channels * patch_time * patch_height * patch_width
+
+        self.to_patch_embedding = nn.Sequential(
+            rearrange('b t (h p1) (w p2) c -> b (t h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
+            nn.LayerNorm(patch_dim),
+            nn.Linear(patch_dim, dim_embed),
+            nn.LayerNorm(dim_embed),
+            rearrange('b (t h w) d -> b t h w d', t = num_t_patches, h = num_h_patches, w = num_w_patches),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Project the input tensor into patches.
+        """
+        return self.to_patch_embedding(x)
+
 
 class SpatioTemporalTokenization(nn.Module):
     """
