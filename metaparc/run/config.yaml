@@ -26,7 +26,9 @@ model:
   mlp_dim: 3072 # number of hidden channels in the MLP
   num_heads: 12 # number of attention heads
   dropout: 0.1 # dropout rate
+  img_size: [4,256,128]
   patch_size: [4, 16, 16] # patch size (usually 4x16x16)
+  tokenizer_mode: linear # tokenizer mode (usually linear or conv3d)
   num_layers: 12 # number of attention layers
   stochastic_depth: 0.1 # stochastic depth rate
 

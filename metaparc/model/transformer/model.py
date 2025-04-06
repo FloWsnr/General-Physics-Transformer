@@ -1,15 +1,11 @@
 import torch
 import torch.nn as nn
-import math
 
 from torchvision.ops import stochastic_depth
 
 from metaparc.model.transformer.attention import AttentionBlock
 from metaparc.model.transformer.pos_encodings import RotaryPositionalEmbedding
-from metaparc.model.transformer.tokenizer import (
-    SpatioTemporalTokenization,
-    SpatioTemporalDetokenization,
-)
+from metaparc.model.transformer.tokenizer import Tokenizer, Detokenizer
 
 
 def get_model(model_config: dict):
@@ -19,23 +15,15 @@ def get_model(model_config: dict):
         hidden_dim=model_config["hidden_channels"],
         mlp_dim=model_config["mlp_dim"],
         num_heads=model_config["num_heads"],
-        dropout=model_config["dropout"],
-        stochastic_depth_rate=model_config["stochastic_depth"],
-        patch_size=model_config["patch_size"],
         num_layers=model_config["num_layers"],
+        img_size=model_config["img_size"],
+        patch_size=model_config["patch_size"],
+        tokenizer_mode=model_config["tokenizer_mode"],
+        dropout=model_config["dropout"],
+        stochastic_depth=model_config["stochastic_depth"],
     )
 
 
-def get_patch_conv_size(patch_size: tuple[int, int, int]) -> tuple[int, int, int]:
-    """
-    Get the conv sizes depending on the desired patch size.
-    """
-
-    t = int(math.sqrt(patch_size[0]))
-    h = int(math.sqrt(patch_size[1]))
-    w = int(math.sqrt(patch_size[2]))
-
-    return (t, h, w)
 
 
 class PhysicsTransformer(nn.Module):
@@ -52,12 +40,18 @@ class PhysicsTransformer(nn.Module):
         Hidden dimension inside the MLP.
     num_heads: int
         Number of attention heads.
-    dropout: float
-        Dropout rate.
-    patch_size: tuple[int, int, int]
-        Patch size for spatial-temporal embeddings. (time, height, width)
     num_layers: int
         Number of attention blocks.
+    patch_size: tuple[int, int, int]
+        Patch size for spatial-temporal embeddings. (time, height, width)
+    img_size: tuple[int, int, int]
+        Incoming image size (time, height, width)
+    tokenizer_mode: str
+        Tokenizer mode. Can be "linear" or "conv3d".
+    dropout: float
+        Dropout rate.
+    stochastic_depth: float
+        Stochastic depth rate.
     """
 
     def __init__(
@@ -65,14 +59,16 @@ class PhysicsTransformer(nn.Module):
         input_channels: int,
         hidden_dim: int,
         num_heads: int,
+        num_layers: int,
         mlp_dim: int,
+        img_size: tuple[int, int, int],
+        patch_size: tuple[int, int, int],
+        tokenizer_mode: str,
         dropout: float = 0.0,
-        stochastic_depth_rate: float = 0.1,
-        patch_size: tuple[int, int, int] = (4, 16, 16),
-        num_layers: int = 4,
+        stochastic_depth: float = 0.1,
     ):
         super().__init__()
-        self.stochastic_depth_rate = stochastic_depth_rate
+        self.stochastic_depth = stochastic_depth
 
         self.pos_encodings = RotaryPositionalEmbedding(dim=hidden_dim, base=10000)
         self.attention_blocks = nn.ModuleList(
@@ -89,18 +85,19 @@ class PhysicsTransformer(nn.Module):
             ]
         )
 
-        patch_conv_size = get_patch_conv_size(patch_size)
-        self.tokenizer = SpatioTemporalTokenization(
+        self.tokenizer = Tokenizer(     
+            img_size=img_size,
+            patch_size=patch_size,
             in_channels=input_channels,
             dim_embed=hidden_dim,
-            conv1_size=patch_conv_size,
-            conv2_size=patch_conv_size,
+            mode=tokenizer_mode,
         )
-        self.detokenizer = SpatioTemporalDetokenization(
+        self.detokenizer = Detokenizer(
+            img_size=img_size,
+            patch_size=patch_size,
             dim_embed=hidden_dim,
             out_channels=input_channels,
-            conv1_size=patch_conv_size,
-            conv2_size=patch_conv_size,
+            mode=tokenizer_mode,
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -111,7 +108,7 @@ class PhysicsTransformer(nn.Module):
         for block in self.attention_blocks:
             x = block(x)
             x = stochastic_depth(
-                x, p=self.stochastic_depth_rate, mode="row", training=self.training
+                x, p=self.stochastic_depth, mode="row", training=self.training
             )
 
         # Apply de-patching

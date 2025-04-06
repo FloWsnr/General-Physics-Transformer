@@ -13,8 +13,11 @@ def test_forward():
         mlp_dim=256,
         num_heads=4,
         dropout=0.0,
+        tokenizer_mode="linear",
+        img_size=(8, 128, 128),
         patch_size=(4, 16, 16),
         num_layers=4,
+        stochastic_depth=0.0,
     )
     output = transformer(data)
     assert output.shape == (10, 8, 128, 128, 3)
@@ -30,6 +33,9 @@ def test_forward_cuda():
         dropout=0.0,
         patch_size=(4, 16, 16),
         num_layers=4,
+        tokenizer_mode="linear",
+        img_size=(8, 128, 128),
+        stochastic_depth=0.0,
     )
     transformer.cuda()
     output = transformer(data)

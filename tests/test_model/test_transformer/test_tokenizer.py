@@ -100,7 +100,6 @@ class TestLinearTokenizer:
         num_t_patches = img_size[0] // patch_size[0]
         num_h_patches = img_size[1] // patch_size[1]
         num_w_patches = img_size[2] // patch_size[2]
-        patch_dim = in_channels * patch_size[0] * patch_size[1] * patch_size[2]
 
         assert output.shape == (
             batch_size,
