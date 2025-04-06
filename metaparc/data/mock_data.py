@@ -20,6 +20,7 @@ class MockData(Dataset):
         num_time_steps: int,
         num_height_pixels: int,
         num_width_pixels: int,
+        num_lines: int,
     ):
         self.time_steps = num_time_steps
         self.height_pixels = num_height_pixels
@@ -31,7 +32,7 @@ class MockData(Dataset):
             num_channels,
         )
 
-        self.line_length = 10
+        self.line_length = num_lines
 
     def __len__(self):
         return self.height_pixels - self.time_steps * self.line_length

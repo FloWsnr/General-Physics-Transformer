@@ -12,24 +12,27 @@ from metaparc.data.mock_data import MockData
 def test_model_training():
 
     channels = 5
-    height = 128
-    width = 64
+    height = 32
+    width = 16
     time_steps = 4
+    num_lines = 2
 
     config = {
         "input_channels": channels,
-        "hidden_channels": 6*10, # must be divisible by 6
-        "mlp_dim": 256,
-        "num_heads": 4,
+        "hidden_channels": 6*5, # must be divisible by 6
+        "mlp_dim": 128,
+        "num_heads": 1,
         "num_layers": 2,
-        "patch_size": (2, 8, 8),
+        "patch_size": (2, 4, 4),
+        "tokenizer_mode": "linear",
         "stochastic_depth": 0.0,
         "dropout": 0.0,
+        "img_size": (time_steps, height, width),
     }
 
     model = get_model(config)
 
-    data = MockData(channels, time_steps, height, width)
+    data = MockData(channels, time_steps, height, width, num_lines)
     dataloader = DataLoader(data, batch_size=4, shuffle=True)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
@@ -49,7 +52,7 @@ def test_model_training():
         scheduler.step()
 
     # get one sample
-    x, y = data[50]
+    x, y = data[height//2]
     x = x.unsqueeze(0)
     y = y.unsqueeze(0)
     output = model(x)
