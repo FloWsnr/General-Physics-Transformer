@@ -1,6 +1,5 @@
 import pytest
 import torch
-import torch.nn as nn
 from metaparc.model.transformer.tokenizer import (
     Conv3D_Detokenizer,
     Conv3D_Tokenizer,
