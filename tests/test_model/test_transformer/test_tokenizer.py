@@ -2,19 +2,21 @@ import pytest
 import torch
 import torch.nn as nn
 from metaparc.model.transformer.tokenizer import (
-    SpatioTemporalDetokenization,
-    SpatioTemporalTokenization,
-    LinearPatchifier,
+    Conv3D_Detokenizer,
+    Conv3D_Tokenizer,
+    LinearTokenizer,
+    LinearDetokenizer,
 )
 
-class TestLinearPatchifier:
+
+class TestLinearTokenizer:
     """
-    Tests for the LinearPatchifier class.
+    Tests for the LinearTokenizer class.
     """
 
-    def test_linear_patchifier_forward_pass(self):
+    def test_linear_tokenizer_forward_pass(self):
         """
-        Test that the LinearPatchifier class initializes correctly.
+        Test that the LinearTokenizer class initializes correctly.
         """
         batch_size = 2
         img_size = (4, 256, 128)
@@ -22,26 +24,57 @@ class TestLinearPatchifier:
         in_channels = 5
         dim_embed = 256
 
-        patchifier = LinearPatchifier(img_size, patch_size, in_channels, dim_embed)
+        tokenizer = LinearTokenizer(img_size, patch_size, in_channels, dim_embed)
         x = torch.randn(batch_size, *img_size, in_channels)
-        output = patchifier(x)
+        output = tokenizer(x)
 
         num_t_patches = img_size[0] // patch_size[0]
         num_h_patches = img_size[1] // patch_size[1]
         num_w_patches = img_size[2] // patch_size[2]
         patch_dim = in_channels * patch_size[0] * patch_size[1] * patch_size[2]
 
-        assert output.shape == (batch_size, num_t_patches, num_h_patches, num_w_patches, dim_embed)
+        assert output.shape == (
+            batch_size,
+            num_t_patches,
+            num_h_patches,
+            num_w_patches,
+            dim_embed,
+        )
 
 
-class TestSpatioTemporalTokenization:
+class TestLinearDetokenizer:
     """
-    Tests for the SpatioTemporalTokenization class.
+    Tests for the LinearDetokenizer class.
     """
 
-    def test_spatio_temporal_initialization(self):
+    def test_linear_detokenizer_forward_pass(self):
         """
-        Test that the SpatioTemporalTokenization class initializes correctly.
+        Test that the LinearDetokenizer class shape is correct.
+        """
+        batch_size = 2
+        img_size = (4, 256, 128)
+        patch_size = (2, 4, 4)
+        in_channels = 5
+        dim_embed = 256
+
+        num_t_patches = img_size[0] // patch_size[0]
+        num_h_patches = img_size[1] // patch_size[1]
+        num_w_patches = img_size[2] // patch_size[2]
+
+        detokenizer = LinearDetokenizer(img_size, patch_size, out_channels=in_channels, dim_embed=dim_embed)
+        x = torch.randn(batch_size, num_t_patches, num_h_patches, num_w_patches, dim_embed)
+        output = detokenizer(x)
+
+        assert output.shape == (batch_size, *img_size, in_channels)
+
+class TestConv3DTokenizer:
+    """
+    Tests for the Conv3DTokenizer class.
+    """
+
+    def test_conv3d_tokenizer_initialization(self):
+        """
+        Test that the Conv3DTokenizer class initializes correctly.
 
         Parameters
         ----------
@@ -56,7 +89,7 @@ class TestSpatioTemporalTokenization:
         conv1_size = (2, 4, 4)
         conv2_size = (2, 4, 4)
 
-        tokenizer = SpatioTemporalTokenization(
+        tokenizer = Conv3D_Tokenizer(
             in_channels=in_channels,
             dim_embed=dim_embed,
             conv1_size=conv1_size,
@@ -67,9 +100,9 @@ class TestSpatioTemporalTokenization:
         assert isinstance(tokenizer.token_net, nn.Sequential)
         assert len(tokenizer.token_net) == 6  # 2 conv layers, 2 norm layers, 2 GELU
 
-    def test_spatio_temporal_forward_pass(self):
+    def test_conv3d_tokenizer_forward_pass(self):
         """
-        Test the forward pass of the SpatioTemporalTokenization class.
+        Test the forward pass of the Conv3DTokenizer class.
 
         Parameters
         ----------
@@ -88,7 +121,7 @@ class TestSpatioTemporalTokenization:
         conv1_size = (2, 4, 4)
         conv2_size = (2, 4, 4)
 
-        tokenizer = SpatioTemporalTokenization(
+        tokenizer = Conv3D_Tokenizer(
             in_channels=in_channels,
             dim_embed=dim_embed,
             conv1_size=conv1_size,
@@ -113,9 +146,9 @@ class TestSpatioTemporalTokenization:
         )
         assert output.shape == expected_shape
 
-    def test_spatio_temporal_pure_spatial_tokenization(self):
+    def test_conv3d_pure_spatial_tokenization(self):
         """
-        Test SpatioTemporalTokenization with time size of 1 for pure spatial tokenization.
+        Test Conv3DTokenizer with time size of 1 for pure spatial tokenization.
 
         Parameters
         ----------
@@ -135,7 +168,7 @@ class TestSpatioTemporalTokenization:
         conv1_size = (1, 4, 4)
         conv2_size = (1, 4, 4)
 
-        tokenizer = SpatioTemporalTokenization(
+        tokenizer = Conv3D_Tokenizer(
             in_channels=in_channels,
             dim_embed=dim_embed,
             conv1_size=conv1_size,
@@ -162,18 +195,18 @@ class TestSpatioTemporalTokenization:
 
 class TestSpatioTemporalDetokenization:
     """
-    Tests for the SpatioTemporalDetokenization tokenizer class.
+    Tests for the Conv3D_Detokenizer tokenizer class.
     """
 
     def test_initialization(self):
         """
-        Test that the SpatioTemporalDetokenization class initializes with correct default parameters.
+        Test that the Conv3D_Detokenizer class initializes with correct default parameters.
         """
         dim_embed = 256
         channels = 3
         conv1_size = (2, 4, 4)
         conv2_size = (2, 4, 4)
-        tokenizer = SpatioTemporalDetokenization(
+        tokenizer = Conv3D_Detokenizer(
             dim_embed=dim_embed,
             out_channels=channels,
             conv1_size=conv1_size,
@@ -184,7 +217,7 @@ class TestSpatioTemporalDetokenization:
 
     def test_forward_pass(self):
         """
-        Test the forward pass of the Patch2Image class.
+        Test the forward pass of the Conv3D_Detokenizer class.
         """
         batch_size = 2
         time_steps = 3
@@ -195,7 +228,7 @@ class TestSpatioTemporalDetokenization:
         conv1_size = (2, 4, 4)
         conv2_size = (2, 4, 4)
 
-        tokenizer = SpatioTemporalDetokenization(
+        tokenizer = Conv3D_Detokenizer(
             dim_embed=dim_embed,
             out_channels=channels,
             conv1_size=conv1_size,
@@ -217,9 +250,9 @@ class TestSpatioTemporalDetokenization:
 
         assert output.shape == expected_shape
 
-    def test_spatio_temporal_pure_spatial_detokenization(self):
+    def test_conv3d_pure_spatial_detokenization(self):
         """
-        Test SpatioTemporalDetokenization with time size of 1 for pure spatial detokenization.
+        Test Conv3D_Detokenizer with time size of 1 for pure spatial detokenization.
         """
         batch_size = 2
         time_steps = 3
@@ -230,7 +263,7 @@ class TestSpatioTemporalDetokenization:
         conv1_size = (1, 4, 4)  # Time size of 1 for pure spatial detokenization
         conv2_size = (1, 4, 4)  # Time size of 1 for pure spatial detokenization
 
-        tokenizer = SpatioTemporalDetokenization(
+        tokenizer = Conv3D_Detokenizer(
             dim_embed=dim_embed,
             out_channels=channels,
             conv1_size=conv1_size,

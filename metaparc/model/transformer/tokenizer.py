@@ -10,7 +10,8 @@ import torch.nn as nn
 from einops import rearrange
 from einops.layers.torch import Rearrange
 
-class LinearPatchifier(nn.Module):
+
+class LinearTokenizer(nn.Module):
     """
     Use a linear layer to project the input tensor into patches.
 
@@ -28,7 +29,10 @@ class LinearPatchifier(nn.Module):
     dim_embed : int
         The dimension of the embedding.
     """
-    def __init__(self, img_size: tuple, patch_size: tuple, in_channels: int, dim_embed: int):
+
+    def __init__(
+        self, img_size: tuple, patch_size: tuple, in_channels: int, dim_embed: int
+    ):
         super().__init__()
         img_time, img_height, img_width = img_size
         patch_time, patch_height, patch_width = patch_size
@@ -39,11 +43,21 @@ class LinearPatchifier(nn.Module):
         patch_dim = in_channels * patch_time * patch_height * patch_width
 
         self.to_patch_embedding = nn.Sequential(
-            Rearrange("b (t p_t) (h p_h) (w p_w) c -> b (t h w) (p_t p_h p_w c)", p_t = patch_time, p_h = patch_height, p_w = patch_width),
+            Rearrange(
+                "b (t p_t) (h p_h) (w p_w) c -> b (t h w) (p_t p_h p_w c)",
+                p_t=patch_time,
+                p_h=patch_height,
+                p_w=patch_width,
+            ),
             nn.LayerNorm(patch_dim),
             nn.Linear(patch_dim, dim_embed),
             nn.LayerNorm(dim_embed),
-            Rearrange("b (t h w) d -> b t h w d", t = num_t_patches, h = num_h_patches, w = num_w_patches),
+            Rearrange(
+                "b (t h w) d -> b t h w d",
+                t=num_t_patches,
+                h=num_h_patches,
+                w=num_w_patches,
+            ),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -54,7 +68,70 @@ class LinearPatchifier(nn.Module):
         return x
 
 
-class SpatioTemporalTokenization(nn.Module):
+class LinearDetokenizer(nn.Module):
+    """
+    Converts the patches back into an image using linear projections.
+
+    This is the inverse operation of the LinearPatchifier.
+
+    Parameters
+    ----------
+    img_size : tuple
+        The size of the output image (time, height, width).
+
+    patch_size : tuple
+        The size of the patches (time, height, width).
+
+    out_channels : int
+        The number of channels in the output image.
+
+    dim_embed : int
+        The dimension of the embedding.
+    """
+
+    def __init__(
+        self, img_size: tuple, patch_size: tuple, out_channels: int, dim_embed: int
+    ):
+        super().__init__()
+        img_time, img_height, img_width = img_size
+        patch_time, patch_height, patch_width = patch_size
+
+        num_t_patches = img_time // patch_time
+        num_h_patches = img_height // patch_height
+        num_w_patches = img_width // patch_width
+        patch_dim = out_channels * patch_time * patch_height * patch_width
+
+        self.from_patch_embedding = nn.Sequential(
+            Rearrange(
+                "b t h w d -> b (t h w) d",
+                t=num_t_patches,
+                h=num_h_patches,
+                w=num_w_patches,
+            ),
+            nn.LayerNorm(dim_embed),
+            nn.Linear(dim_embed, patch_dim),
+            # nn.LayerNorm(patch_dim), # NOTE: not sure if needed for detokenizer
+            Rearrange(
+                "b (t h w) (p_t p_h p_w c) -> b (t p_t) (h p_h) (w p_w) c",
+                t=num_t_patches,
+                h=num_h_patches,
+                w=num_w_patches,
+                p_t=patch_time,
+                p_h=patch_height,
+                p_w=patch_width,
+                c=out_channels,
+            ),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Convert the patches back into an image.
+        """
+        x = self.from_patch_embedding(x)
+        return x
+
+
+class Conv3D_Tokenizer(nn.Module):
     """
     Tokenizes the input tensor (b, time, height, width, channels) into spatio-temporal tokens.
 
@@ -129,7 +206,7 @@ class SpatioTemporalTokenization(nn.Module):
         return x
 
 
-class SpatioTemporalDetokenization(nn.Module):
+class Conv3D_Detokenizer(nn.Module):
     """
     Converts back spatio-temporal tokens into a physical tensor.
 
