@@ -11,6 +11,171 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 
 
+def get_patch_conv_size(
+    patch_size: tuple[int, int, int],
+) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    """
+    Get the conv sizes depending on the desired patch size.
+
+    Parameters
+    ----------
+    patch_size : tuple
+        The size of the patches to split the image into (time, height, width).
+
+    Returns
+    -------
+    conv1_size : tuple
+        The size of the patch for the first convolutional layer.
+    conv2_size : tuple
+        The size of the patch for the second convolutional layer.
+    """
+    t1, t2 = find_closest_factors_power_of_two(patch_size[0])
+    h1, h2 = find_closest_factors_power_of_two(patch_size[1])
+    w1, w2 = find_closest_factors_power_of_two(patch_size[2])
+
+    conv1_size = (t1, h1, w1)
+    conv2_size = (t2, h2, w2)
+    return conv1_size, conv2_size
+
+
+def find_closest_factors_power_of_two(n: int) -> tuple[int, int]:
+    """
+    Finds two factors (a, b) of a power of two 'n' such that a*b=n
+    and 'a' and 'b' are the closest possible powers of two.
+
+    Parameters
+    ----------
+    n : int
+        The number to find the closest factors of.
+
+    Returns
+    -------
+    factor1 : int
+        The first factor.
+    factor2 : int
+        The second factor.
+    """
+    if n <= 0 or (n & (n - 1) != 0):
+        raise ValueError("Input must be a positive power of two.")
+
+    # Using the exponent method
+    k = n.bit_length() - 1  # Efficient way to get log2(n) for powers of 2
+
+    exp1 = k // 2  # Integer division equivalent to floor(k/2)
+    exp2 = (k + 1) // 2  # Equivalent to ceil(k/2) for integers
+
+    factor1 = 1 << exp1  # Efficient power of 2: 2**exp1
+    factor2 = 1 << exp2  # Efficient power of 2: 2**exp2
+
+    return factor1, factor2
+
+
+class Tokenizer(nn.Module):
+    """
+    Base class for tokenizers.
+
+    Parameters
+    ----------
+    img_size : tuple
+        The size of the input image (time, height, width).
+    patch_size : tuple
+        The size of the patches to split the image into (time, height, width).
+    in_channels : int
+        The number of channels in the input image.
+    dim_embed : int
+        The dimension of the embedding.
+    mode : str
+        The mode of the tokenizer. Can be "linear" or "conv3d".
+    """
+
+    def __init__(
+        self,
+        img_size: tuple,
+        patch_size: tuple,
+        in_channels: int,
+        dim_embed: int,
+        mode: str,
+    ):
+        super().__init__()
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.in_channels = in_channels
+        self.dim_embed = dim_embed
+        self.mode = mode
+
+        if self.mode == "linear":
+            self.tokenizer = LinearTokenizer(
+                img_size=img_size,
+                patch_size=patch_size,
+                in_channels=in_channels,
+                dim_embed=dim_embed,
+            )
+        elif self.mode == "conv3d":
+            self.tokenizer = Conv3D_Tokenizer(
+                in_channels=in_channels,
+                dim_embed=dim_embed,
+                patch_size=patch_size,
+            )
+        else:
+            raise ValueError(f"Invalid tokenizer mode: {self.mode}")
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.tokenizer(x)
+
+
+class Detokenizer(nn.Module):
+    """
+    Base class for detokenizers.
+
+    Parameters
+    ----------
+    img_size : tuple
+        The size of the output image (time, height, width).
+    patch_size : tuple
+        The size of the incoming patches (time, height, width).
+    dim_embed : int
+        The dimension of the embedding.
+    out_channels : int
+        The number of channels in the output image.
+    mode : str
+        The mode of the detokenizer. Can be "linear" or "conv3d".
+    """
+
+    def __init__(
+        self,
+        img_size: tuple,
+        patch_size: tuple,
+        dim_embed: int,
+        out_channels: int,
+        mode: str,
+    ):
+        super().__init__()
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.out_channels = out_channels
+        self.dim_embed = dim_embed
+        self.mode = mode
+
+        if self.mode == "linear":
+            self.detokenizer = LinearDetokenizer(
+                img_size=img_size,
+                patch_size=patch_size,
+                out_channels=out_channels,
+                dim_embed=dim_embed,
+            )
+        elif self.mode == "conv3d":
+            self.detokenizer = Conv3D_Detokenizer(
+                dim_embed=dim_embed,
+                out_channels=out_channels,
+                patch_size=patch_size,
+            )
+        else:
+            raise ValueError(f"Invalid tokenizer mode: {self.mode}")
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.detokenizer(x)
+
+
 class LinearTokenizer(nn.Module):
     """
     Use a linear layer to project the input tensor into patches.
@@ -149,20 +314,25 @@ class Conv3D_Tokenizer(nn.Module):
         Number of channels in the input tensor (number of physics states).
     dim_embed : int
         Dimension of the embedding.
-    conv1_size : tuple (time, height, width)
-        Size of the patch for the first convolutional layer.
-    conv2_size : tuple (time, height, width)
-        Size of the patch for the second convolutional layer.
+    patch_size : tuple (time, height, width)
+        The desired final patch size. This will be split into two conv layers.
     """
 
     def __init__(
         self,
         in_channels: int,
         dim_embed: int,
-        conv1_size: tuple,
-        conv2_size: tuple,
+        patch_size: tuple,
     ):
         super().__init__()
+
+        # Calculate conv sizes from patch size
+        t1, t2 = find_closest_factors_power_of_two(patch_size[0])
+        h1, h2 = find_closest_factors_power_of_two(patch_size[1])
+        w1, w2 = find_closest_factors_power_of_two(patch_size[2])
+
+        conv1_size = (t1, h1, w1)
+        conv2_size = (t2, h2, w2)
 
         token_net = [
             nn.Conv3d(
@@ -214,28 +384,30 @@ class Conv3D_Detokenizer(nn.Module):
     ----------
     dim_embed : int
         Dimension of the incoming embedding.
-
     out_channels : int
         Number of channels in the output tensor (number of physics states).
-
-    conv1_size : tuple (time, height, width)
-        Size of the patch for the first convolutional layer.
-
-    conv2_size : tuple (time, height, width)
-        Size of the patch for the second convolutional layer.
+    patch_size : tuple (time, height, width)
+        The desired final patch size. This will be split into two conv layers.
     """
 
     def __init__(
         self,
         dim_embed: int,
         out_channels: int,
-        conv1_size: tuple,
-        conv2_size: tuple,
+        patch_size: tuple,
     ):
         super().__init__()
         self.register_buffer("patch_size", torch.tensor(16))
         self.in_channels = dim_embed
         self.out_channels = out_channels
+
+        # Calculate conv sizes from patch size
+        t1, t2 = find_closest_factors_power_of_two(patch_size[0])
+        h1, h2 = find_closest_factors_power_of_two(patch_size[1])
+        w1, w2 = find_closest_factors_power_of_two(patch_size[2])
+
+        conv1_size = (t1, h1, w1)
+        conv2_size = (t2, h2, w2)
 
         de_patch_net = [
             nn.ConvTranspose3d(
