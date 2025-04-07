@@ -1,9 +1,10 @@
 wandb:
   project: General Physics Model
   entity: wsnr-florian
-  id: test_run-6
+  id: test_run-8
   tags:
     - TestRun
+    - ShortParamEvalRun
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
 
@@ -24,7 +25,7 @@ model:
   hidden_channels: 60 # number of hidden channels across all layers (must be divisible by 6)
   mlp_dim: 256 # number of hidden channels in the MLP
   num_heads: 2 # number of attention heads
-  dropout: 0.0 # dropout rate
+  dropout: 0.1 # dropout rate
   pos_enc_mode: rope # positional encoding mode (usually rope or absolute)
   patch_size: [4, 16, 16] # patch size (usually 4x16x16)
   tokenizer_mode: linear # tokenizer mode (usually linear or non_linear)
@@ -34,7 +35,7 @@ model:
 training:
   batch_size: 64
   epochs: 10
-  num_workers: 8
+  num_workers: 4
   grad_clip: 1.0 # gradient clipping
   optimizer:
     # name: Adam
@@ -49,26 +50,26 @@ training:
     # weight_decay: 0.01
     name: DAdaptAdamW
     betas: [0.9, 0.999]
-    weight_decay: 0.0
+    weight_decay: 0.001
   criterion:
     name: MSELoss
 
-  # lr_scheduler:
-  #   name: SequentialLR
-  #   schedulers:
-  #     - name: LinearLR # linear warmup scheduler
-  #       start_factor: 0.001
-  #       end_factor: 1.0
-  #       total_iters: 10000 # number of training steps for linear warmup
-  #     # - name: CosineAnnealingWarmRestarts # cosine annealing scheduler
-  #     #   T_0: 10 # number epochs for one cosine annealing cycle
-  #     #   T_mult: 2 # multiplicative factor for the number of epochs in each cycle
-  #     #   min_lr: 0.0001
-  #     - name: CosineAnnealingLR # cosine annealing scheduler
-  #       T_max: 10 # Number of epochs for one cosine annealing cycle
-  #       min_lr: 0.0001
+  lr_scheduler:
+    name: SequentialLR
+    schedulers:
+      - name: LinearLR # linear warmup scheduler
+        start_factor: 0.001
+        end_factor: 1.0
+        total_iters: 2000 # number of training steps for linear warmup
+      # - name: CosineAnnealingWarmRestarts # cosine annealing scheduler
+      #   T_0: 10 # number epochs for one cosine annealing cycle
+      #   T_mult: 2 # multiplicative factor for the number of epochs in each cycle
+      #   min_lr: 0.0001
+      - name: CosineAnnealingLR # cosine annealing scheduler
+        T_max: 2 # Number of epochs for one cosine annealing cycle
+        min_lr: 0.0001
 data:
-  length_limit: 100 # limit the number of samples in the dataset, set to null for no limit
+  length_limit: null # limit the number of samples in the dataset, set to null for no limit
   dt_stride: 1 # take every dt_stride-th timestep
   n_steps_input: 4 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
