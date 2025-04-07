@@ -53,9 +53,7 @@ class AbsPositionalEmbedding(nn.Module):
         torch.Tensor
             Tensor with positional embeddings added
         """
-        pe = self.pe
-        x = x +pe
-        return x
+        return x + self.pe
 
 
 class RotaryPositionalEmbedding(nn.Module):
