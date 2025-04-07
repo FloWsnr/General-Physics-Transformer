@@ -1,10 +1,19 @@
-# Utilities/ResNet.py
+from typing import List, Union
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from typing import List, Union
 
+def get_model(config: dict) -> nn.Module:
+    """
+    Get a ResNet model based on the provided configuration.
+    """
+    return ResNet(in_channels=config["in_channels"],
+                  block_dimensions=config["block_dimensions"],
+                  kernel_size=config["kernel_size"],
+                  pooling=config["pooling"],
+                  padding=config["padding"],
+                  padding_mode=config["padding_mode"],
+                  stride=config["stride"])
 
 class ResNetBlock(nn.Module):
     """
@@ -103,7 +112,7 @@ class ResNet(nn.Module):
     pooling : bool, optional
         Whether to apply max pooling after each residual block. Default is False.
     padding : Union[int, tuple, str], optional
-        Padding for the convolutional layers. Default is 'zeros'.
+        Padding for the convolutional layers. Default is 'same'.
     padding_mode : str, optional
         Padding mode for convolutional layers. Default is 'zeros'.
     stride : int, optional
