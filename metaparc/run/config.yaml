@@ -1,7 +1,6 @@
 wandb:
   project: General Physics Model
   entity: wsnr-florian
-  api_key: xxx
   id: test_run-6
   tags:
     - TestRun

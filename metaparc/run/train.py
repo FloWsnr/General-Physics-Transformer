@@ -7,9 +7,10 @@ Date: 2025-04-07
 
 from pathlib import Path
 
+import wandb
 import wandb.wandb_run
 import yaml
-import wandb
+from dotenv import load_dotenv
 
 import torch
 import torch.nn as nn
@@ -101,6 +102,11 @@ class Trainer:
             log_freq=log_interval,
         )
 
+    def save_config(self):
+        """Save the config to the log directory."""
+        with open(self.log_dir / "config.yaml", "w") as f:
+            yaml.dump(self.config, f)
+
     def train_epoch(self) -> float:
         """Train the model for one epoch.
 
@@ -148,7 +154,7 @@ class Trainer:
                 lr = self.optimizer.param_groups[0]["lr"]
 
             self.logger.info(
-                f"\t Batch {batch_idx}/{total_batches}, Loss: {loss.item():.4f}, LR: {lr:.6f}"
+                f"\t Batch {batch_idx}/{total_batches}, Loss: {loss.item():.6f}, LR: {lr:.6f}"
             )
 
             # Log to wandb
@@ -183,7 +189,7 @@ class Trainer:
                 val_loss += loss.item()
 
                 self.logger.info(
-                    f"\t Batch {batch_idx}/{total_batches}, Loss: {loss.item():.4f}"
+                    f"\t Batch {batch_idx}/{total_batches}, Loss: {loss.item():.6f}"
                 )
 
                 # Log to wandb
@@ -356,7 +362,7 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
 
 def login_wandb(config: dict) -> wandb.wandb_run.Run:
     """Log into wandb."""
-    wandb.login(key=config["wandb"]["api_key"])
+    wandb.login()
     run = wandb.init(
         project=config["wandb"]["project"],
         entity=config["wandb"]["entity"],
@@ -371,8 +377,10 @@ def main():
     """Main training function."""
     config_path = Path("/Users/zsa8rk/Coding/MetaPARC/metaparc/run/config.yaml")
     trainer = Trainer(config_path)
+    trainer.save_config()
     trainer.train()
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()
