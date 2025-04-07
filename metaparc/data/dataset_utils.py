@@ -111,6 +111,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
     n_steps_input = data_config["n_steps_input"]
     n_steps_output = data_config["n_steps_output"]
     dt_stride = data_config["dt_stride"]
+    length_limit = data_config["length_limit"]
 
     datasets = []
     if "shear_flow" in data_config["datasets"]:
@@ -120,6 +121,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
+            length_limit=length_limit,
         )
         datasets.append(shearflow_dataset)
 
@@ -130,6 +132,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
+            length_limit=length_limit,
         )
         datasets.append(rayleigh_benard_dataset)
 
@@ -140,6 +143,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
+            length_limit=length_limit,
         )
         datasets.append(turbulent_radiative_dataset)
 
@@ -150,6 +154,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
+            length_limit=length_limit,
         )
         datasets.append(euler_dataset)
 
@@ -160,6 +165,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
+            length_limit=length_limit,
         )
         datasets.append(cylinder_pipe_flow_dataset)
 
@@ -170,6 +176,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
+            length_limit=length_limit,
         )
         datasets.append(cylinder_symmetry_flow_dataset)
 
@@ -180,6 +187,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
+            length_limit=length_limit,
         )
         datasets.append(object_periodic_flow_dataset)
 
@@ -190,6 +198,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
+            length_limit=length_limit,
         )
         datasets.append(object_symmetry_flow_dataset)
 
@@ -200,6 +209,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
+            length_limit=length_limit,
         )
         datasets.append(object_symmetry_flow_dataset)
 
@@ -210,6 +220,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
+            length_limit=length_limit,
         )
         datasets.append(heated_flow_dataset)
     return datasets
