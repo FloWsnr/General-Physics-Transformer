@@ -9,6 +9,7 @@ from metaparc.model.transformer.pos_encodings import (
     AbsPositionalEmbedding,
 )
 from metaparc.model.transformer.tokenizer import Tokenizer, Detokenizer
+from metaparc.model.transformer.norms import RevIN
 
 
 def get_model(model_config: dict):
@@ -104,27 +105,27 @@ class PhysicsTransformer(nn.Module):
         )
 
         self.tokenizer = Tokenizer(
-            img_size=img_size,
             patch_size=patch_size,
             in_channels=input_channels,
             dim_embed=hidden_dim,
             mode=tokenizer_mode,
         )
         self.detokenizer = Detokenizer(
-            img_size=img_size,
             patch_size=patch_size,
             dim_embed=hidden_dim,
             out_channels=input_channels,
             mode=tokenizer_mode,
         )
 
+        self.revin = RevIN(num_channels=input_channels)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.revin(x, mode="norm")
         # Split into patches
         x = self.tokenizer(x)
         if self.init_pos_encodings is not None:
             x = self.init_pos_encodings(x)
 
-        # x = self.mlp(x)
         # Apply N attention blocks (norm, att, norm, mlp)
         for block in self.attention_blocks:
             x = block(x)
@@ -132,7 +133,8 @@ class PhysicsTransformer(nn.Module):
                 x, p=self.stochastic_depth_rate, mode="row", training=self.training
             )
 
-        # Apply de-patching
+        # # Apply de-patching
         x = self.detokenizer(x)
+        x = self.revin(x, mode="denorm")
 
         return x

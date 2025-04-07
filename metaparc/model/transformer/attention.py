@@ -256,10 +256,8 @@ class AttentionBlock(nn.Module):
         self.mlp = MLP(hidden_dim, mlp_dim, dropout)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        att = self.attention(input) + input  # skip connection across attention and norm
-        x = self.mlp(att) + att  # skip connection across MLP and norm
-        # x = self.norm1(att)
-        # att = self.attention(x) + input  # skip connection across attention and norm
-        # x = self.norm2(att)
-        # x = self.mlp(x) + att  # skip connection across MLP and norm
+        x = self.norm1(input)
+        att = self.attention(x) + input  # skip connection across attention and norm
+        x = self.norm2(att)
+        x = self.mlp(x) + att  # skip connection across MLP and norm
         return x
