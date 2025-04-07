@@ -29,7 +29,7 @@ model:
   pos_enc_mode: rope # positional encoding mode (usually rope or absolute)
   img_size: [4,256,128]
   patch_size: [4, 16, 16] # patch size (usually 4x16x16)
-  tokenizer_mode: linear # tokenizer mode (usually linear or conv3d)
+  tokenizer_mode: linear # tokenizer mode (usually linear or non_linear)
   num_layers: 12 # number of attention layers
   stochastic_depth: 0.1 # stochastic depth rate
 

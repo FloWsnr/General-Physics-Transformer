@@ -76,8 +76,6 @@ class Tokenizer(nn.Module):
 
     Parameters
     ----------
-    img_size : tuple
-        The size of the input image (time, height, width).
     patch_size : tuple
         The size of the patches to split the image into (time, height, width).
     in_channels : int
@@ -85,33 +83,33 @@ class Tokenizer(nn.Module):
     dim_embed : int
         The dimension of the embedding.
     mode : str
-        The mode of the tokenizer. Can be "linear" or "conv3d".
+        The mode of the tokenizer. Can be "linear" or "non_linear".
+        Non-linear uses two 3D convolutions with GELU and instance normalization.
     """
 
     def __init__(
         self,
-        img_size: tuple,
         patch_size: tuple,
         in_channels: int,
         dim_embed: int,
         mode: str,
     ):
         super().__init__()
-        self.img_size = img_size
-        self.patch_size = patch_size
+
+        self.register_buffer("patch_size", torch.tensor(patch_size))
+
         self.in_channels = in_channels
         self.dim_embed = dim_embed
         self.mode = mode
 
         if self.mode == "linear":
             self.tokenizer = LinearTokenizer(
-                img_size=img_size,
                 patch_size=patch_size,
                 in_channels=in_channels,
                 dim_embed=dim_embed,
             )
-        elif self.mode == "conv3d":
-            self.tokenizer = Conv3D_Tokenizer(
+        elif self.mode == "non_linear":
+            self.tokenizer = NonlinearTokenizer(
                 in_channels=in_channels,
                 dim_embed=dim_embed,
                 patch_size=patch_size,
@@ -129,8 +127,6 @@ class Detokenizer(nn.Module):
 
     Parameters
     ----------
-    img_size : tuple
-        The size of the output image (time, height, width).
     patch_size : tuple
         The size of the incoming patches (time, height, width).
     dim_embed : int
@@ -138,19 +134,18 @@ class Detokenizer(nn.Module):
     out_channels : int
         The number of channels in the output image.
     mode : str
-        The mode of the detokenizer. Can be "linear" or "conv3d".
+        The mode of the detokenizer. Can be "linear" or "non_linear".
+        Non-linear uses two 3D convolutions with GELU and instance normalization.
     """
 
     def __init__(
         self,
-        img_size: tuple,
         patch_size: tuple,
         dim_embed: int,
         out_channels: int,
         mode: str,
     ):
         super().__init__()
-        self.img_size = img_size
         self.patch_size = patch_size
         self.out_channels = out_channels
         self.dim_embed = dim_embed
@@ -158,13 +153,12 @@ class Detokenizer(nn.Module):
 
         if self.mode == "linear":
             self.detokenizer = LinearDetokenizer(
-                img_size=img_size,
                 patch_size=patch_size,
                 out_channels=out_channels,
                 dim_embed=dim_embed,
             )
-        elif self.mode == "conv3d":
-            self.detokenizer = Conv3D_Detokenizer(
+        elif self.mode == "non_linear":
+            self.detokenizer = NonlinearDetokenizer(
                 dim_embed=dim_embed,
                 out_channels=out_channels,
                 patch_size=patch_size,
@@ -182,9 +176,6 @@ class LinearTokenizer(nn.Module):
 
     Parameters
     ----------
-    img_size : tuple
-        The size of the input (time, height, width).
-
     patch_size : tuple
         The size of the patches to split the image into (time, height, width).
 
@@ -195,34 +186,18 @@ class LinearTokenizer(nn.Module):
         The dimension of the embedding.
     """
 
-    def __init__(
-        self, img_size: tuple, patch_size: tuple, in_channels: int, dim_embed: int
-    ):
+    def __init__(self, patch_size: tuple, in_channels: int, dim_embed: int):
         super().__init__()
-        img_time, img_height, img_width = img_size
-        patch_time, patch_height, patch_width = patch_size
-
-        num_t_patches = img_time // patch_time
-        num_h_patches = img_height // patch_height
-        num_w_patches = img_width // patch_width
-        patch_dim = in_channels * patch_time * patch_height * patch_width
-
         self.to_patch_embedding = nn.Sequential(
-            Rearrange(
-                "b (t p_t) (h p_h) (w p_w) c -> b (t h w) (p_t p_h p_w c)",
-                p_t=patch_time,
-                p_h=patch_height,
-                p_w=patch_width,
+            Rearrange("b t h w c -> b c t h w"),
+            nn.Conv3d(
+                in_channels=in_channels,
+                out_channels=dim_embed,
+                kernel_size=patch_size,
+                stride=patch_size,
+                padding="valid",
             ),
-            # nn.LayerNorm(patch_dim),
-            nn.Linear(patch_dim, dim_embed),
-            # nn.LayerNorm(dim_embed),
-            Rearrange(
-                "b (t h w) d -> b t h w d",
-                t=num_t_patches,
-                h=num_h_patches,
-                w=num_w_patches,
-            ),
+            Rearrange("b c t h w -> b t h w c"),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -237,13 +212,10 @@ class LinearDetokenizer(nn.Module):
     """
     Converts the patches back into an image using linear projections.
 
-    This is the inverse operation of the LinearPatchifier.
+    This is the inverse operation of the LinearTokenizer.
 
     Parameters
     ----------
-    img_size : tuple
-        The size of the output image (time, height, width).
-
     patch_size : tuple
         The size of the patches (time, height, width).
 
@@ -254,38 +226,20 @@ class LinearDetokenizer(nn.Module):
         The dimension of the embedding.
     """
 
-    def __init__(
-        self, img_size: tuple, patch_size: tuple, out_channels: int, dim_embed: int
-    ):
+    def __init__(self, patch_size: tuple, out_channels: int, dim_embed: int):
         super().__init__()
-        img_time, img_height, img_width = img_size
-        patch_time, patch_height, patch_width = patch_size
-
-        num_t_patches = img_time // patch_time
-        num_h_patches = img_height // patch_height
-        num_w_patches = img_width // patch_width
-        patch_dim = out_channels * patch_time * patch_height * patch_width
 
         self.from_patch_embedding = nn.Sequential(
-            Rearrange(
-                "b t h w d -> b (t h w) d",
-                t=num_t_patches,
-                h=num_h_patches,
-                w=num_w_patches,
+            Rearrange("b t h w c -> b c t h w"),
+            nn.ConvTranspose3d(
+                in_channels=dim_embed,
+                out_channels=out_channels,
+                kernel_size=patch_size,
+                stride=patch_size,
+                padding=0,
+                bias=False,
             ),
-            # nn.LayerNorm(dim_embed),
-            nn.Linear(dim_embed, patch_dim),
-            # nn.LayerNorm(patch_dim), # NOTE: not sure if needed for detokenizer
-            Rearrange(
-                "b (t h w) (p_t p_h p_w c) -> b (t p_t) (h p_h) (w p_w) c",
-                t=num_t_patches,
-                h=num_h_patches,
-                w=num_w_patches,
-                p_t=patch_time,
-                p_h=patch_height,
-                p_w=patch_width,
-                c=out_channels,
-            ),
+            Rearrange("b c t h w -> b t h w c"),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -296,7 +250,7 @@ class LinearDetokenizer(nn.Module):
         return x
 
 
-class Conv3D_Tokenizer(nn.Module):
+class NonlinearTokenizer(nn.Module):
     """
     Tokenizes the input tensor (b, time, height, width, channels) into spatio-temporal tokens.
 
@@ -360,7 +314,7 @@ class Conv3D_Tokenizer(nn.Module):
                 num_features=dim_embed,
                 affine=True,
             ),
-            nn.GELU(),
+            # nn.GELU(),
         ]
 
         self.token_net = nn.Sequential(*token_net)
@@ -376,7 +330,7 @@ class Conv3D_Tokenizer(nn.Module):
         return x
 
 
-class Conv3D_Detokenizer(nn.Module):
+class NonlinearDetokenizer(nn.Module):
     """
     Converts back spatio-temporal tokens into a physical tensor.
 
@@ -397,7 +351,6 @@ class Conv3D_Detokenizer(nn.Module):
         patch_size: tuple,
     ):
         super().__init__()
-        self.register_buffer("patch_size", torch.tensor(16))
         self.in_channels = dim_embed
         self.out_channels = out_channels
 
@@ -435,7 +388,7 @@ class Conv3D_Detokenizer(nn.Module):
                 num_features=self.out_channels,
                 affine=True,
             ),
-            nn.GELU(),
+            # nn.GELU(),
         ]
 
         self.de_patch_net = nn.Sequential(*de_patch_net)

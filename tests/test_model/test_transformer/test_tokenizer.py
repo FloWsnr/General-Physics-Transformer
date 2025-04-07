@@ -1,8 +1,8 @@
 import pytest
 import torch
 from metaparc.model.transformer.tokenizer import (
-    Conv3D_Detokenizer,
-    Conv3D_Tokenizer,
+    NonlinearDetokenizer,
+    NonlinearTokenizer,
     LinearTokenizer,
     LinearDetokenizer,
     Tokenizer,
@@ -15,7 +15,7 @@ class TestTokenizer:
     Tests for the Tokenizer class.
     """
 
-    @pytest.mark.parametrize("mode", ["linear", "conv3d"])
+    @pytest.mark.parametrize("mode", ["linear", "non_linear"])
     def test_tokenizer_forward_pass(self, mode):
         """
         Test that the Tokenizer class forward pass is correct.
@@ -26,7 +26,7 @@ class TestTokenizer:
         dim_embed = 128
         batch_size = 2
 
-        tokenizer = Tokenizer(img_size, patch_size, in_channels, dim_embed, mode)
+        tokenizer = Tokenizer(patch_size, in_channels, dim_embed, mode)
         x = torch.randn(batch_size, *img_size, in_channels)
         output = tokenizer(x)
 
@@ -48,7 +48,7 @@ class TestDetokenizer:
     Tests for the Detokenizer class.
     """
 
-    @pytest.mark.parametrize("mode", ["linear", "conv3d"])
+    @pytest.mark.parametrize("mode", ["linear", "non_linear"])
     def test_detokenizer_forward_pass(self, mode):
         """
         Test that the Detokenizer class forward pass is correct.
@@ -67,7 +67,6 @@ class TestDetokenizer:
         )
 
         detokenizer = Detokenizer(
-            img_size=img_size,
             patch_size=patch_size,
             dim_embed=dim_embed,
             out_channels=out_channels,
@@ -93,7 +92,7 @@ class TestLinearTokenizer:
         in_channels = 5
         dim_embed = 256
 
-        tokenizer = LinearTokenizer(img_size, patch_size, in_channels, dim_embed)
+        tokenizer = LinearTokenizer(patch_size, in_channels, dim_embed)
         x = torch.randn(batch_size, *img_size, in_channels)
         output = tokenizer(x)
 
@@ -122,7 +121,7 @@ class TestLinearDetokenizer:
         batch_size = 2
         img_size = (4, 256, 128)
         patch_size = (2, 4, 4)
-        in_channels = 5
+        out_channels = 5
         dim_embed = 256
 
         num_t_patches = img_size[0] // patch_size[0]
@@ -132,22 +131,20 @@ class TestLinearDetokenizer:
             batch_size, num_t_patches, num_h_patches, num_w_patches, dim_embed
         )
 
-        detokenizer = LinearDetokenizer(
-            img_size, patch_size, out_channels=in_channels, dim_embed=dim_embed
-        )
+        detokenizer = LinearDetokenizer(patch_size, out_channels, dim_embed)
         output = detokenizer(x)
 
-        assert output.shape == (batch_size, *img_size, in_channels)
+        assert output.shape == (batch_size, *img_size, out_channels)
 
 
-class TestConv3DTokenizer:
+class TestNonlinearTokenizer:
     """
-    Tests for the Conv3DTokenizer class.
+    Tests for the NonlinearTokenizer class.
     """
 
-    def test_conv3d_tokenizer_forward_pass(self):
+    def test_nonlinear_tokenizer_forward_pass(self):
         """
-        Test the forward pass of the Conv3DTokenizer class.
+        Test the forward pass of the NonlinearTokenizer class.
 
         Parameters
         ----------
@@ -165,7 +162,7 @@ class TestConv3DTokenizer:
         dim_embed = 256
         patch_size = (4, 16, 16)  # This will be split into two conv layers
 
-        tokenizer = Conv3D_Tokenizer(
+        tokenizer = NonlinearTokenizer(
             in_channels=in_channels,
             dim_embed=dim_embed,
             patch_size=patch_size,
@@ -188,9 +185,9 @@ class TestConv3DTokenizer:
         )
         assert output.shape == expected_shape
 
-    def test_conv3d_pure_spatial_tokenization(self):
+    def test_nonlinear_pure_spatial_tokenization(self):
         """
-        Test Conv3DTokenizer with time size of 1 for pure spatial tokenization.
+        Test NonlinearTokenizer with time size of 1 for pure spatial tokenization.
 
         Parameters
         ----------
@@ -209,7 +206,7 @@ class TestConv3DTokenizer:
         # Using time size of 1 for pure spatial tokenization
         patch_size = (1, 16, 16)
 
-        tokenizer = Conv3D_Tokenizer(
+        tokenizer = NonlinearTokenizer(
             in_channels=in_channels,
             dim_embed=dim_embed,
             patch_size=patch_size,
@@ -233,14 +230,14 @@ class TestConv3DTokenizer:
         assert output.shape == expected_shape
 
 
-class TestConv3D_Detokenizer:
+class TestNonlinearDetokenizer:
     """
-    Tests for the Conv3D_Detokenizer tokenizer class.
+    Tests for the NonlinearDetokenizer tokenizer class.
     """
 
     def test_forward_pass(self):
         """
-        Test the forward pass of the Conv3D_Detokenizer class.
+        Test the forward pass of the NonlinearDetokenizer class.
         """
         batch_size = 2
         time_steps = 3
@@ -250,7 +247,7 @@ class TestConv3D_Detokenizer:
         dim_embed = 256
         patch_size = (4, 16, 16)
 
-        tokenizer = Conv3D_Detokenizer(
+        tokenizer = NonlinearDetokenizer(
             dim_embed=dim_embed,
             out_channels=channels,
             patch_size=patch_size,
@@ -271,9 +268,9 @@ class TestConv3D_Detokenizer:
 
         assert output.shape == expected_shape
 
-    def test_conv3d_pure_spatial_detokenization(self):
+    def test_nonlinear_pure_spatial_detokenization(self):
         """
-        Test Conv3D_Detokenizer with time size of 1 for pure spatial detokenization.
+        Test NonlinearDetokenizer with time size of 1 for pure spatial detokenization.
         """
         batch_size = 2
         time_steps = 3
@@ -283,7 +280,7 @@ class TestConv3D_Detokenizer:
         dim_embed = 256
         patch_size = (1, 16, 16)  # Time size of 1 for pure spatial detokenization
 
-        tokenizer = Conv3D_Detokenizer(
+        tokenizer = NonlinearDetokenizer(
             dim_embed=dim_embed,
             out_channels=channels,
             patch_size=patch_size,
