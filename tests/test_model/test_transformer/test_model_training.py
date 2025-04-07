@@ -2,8 +2,9 @@ import pytest
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
-
+from einops import rearrange
 from metaparc.model.transformer.model import get_model as get_transformer_model
+from metaparc.model.base_models.resnet import get_model as get_resnet_model
 from metaparc.data.mock_data import MockMovingCircleData, MockCircleData
 
 
@@ -12,17 +13,17 @@ def test_model_training_moving_circle():
     channels = 1
     height = 16
     width = 16
-    time_steps = 1
+    time_steps = 4
     num_samples = 1000
     batch_size = 10
 
     config = {
         "input_channels": channels,
-        "hidden_channels": 6 * 5,  # must be divisible by 6
-        "mlp_dim": 64,
+        "hidden_channels": 6 * 20,  # must be divisible by 6
+        "mlp_dim": 256,
         "num_heads": 1,
         "num_layers": 1,
-        "patch_size": (1, 4, 4),
+        "patch_size": (1, 1, 1),
         "tokenizer_mode": "linear",
         "pos_enc_mode": "rope",
         "stochastic_depth_rate": 0.0,
@@ -34,7 +35,7 @@ def test_model_training_moving_circle():
     model = get_transformer_model(config)
     model.to(device)
 
-    data = MockCircleData(channels, time_steps, height, width, num_samples)
+    data = MockMovingCircleData(channels, time_steps, height, width, num_samples)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
@@ -43,22 +44,22 @@ def test_model_training_moving_circle():
 
     try:
         loss_history = []
-        for epoch in range(40):
+        for epoch in range(20):
             for batch in dataloader:
                 x = batch
                 x = x.to(device)
 
-                y = x[:, 0, ...].unsqueeze(1)
-                x = x[:, 0, ...].unsqueeze(1)
+                y = x[:, 1:, ...]
+                x = x[:, :-1, ...]
                 optimizer.zero_grad()
                 output = model(x)
                 loss = criterion(output, y)
-            loss.backward()
-            optimizer.step()
+                loss.backward()
+                optimizer.step()
 
-            print(f"Epoch {epoch}, Loss: {loss.item()}")
+                print(f"Epoch {epoch}, Loss: {loss.item()}")
+                loss_history.append(loss.item())
             scheduler.step()
-            loss_history.append(loss.item())
 
     except KeyboardInterrupt:
         print("KeyboardInterrupt")
@@ -67,7 +68,7 @@ def test_model_training_moving_circle():
     x = data[0]
     x = x.unsqueeze(0)
     y = x[:, 1:, ...]
-    x = x[:, 1:, ...]
+    x = x[:, :-1, ...]
     x = x.to(device)
     y = y.to(device)
     output = model(x)
@@ -84,9 +85,9 @@ def test_model_training_moving_circle():
     vmin = min(x_np[0, ..., 0].min(), y_np[0, ..., 0].min(), output_np[0, ..., 0].min())
     vmax = max(x_np[0, ..., 0].max(), y_np[0, ..., 0].max(), output_np[0, ..., 0].max())
 
+    images = []
     if time_steps == 1:
         # Plot all subplots
-        images = []
         im0 = axs[0].imshow(x_np[0, 0, ..., 0], vmin=vmin, vmax=vmax)
         im1 = axs[1].imshow(y_np[0, 0, ..., 0], vmin=vmin, vmax=vmax)
         im2 = axs[2].imshow(output_np[0, 0, ..., 0], vmin=vmin, vmax=vmax)
@@ -232,6 +233,127 @@ def test_model_training_circle():
     plt.show()
 
 
+@pytest.mark.skip(reason="Test is not ready yet")
+def test_model_training_moving_circle_resnet():
+    channels = 1
+    height = 16
+    width = 16
+    time_steps = 1
+    num_samples = 1000
+    batch_size = 10
+
+    config = {
+        "in_channels": channels * time_steps,
+        "block_dimensions": [4, 8, 4, channels * time_steps],
+        "kernel_size": 3,
+        "pooling": False,
+        "padding": "same",
+        "padding_mode": "zeros",
+        "stride": 1,
+    }
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = get_resnet_model(config)
+    model.to(device)
+
+    data = MockMovingCircleData(channels, time_steps, height, width, num_samples)
+    dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    criterion = torch.nn.MSELoss()
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+
+    try:
+        loss_history = []
+        for epoch in range(20):
+            for batch in dataloader:
+                x = batch
+                x = x.to(device)
+
+                y = x[:, 1:, ...]
+                x = x[:, :-1, ...]
+
+                x = rearrange(x, "b t h w c-> b (t c) h w")
+                y = rearrange(y, "b t h w c-> b (t c) h w")
+
+                optimizer.zero_grad()
+                output = model(x)
+                loss = criterion(output, y)
+                loss.backward()
+                optimizer.step()
+
+                print(f"Epoch {epoch}, Loss: {loss.item()}")
+                loss_history.append(loss.item())
+            scheduler.step()
+
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt")
+
+    # get one sample
+    x = data[0]
+    x = x.unsqueeze(0)
+    y = x[:, 1:, ...]
+    x = x[:, :-1, ...]
+    x = rearrange(x, "b t h w c-> b (t c) h w")
+    y = rearrange(y, "b t h w c-> b (t c) h w")
+    x = x.to(device)
+    y = y.to(device)
+    output = model(x)
+
+    output = rearrange(output, "b (t c) h w-> b t h w c", t=time_steps)
+    y = rearrange(y, "b (t c) h w-> b t h w c", t=time_steps)
+    x = rearrange(x, "b (t c) h w-> b t h w c", t=time_steps)
+
+    # Convert tensors to numpy for plotting
+    x_np = x.detach().cpu().numpy()
+    y_np = y.detach().cpu().numpy()
+    output_np = output.detach().cpu().numpy()
+
+    # Create figure with 3 columns: input, ground truth, and prediction
+    fig, axs = plt.subplots(time_steps, 3, figsize=(15, 12))
+
+    # Create a common normalization for all plots
+    vmin = min(x_np[0, ..., 0].min(), y_np[0, ..., 0].min(), output_np[0, ..., 0].min())
+    vmax = max(x_np[0, ..., 0].max(), y_np[0, ..., 0].max(), output_np[0, ..., 0].max())
+
+    images = []
+    if time_steps == 1:
+        # Plot all subplots
+        im0 = axs[0].imshow(x_np[0, 0, ..., 0], vmin=vmin, vmax=vmax)
+        im1 = axs[1].imshow(y_np[0, 0, ..., 0], vmin=vmin, vmax=vmax)
+        im2 = axs[2].imshow(output_np[0, 0, ..., 0], vmin=vmin, vmax=vmax)
+        images.append(im0)
+        images.append(im1)
+        images.append(im2)
+        # Add column titles
+        axs[0].set_title("Input (x)")
+        axs[1].set_title("Ground Truth (y)")
+        axs[2].set_title("Prediction (output)")
+    else:
+        for i in range(time_steps):
+            im0 = axs[i, 0].imshow(x_np[0, i, ..., 0], vmin=vmin, vmax=vmax)
+            im1 = axs[i, 1].imshow(y_np[0, i, ..., 0], vmin=vmin, vmax=vmax)
+            im2 = axs[i, 2].imshow(output_np[0, i, ..., 0], vmin=vmin, vmax=vmax)
+            images.append(im0)
+            images.append(im1)
+            images.append(im2)
+        # Add column titles
+        axs[0, 0].set_title("Input (x)")
+        axs[0, 1].set_title("Ground Truth (y)")
+        axs[0, 2].set_title("Prediction (output)")
+
+    # Add a single colorbar for all subplots
+    fig.subplots_adjust(right=0.85)
+    cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])
+    fig.colorbar(images[0], cax=cbar_ax)
+
+    plt.tight_layout(rect=[0, 0, 0.85, 1])
+    plt.show()
+
+    plt.plot(loss_history)
+    plt.show()
+
+
 if __name__ == "__main__":
-    # test_model_training_moving_circle()
-    test_model_training_circle()
+    test_model_training_moving_circle_resnet()
+    # test_model_training_circle()
