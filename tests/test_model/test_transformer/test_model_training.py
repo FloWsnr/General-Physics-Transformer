@@ -5,7 +5,11 @@ from torch.utils.data import DataLoader
 from einops import rearrange
 from metaparc.model.transformer.model import get_model as get_transformer_model
 from metaparc.model.base_models.resnet import get_model as get_resnet_model
-from metaparc.data.mock_data import MockMovingCircleData, MockCircleData
+from metaparc.data.mock_data import (
+    MockMovingCircleData,
+    MockCircleData,
+    MockShrinkingCircleData,
+)
 
 
 @pytest.mark.skip(reason="Test is not ready yet")
@@ -19,11 +23,11 @@ def test_model_training_moving_circle():
 
     config = {
         "input_channels": channels,
-        "hidden_channels": 6 * 20,  # must be divisible by 6
-        "mlp_dim": 256,
+        "hidden_channels": 24,  # must be divisible by 6
+        "mlp_dim": 48,
         "num_heads": 1,
         "num_layers": 1,
-        "patch_size": (1, 1, 1),
+        "patch_size": (4, 4, 4),
         "tokenizer_mode": "linear",
         "pos_enc_mode": "rope",
         "stochastic_depth_rate": 0.0,
@@ -35,22 +39,23 @@ def test_model_training_moving_circle():
     model = get_transformer_model(config)
     model.to(device)
 
-    data = MockMovingCircleData(channels, time_steps, height, width, num_samples)
+    data = MockShrinkingCircleData(channels, time_steps, height, width, num_samples)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     criterion = torch.nn.MSELoss()
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
     try:
         loss_history = []
-        for epoch in range(20):
+        for epoch in range(10):
             for batch in dataloader:
                 x = batch
                 x = x.to(device)
 
                 y = x[:, 1:, ...]
                 x = x[:, :-1, ...]
+
                 optimizer.zero_grad()
                 output = model(x)
                 loss = criterion(output, y)
@@ -67,12 +72,12 @@ def test_model_training_moving_circle():
     # get one sample
     x = data[0]
     x = x.unsqueeze(0)
-    y = x[:, 1:, ...]
-    x = x[:, :-1, ...]
     x = x.to(device)
     y = y.to(device)
-    output = model(x)
+    y = x[:, 1:, ...]
+    x = x[:, :-1, ...]
 
+    output = model(x)
     # Convert tensors to numpy for plotting
     x_np = x.detach().cpu().numpy()
     y_np = y.detach().cpu().numpy()
@@ -238,7 +243,7 @@ def test_model_training_moving_circle_resnet():
     channels = 1
     height = 16
     width = 16
-    time_steps = 1
+    time_steps = 2
     num_samples = 1000
     batch_size = 10
 
@@ -355,5 +360,6 @@ def test_model_training_moving_circle_resnet():
 
 
 if __name__ == "__main__":
-    test_model_training_moving_circle_resnet()
+    # test_model_training_moving_circle_resnet()
+    test_model_training_moving_circle()
     # test_model_training_circle()
