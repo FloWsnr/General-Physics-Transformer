@@ -59,6 +59,7 @@ class PhysicsDataset(WellDataset):
         transform: Optional[Compose] = None,
         channels_first: bool = False,
         include_field_names: dict[str, list[str]] = {},
+        length_limit: Optional[int] = None,
     ):
         super().__init__(
             path=str(data_dir),
@@ -73,6 +74,12 @@ class PhysicsDataset(WellDataset):
             include_field_names=include_field_names,
         )
         self.channels_first = channels_first
+        self.length_limit = length_limit
+
+    def __len__(self):
+        if self.length_limit is not None:
+            return self.length_limit
+        return super().__len__()
 
     def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
         data = super().__getitem__(index)  # returns (time, h, w, c)
