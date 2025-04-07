@@ -24,9 +24,13 @@ from metaparc.utils.logger import get_logger
 
 
 class Trainer:
-    def __init__(self, config_path: Path):
-        with open(config_path, "r") as f:
-            self.config = yaml.safe_load(f)
+    def __init__(self, config: Path | dict):
+        if isinstance(config, dict):
+            self.config = config
+        else:
+            with open(config, "r") as f:
+                self.config = yaml.safe_load(f)
+
         img_size = self.config["data"]["out_shape"]
         time_steps = self.config["data"]["n_steps_input"]
         self.config["model"]["img_size"] = (time_steps, img_size[0], img_size[1])
