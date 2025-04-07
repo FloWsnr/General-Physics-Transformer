@@ -53,7 +53,8 @@ class AbsPositionalEmbedding(nn.Module):
         torch.Tensor
             Tensor with positional embeddings added
         """
-        x = x + self.pe
+        pe = self.pe
+        x = x +pe
         return x
 
 

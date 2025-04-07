@@ -214,9 +214,9 @@ class LinearTokenizer(nn.Module):
                 p_h=patch_height,
                 p_w=patch_width,
             ),
-            nn.LayerNorm(patch_dim),
+            # nn.LayerNorm(patch_dim),
             nn.Linear(patch_dim, dim_embed),
-            nn.LayerNorm(dim_embed),
+            # nn.LayerNorm(dim_embed),
             Rearrange(
                 "b (t h w) d -> b t h w d",
                 t=num_t_patches,
@@ -273,7 +273,7 @@ class LinearDetokenizer(nn.Module):
                 h=num_h_patches,
                 w=num_w_patches,
             ),
-            nn.LayerNorm(dim_embed),
+            # nn.LayerNorm(dim_embed),
             nn.Linear(dim_embed, patch_dim),
             # nn.LayerNorm(patch_dim), # NOTE: not sure if needed for detokenizer
             Rearrange(

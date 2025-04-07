@@ -4,7 +4,10 @@ import torch.nn as nn
 from torchvision.ops import stochastic_depth
 
 from metaparc.model.transformer.attention import AttentionBlock
-from metaparc.model.transformer.pos_encodings import RotaryPositionalEmbedding
+from metaparc.model.transformer.pos_encodings import (
+    RotaryPositionalEmbedding,
+    AbsPositionalEmbedding,
+)
 from metaparc.model.transformer.tokenizer import Tokenizer, Detokenizer
 
 
@@ -20,10 +23,8 @@ def get_model(model_config: dict):
         patch_size=model_config["patch_size"],
         tokenizer_mode=model_config["tokenizer_mode"],
         dropout=model_config["dropout"],
-        stochastic_depth=model_config["stochastic_depth"],
+        stochastic_depth_rate=model_config["stochastic_depth_rate"],
     )
-
-
 
 
 class PhysicsTransformer(nn.Module):
@@ -50,7 +51,7 @@ class PhysicsTransformer(nn.Module):
         Tokenizer mode. Can be "linear" or "conv3d".
     dropout: float
         Dropout rate.
-    stochastic_depth: float
+    stochastic_depth_rate: float
         Stochastic depth rate.
     """
 
@@ -65,12 +66,18 @@ class PhysicsTransformer(nn.Module):
         patch_size: tuple[int, int, int],
         tokenizer_mode: str,
         dropout: float = 0.0,
-        stochastic_depth: float = 0.1,
+        stochastic_depth_rate: float = 0.0,
     ):
         super().__init__()
-        self.stochastic_depth = stochastic_depth
+        self.stochastic_depth_rate = stochastic_depth_rate
 
         self.pos_encodings = RotaryPositionalEmbedding(dim=hidden_dim, base=10000)
+        # self.pos_encodings = AbsPositionalEmbedding(
+        #     num_channels=input_channels,
+        #     time=img_size[0] // patch_size[0],
+        #     height=img_size[1] // patch_size[1],
+        #     width=img_size[2] // patch_size[2],
+        # )
         self.attention_blocks = nn.ModuleList(
             [
                 AttentionBlock(
@@ -85,7 +92,7 @@ class PhysicsTransformer(nn.Module):
             ]
         )
 
-        self.tokenizer = Tokenizer(     
+        self.tokenizer = Tokenizer(
             img_size=img_size,
             patch_size=patch_size,
             in_channels=input_channels,
@@ -103,13 +110,15 @@ class PhysicsTransformer(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Split into patches
         x = self.tokenizer(x)
+        # x = self.pos_encodings(x)
 
+        # x = self.mlp(x)
         # Apply N attention blocks (norm, att, norm, mlp)
         for block in self.attention_blocks:
             x = block(x)
-            x = stochastic_depth(
-                x, p=self.stochastic_depth, mode="row", training=self.training
-            )
+            # x = stochastic_depth(
+            #     x, p=self.stochastic_depth_rate, mode="row", training=self.training
+            # )
 
         # Apply de-patching
         x = self.detokenizer(x)
