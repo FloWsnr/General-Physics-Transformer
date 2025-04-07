@@ -1,8 +1,8 @@
 """
-Training script for convolutional neural network models.
+Training script for transformer models.
 
 Author: Florian Wiesner
-Date: 2025-03-10
+Date: 2025-04-07
 """
 
 from pathlib import Path
@@ -26,6 +26,9 @@ class Trainer:
     def __init__(self, config_path: Path):
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
+        img_size = self.config["data"]["out_shape"]
+        time_steps = self.config["data"]["n_steps_input"]
+        self.config["model"]["img_size"] = (time_steps, img_size[0], img_size[1])
 
         self.logger = get_logger(
             "Trainer",
