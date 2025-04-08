@@ -19,7 +19,7 @@ from dadaptation import DAdaptAdam
 
 from metaparc.data.dataset_utils import get_dataloader
 from metaparc.model.transformer.model import get_model
-from metaparc.utils.train_vis import visualize_predictions
+from metaparc.utils.train_vis import log_predictions_wandb
 from metaparc.utils.logger import get_logger
 
 
@@ -73,9 +73,12 @@ class Trainer:
         self.val_loader = get_dataloader(
             self.config["data"], self.config["training"], split="val"
         )
-        self.logger.info(f"Training for {self.config['training']['epochs']} epochs")
-        self.logger.info(f"Training on {len(self.train_loader)} batches per epoch")
-        self.logger.info(f"Validating on {len(self.val_loader)} batches per epoch")
+        self.total_epochs = self.config["training"]["epochs"]
+        self.train_batches_per_epoch = len(self.train_loader)
+        self.val_batches_per_epoch = len(self.val_loader)
+        self.logger.info(f"Training for {self.total_epochs} epochs")
+        self.logger.info(f"Training on {self.train_batches_per_epoch} batches per epoch")
+        self.logger.info(f"Validating on {self.val_batches_per_epoch} batches per epoch")
 
         ################################################################
         ########### Initialize loss function and optimizer ###########
@@ -124,7 +127,7 @@ class Trainer:
         self.model.train()
         train_loss = 0
 
-        total_batches = len(self.train_loader)
+        total_batches = self.train_batches_per_epoch
         for batch_idx, batch in enumerate(self.train_loader):
             x, y = batch
             x = x.to(self.device)
@@ -158,14 +161,16 @@ class Trainer:
                 lr = self.optimizer.param_groups[0]["lr"]
 
             self.logger.info(
-                f"\t Batch {batch_idx}/{total_batches}, Loss: {loss.item():.6f}, LR: {lr:.6f}"
+                f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
+                f"Loss: {loss.item():.6f}, Acc. Loss: {train_loss / (batch_idx + 1):.6f}, LR: {lr:.6f}"
             )
 
             # Log to wandb
             if batch_idx % self.config["wandb"]["log_interval"] == 0:
+                total_b_idx = batch_idx + (self.epoch - 1) * self.train_batches_per_epoch
                 self.wandb_run.log(
                     {
-                        "training/batch_idx": batch_idx,
+                        "training/batch_idx": total_b_idx,
                         "training/acc_batch_loss": train_loss / (batch_idx + 1),
                         "training/learning_rate": lr,
                     }
@@ -178,7 +183,8 @@ class Trainer:
         self.model.eval()
         val_loss = 0
 
-        total_batches = len(self.val_loader)
+        total_batches = self.val_batches_per_epoch
+        num_batches = 0
         with torch.no_grad():
             for batch_idx, batch in enumerate(self.val_loader):
                 x, y = batch
@@ -191,25 +197,30 @@ class Trainer:
                 loss = self.criterion(output, target)
 
                 val_loss += loss.item()
+                num_batches += 1
 
                 self.logger.info(
-                    f"\t Batch {batch_idx}/{total_batches}, Loss: {loss.item():.6f}"
+                    f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
+                    f"Loss: {loss.item():.6f}, Acc. Loss: {val_loss / num_batches:.6f}"
                 )
 
                 # Log to wandb
                 if batch_idx % self.config["wandb"]["log_interval"] == 0:
+                    total_b_idx = batch_idx + (self.epoch - 1) * self.val_batches_per_epoch
                     self.wandb_run.log(
                         {
-                            "validation/batch_idx": batch_idx,
-                            "validation/acc_batch_loss": val_loss / (batch_idx + 1),
+                            "validation/batch_idx": total_b_idx,
+                            "validation/acc_batch_loss": val_loss / num_batches,
                         }
                     )
 
         # Visualize predictions
-        visualize_predictions(
-            save_path=self.log_dir / f"epoch_{self.epoch}_vis.png",
+        log_predictions_wandb(
+            run=self.wandb_run,
+            input=x,
             predictions=output,
             targets=target,
+            name_prefix=f"epoch_{self.epoch}",
         )
 
         return val_loss / total_batches
@@ -217,7 +228,7 @@ class Trainer:
     def train(self):
         """Train the model."""
         best_loss = float("inf")
-        for epoch in range(1, self.config["training"]["epochs"] + 1):
+        for epoch in range(1, self.total_epochs + 1):
             self.epoch = epoch
             ######################################################################
             ########### Training ###############################################

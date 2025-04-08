@@ -18,7 +18,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "dadaptation>=3.2.0",
     "wandb>=0.19.8",
-
+    "dotenv>=1.1.0",
 ]
 
 [tool.setuptools]
