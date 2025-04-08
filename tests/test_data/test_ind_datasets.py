@@ -191,7 +191,7 @@ def test_object_sym_flow_water_dataset():
 
 def test_heated_flow_dataset():
     """Test ComsolHeatedFlowDataset returns correct tensor shapes and field order."""
-    path = Path("data\datasets\heated_object_pipe_flow_air\data")
+    path = Path("data/datasets/heated_object_pipe_flow_air/data/train")
     dataset = ComsolHeatedFlowDataset(data_dir=path)
 
     x, y = dataset[0]
