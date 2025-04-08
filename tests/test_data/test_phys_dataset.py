@@ -2,7 +2,7 @@ import pytest
 from pathlib import Path
 
 import torch
-
+from torch.utils.data import DataLoader
 from metaparc.data.phys_dataset import PhysicsDataset, SuperDataset
 
 
@@ -51,6 +51,9 @@ def test_physics_dataset_length_limit(dummy_datapath: Path):
     x, y = dataset[0]
     assert x.shape == (1, 32, 32, 6)
     assert y.shape == (1, 32, 32, 6)
+
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    assert len(dataloader) == 10
 
 
 def test_super_dataset(dummy_datapath: Path):

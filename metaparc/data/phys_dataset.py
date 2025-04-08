@@ -45,6 +45,9 @@ class PhysicsDataset(WellDataset):
         Dictionary of field names to include in the dataset.
         The keys are the order of the field (t0, t1, t2) and the values are lists of field names.
         By default {}
+    length_limit: Optional[int]
+        Limit the number of samples in the dataset
+        By default None
     """
 
     def __init__(
@@ -76,9 +79,12 @@ class PhysicsDataset(WellDataset):
         self.channels_first = channels_first
         self.length_limit = length_limit
 
-    def __len__(self):
+        # Agument the length of the dataset to the length limit
+        # That way, a dataloader will only sample the specified number of samples
         if self.length_limit is not None:
-            return self.length_limit
+            self.len = self.length_limit
+
+    def __len__(self):
         return super().__len__()
 
     def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
