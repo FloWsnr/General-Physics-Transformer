@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import wandb
-
+from PIL import Image
 
 def visualize_predictions(
     save_path: Path,
@@ -93,7 +93,7 @@ def visualize_predictions(
 
 def log_predictions_wandb(
     run,
-    images: list[np.ndarray],
+    image_path: Path,
     name_prefix: str | None = None,
 ):
     """
@@ -103,15 +103,16 @@ def log_predictions_wandb(
     ----------
     run : wandb.wandb_run.Run
         The wandb run.
-    images : list[np.ndarray]
-        The images.
+    image_path: Path
+        path to the images
     name_prefix : str | None
         The prefix to add to the names of the images.
     """
 
     data = {}
-    for i, image in enumerate(images):
-        data[f"{name_prefix}/channel_{i}"] = wandb.Image(
-            image, file_type="png", mode="RGB"
+    for image in image_path.glob("**/*.png"):
+        img = Image.open(image)
+        data[f"{name_prefix}/{image.name}"] = wandb.Image(
+            img, file_type="png", mode="RGB"
         )
     run.log(data)

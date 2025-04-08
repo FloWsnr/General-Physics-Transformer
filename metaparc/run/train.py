@@ -19,7 +19,7 @@ from dadaptation import DAdaptAdam
 
 from metaparc.data.dataset_utils import get_dataloader
 from metaparc.model.transformer.model import get_model
-from metaparc.utils.train_vis import log_predictions_wandb
+from metaparc.utils.train_vis import log_predictions_wandb, visualize_predictions
 from metaparc.utils.logger import get_logger
 
 
@@ -175,6 +175,7 @@ class Trainer:
                         "training/learning_rate": lr,
                     }
                 )
+            return train_loss / (batch_idx + 1)
 
         return train_loss / total_batches
 
@@ -215,11 +216,11 @@ class Trainer:
                     )
 
         # Visualize predictions
+        vis_path = self.log_dir / f"epoch_{self.epoch}"
+        visualize_predictions(vis_path, x, output, target)
         log_predictions_wandb(
             run=self.wandb_run,
-            input=x,
-            predictions=output,
-            targets=target,
+            image_path=vis_path,
             name_prefix=f"epoch_{self.epoch}",
         )
 
