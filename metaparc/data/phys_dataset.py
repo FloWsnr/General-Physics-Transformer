@@ -82,7 +82,8 @@ class PhysicsDataset(WellDataset):
         # Agument the length of the dataset to the length limit
         # That way, a dataloader will only sample the specified number of samples
         if self.length_limit is not None:
-            self.len = self.length_limit
+            if self.length_limit < len(self):
+                self.len = self.length_limit
 
     def __len__(self):
         return super().__len__()

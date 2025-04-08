@@ -4,7 +4,6 @@ wandb:
   id: test_run-13
   tags:
     - TestRun
-    - ShortParamEvalRun
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
 
@@ -22,18 +21,18 @@ model:
     patch_net: linear
 
   input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
-  hidden_channels: 30 # number of hidden channels across all layers (must be divisible by 6)
-  mlp_dim: 128 # number of hidden channels in the MLP
-  num_heads: 1 # number of attention heads
+  hidden_channels: 126 # number of hidden channels across all layers (must be divisible by 6)
+  mlp_dim: 512 # number of hidden channels in the MLP
+  num_heads: 4 # number of attention heads
   dropout: 0.1 # dropout rate
   pos_enc_mode: rope # positional encoding mode (usually rope or absolute)
   patch_size: [4, 16, 16] # patch size (usually 4x16x16)
   tokenizer_mode: linear # tokenizer mode (usually linear or non_linear)
-  num_layers: 1 # number of attention layers
-  stochastic_depth_rate: 0.0 # stochastic depth rate
+  num_layers: 4 # number of attention layers
+  stochastic_depth_rate: 0.1 # stochastic depth rate
 
 training:
-  batch_size: 16
+  batch_size: 64
   epochs: 10
   num_workers: 4
   grad_clip: 1.0 # gradient clipping
@@ -83,9 +82,9 @@ data:
     # - object_sym_flow_water
     # - object_sym_flow_air
 
-    # - heated_flow_air
+    # - heated_object_pipe_flow_air
 
-    - turbulent_radiative_layer_2D
-    # - rayleigh_benard
+    # - turbulent_radiative_layer_2D
+    - rayleigh_benard
     # - shear_flow
     # - euler

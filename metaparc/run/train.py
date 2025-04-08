@@ -69,16 +69,33 @@ class Trainer:
         self.train_loader = get_dataloader(
             self.config["data"], self.config["training"], split="train"
         )
-        self.epoch_size = len(self.train_loader)
         self.val_loader = get_dataloader(
             self.config["data"], self.config["training"], split="val"
         )
+        ################################################################
+        ########### Initialize training parameters ##################
+        ################################################################
+
+        self.batch_size = self.config["training"]["batch_size"]
         self.total_epochs = self.config["training"]["epochs"]
+
         self.train_batches_per_epoch = len(self.train_loader)
         self.val_batches_per_epoch = len(self.val_loader)
+        self.train_samples_per_epoch = self.train_batches_per_epoch * self.batch_size
+
+        self.total_samples = self.train_samples_per_epoch * self.total_epochs
+
         self.logger.info(f"Training for {self.total_epochs} epochs")
-        self.logger.info(f"Training on {self.train_batches_per_epoch} batches per epoch")
-        self.logger.info(f"Validating on {self.val_batches_per_epoch} batches per epoch")
+        self.logger.info(
+            f"Training on {self.train_batches_per_epoch} batches per epoch"
+        )
+        self.logger.info(
+            f"Validating on {self.val_batches_per_epoch} batches per epoch"
+        )
+        self.logger.info(
+            f"Training for {self.train_samples_per_epoch} samples per epoch"
+        )
+        self.logger.info(f"Training for {self.total_samples} total samples")
 
         ################################################################
         ########### Initialize loss function and optimizer ###########
@@ -148,9 +165,19 @@ class Trainer:
 
             train_loss += loss.item()
 
-            # Step learning rate scheduler
+            ############################################################
+            # Step learning rate scheduler #############################
+            ############################################################
             if self.scheduler is not None:
                 self.scheduler.step()
+
+            ############################################################
+            # Log training progress ####################################
+            ############################################################
+
+            self.samples_trained += self.batch_size
+
+            if self.scheduler is not None:
                 lr = self.scheduler.get_last_lr()[0]
             elif isinstance(self.optimizer, DAdaptAdam):
                 lr = (
@@ -162,20 +189,26 @@ class Trainer:
 
             self.logger.info(
                 f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
-                f"Loss: {loss.item():.6f}, Acc. Loss: {train_loss / (batch_idx + 1):.6f}, LR: {lr:.6f}"
+                f"Loss: {loss.item():.6f}, Acc. Loss: {train_loss / (batch_idx + 1):.6f}, LR: {lr:.6f}, "
+                f"Samples: {self.samples_trained}/{self.total_samples}"
             )
 
-            # Log to wandb
+            ############################################################
+            # Log to wandb #############################################
+            ############################################################
             if batch_idx % self.config["wandb"]["log_interval"] == 0:
-                total_b_idx = batch_idx + (self.epoch - 1) * self.train_batches_per_epoch
+                total_b_idx = (
+                    batch_idx + (self.epoch - 1) * self.train_batches_per_epoch
+                )
+
                 self.wandb_run.log(
                     {
+                        "training/samples_trained": self.samples_trained,
                         "training/batch_idx": total_b_idx,
                         "training/acc_batch_loss": train_loss / (batch_idx + 1),
                         "training/learning_rate": lr,
                     }
                 )
-            return train_loss / (batch_idx + 1)
 
         return train_loss / total_batches
 
@@ -207,7 +240,9 @@ class Trainer:
 
                 # Log to wandb
                 if batch_idx % self.config["wandb"]["log_interval"] == 0:
-                    total_b_idx = batch_idx + (self.epoch - 1) * self.val_batches_per_epoch
+                    total_b_idx = (
+                        batch_idx + (self.epoch - 1) * self.val_batches_per_epoch
+                    )
                     self.wandb_run.log(
                         {
                             "validation/batch_idx": total_b_idx,
@@ -229,6 +264,7 @@ class Trainer:
     def train(self):
         """Train the model."""
         best_loss = float("inf")
+        self.samples_trained = 0
         for epoch in range(1, self.total_epochs + 1):
             self.epoch = epoch
             ######################################################################
