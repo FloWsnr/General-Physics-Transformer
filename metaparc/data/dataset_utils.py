@@ -213,9 +213,9 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
         )
         datasets.append(object_symmetry_flow_dataset)
 
-    if "heated_flow_air" in data_config["datasets"]:
+    if "heated_object_pipe_flow_air" in data_config["datasets"]:
         heated_flow_dataset = ComsolHeatedFlowDataset(
-            data_dir=data_dir / f"heated_flow_air/data/{split_name}",
+            data_dir=data_dir / f"heated_object_pipe_flow_air/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
