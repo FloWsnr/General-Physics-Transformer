@@ -17,7 +17,7 @@ model:
   architecture:
     name: Spatial-Temporal Transformer
     backbone: spatial temporal attention
-    normalization: None
+    normalization: "RevIN (T,H,W)"
     activation: GELU
     patch_net: linear
 
