@@ -1,7 +1,7 @@
 wandb:
   project: General Physics Model
   entity: wsnr-florian
-  id: test_run-10
+  id: test_run-12
   tags:
     - TestRun
     - ShortParamEvalRun

@@ -6,16 +6,16 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from PIL import Image
 import torch
 import wandb
+
 
 def visualize_predictions(
     save_path: Path,
     inputs: torch.Tensor,
     predictions: torch.Tensor,
     targets: torch.Tensor,
-):
+) -> None:
     """
     Visualize the inputs, predictions and targets. (batch_size, time_steps, height, width, channels)
 
@@ -25,7 +25,7 @@ def visualize_predictions(
     Parameters
     ----------
     save_path : Path
-        The path to save the plot.
+        The path to save the figures.
     inputs : torch.Tensor
         The inputs.
     predictions : torch.Tensor
@@ -33,35 +33,67 @@ def visualize_predictions(
     targets : torch.Tensor
         The targets.
     """
-
-    save_path.parent.mkdir(parents=True, exist_ok=True)
+    save_path.mkdir(parents=True, exist_ok=True)
 
     inputs = inputs.detach().cpu().numpy()
     predictions = predictions.detach().cpu().numpy()
     targets = targets.detach().cpu().numpy()
 
-    B, T, H, W, C = predictions.shape
-    fig, axs = plt.subplots(2 * T, C, figsize=(3 * T, 2 * 3 * C))
+    # swap x and y axis
+    inputs = np.transpose(inputs, (0, 1, 3, 2, 4))
+    predictions = np.transpose(predictions, (0, 1, 3, 2, 4))
+    targets = np.transpose(targets, (0, 1, 3, 2, 4))
+    differences = predictions - targets
 
-    for j in range(T):
-        for k in range(C):
-            pred = predictions[0, j, :, :, k]
-            target = targets[0, j, :, :, k]
-            axs[2 * j, k].imshow(pred)
-            axs[2 * j, k].set_title(f"Pred: Channel {k}, Time {j}")
-            axs[2 * j + 1, k].imshow(target)
-            axs[2 * j + 1, k].set_title(f"Target: Channel {k}, Time {j}")
+    B, T, W, H, C = predictions.shape
 
-    # save the plot
-    fig.savefig(save_path)
-    plt.close(fig)
+    for channel in range(C):
+        # rows = inputs, predictions, targets, diff
+        # cols = time steps
+        fig, axs = plt.subplots(4, T, figsize=(4 * T, 3 * 4))
+
+        # Create a common normalization for all plots
+        vmin = min(
+            inputs[0, ..., channel].min(),
+            predictions[0, ..., channel].min(),
+            targets[0, ..., channel].min(),
+        )
+        vmax = max(
+            inputs[0, ..., channel].max(),
+            predictions[0, ..., channel].max(),
+            targets[0, ..., channel].max(),
+        )
+
+        for j in range(T):
+            input = inputs[0, j, :, :, channel]
+            pred = predictions[0, j, :, :, channel]
+            target = targets[0, j, :, :, channel]
+            diff = differences[0, j, :, :, channel]
+
+            axs[0, j].imshow(input, vmin=vmin, vmax=vmax)
+            axs[1, j].imshow(pred, vmin=vmin, vmax=vmax)
+            axs[2, j].imshow(target, vmin=vmin, vmax=vmax)
+            axs[3, j].imshow(diff, vmin=vmin, vmax=vmax)
+
+            # set the title only once for the first row
+            if j == 0:
+                axs[0, j].set_title(f"Input: Channel {channel}")
+                axs[1, j].set_title(f"Pred: Channel {channel}")
+                axs[2, j].set_title(f"Target: Channel {channel}")
+                axs[3, j].set_title(f"Diff: Channel {channel}")
+        
+        # Add a single colorbar for all subplots
+        fig.subplots_adjust(right=0.85)
+        cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])
+        fig.colorbar(axs[3, 0].imshow(diff, vmin=vmin, vmax=vmax), cax=cbar_ax)
+
+        # plt.tight_layout(rect=[0, 0, 0.85, 1])
+        fig.savefig(save_path / f"channel_{channel}.png")
 
 
 def log_predictions_wandb(
-    run: wandb.wandb_run.Run,
-    input: torch.Tensor,
-    predictions: torch.Tensor,
-    targets: torch.Tensor,
+    run,
+    images: list[np.ndarray],
     name_prefix: str | None = None,
 ):
     """
@@ -71,56 +103,15 @@ def log_predictions_wandb(
     ----------
     run : wandb.wandb_run.Run
         The wandb run.
-    input : torch.Tensor
-        The input. (batch_size, time_steps, height, width, channels)
-    predictions : torch.Tensor
-        The predictions. (batch_size, time_steps, height, width, channels)
-    targets : torch.Tensor
-        The targets. (batch_size, time_steps, height, width, channels)
+    images : list[np.ndarray]
+        The images.
     name_prefix : str | None
         The prefix to add to the names of the images.
     """
 
-    B, T, H, W, C = input.shape
-    input = input.detach().cpu().numpy()
-    predictions = predictions.detach().cpu().numpy()
-    targets = targets.detach().cpu().numpy()
-
-    batch_idx = 0
     data = {}
-
-    for i in range(C):
-        img_input = input[batch_idx, :, :, :, i]
-        img_pred = predictions[batch_idx, :, :, :, i]
-        img_target = targets[batch_idx, :, :, :, i]
-
-        min_val = min(img_input.min(), img_pred.min(), img_target.min())
-        max_val = max(img_input.max(), img_pred.max(), img_target.max())
-
-        # normalize
-        # Normalize the images to [0, 1] range for visualization
-        if max_val > min_val:  # Avoid division by zero
-            img_input = (img_input - min_val) / (max_val - min_val)
-            img_pred = (img_pred - min_val) / (max_val - min_val)
-            img_target = (img_target - min_val) / (max_val - min_val)
-        else:
-            # If all values are the same, set to 0.5 for visualization
-            img_input = np.ones_like(img_input) * 0.5
-            img_pred = np.ones_like(img_pred) * 0.5
-            img_target = np.ones_like(img_target) * 0.5
-
-        for j in range(T):
-            img_input_t = img_input[j, :, :]
-            img_pred_t = img_pred[j, :, :]
-            img_target_t = img_target[j, :, :]
-
-            # convert to PIL image
-            img_input_t = Image.fromarray((img_input_t * 255).astype(np.uint8))
-            img_pred_t = Image.fromarray((img_pred_t * 255).astype(np.uint8))
-            img_target_t = Image.fromarray((img_target_t * 255).astype(np.uint8))
-
-            data[f"{name_prefix}/input_t{j}_c{i}"] = wandb.Image(img_input_t, file_type="png")
-            data[f"{name_prefix}/predictions_t{j}_c{i}"] = wandb.Image(img_pred_t, file_type="png")
-            data[f"{name_prefix}/targets_t{j}_c{i}"] = wandb.Image(img_target_t, file_type="png")
-
+    for i, image in enumerate(images):
+        data[f"{name_prefix}/channel_{i}"] = wandb.Image(
+            image, file_type="png", mode="RGB"
+        )
     run.log(data)
