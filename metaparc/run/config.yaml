@@ -1,11 +1,12 @@
 wandb:
   project: General Physics Model
   entity: wsnr-florian
-  id: test_run-14
+  id: test_run-17-more_hidden_channels
   tags:
     - TestRun
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
+  notes: "Test run with 17 more hidden channels, 8 heads and 8 layers"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/MetaPARC/logs
@@ -23,15 +24,15 @@ model:
   input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
   
   # number of hidden channels across all layers (must be divisible by 6 and by num_heads)
-  hidden_channels: 120
+  hidden_channels: 1020
   
-  mlp_dim: 512 # number of hidden channels in the MLP
-  num_heads: 4 # number of attention heads
+  mlp_dim: 2048 # number of hidden channels in the MLP
+  num_heads: 8 # number of attention heads
   dropout: 0.1 # dropout rate
   pos_enc_mode: rope # positional encoding mode (usually rope or absolute)
   patch_size: [4, 16, 16] # patch size (usually 4x16x16)
   tokenizer_mode: linear # tokenizer mode (usually linear or non_linear)
-  num_layers: 4 # number of attention layers
+  num_layers: 8 # number of attention layers
   stochastic_depth_rate: 0.1 # stochastic depth rate
 
 training:
@@ -62,7 +63,7 @@ training:
       - name: LinearLR # linear warmup scheduler
         start_factor: 0.001
         end_factor: 1.0
-        total_num_batches: 1000 # number of training batches for linear warmup
+        epochs: 1 # number of training epochs for linear warmup
       # - name: CosineAnnealingWarmRestarts # cosine annealing scheduler
       #   T_0: 10 # number epochs for one cosine annealing cycle
       #   T_mult: 2 # multiplicative factor for the number of epochs in each cycle
