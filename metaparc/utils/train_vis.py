@@ -10,6 +10,7 @@ import torch
 import wandb
 from PIL import Image
 
+
 def visualize_predictions(
     save_path: Path,
     inputs: torch.Tensor,
@@ -47,6 +48,9 @@ def visualize_predictions(
 
     B, T, W, H, C = predictions.shape
 
+    # change the matplotlib backend to non-interactive
+    plt.switch_backend("Agg")
+
     for channel in range(C):
         # rows = inputs, predictions, targets, diff
         # cols = time steps
@@ -81,7 +85,7 @@ def visualize_predictions(
                 axs[1, j].set_title(f"Pred: Channel {channel}")
                 axs[2, j].set_title(f"Target: Channel {channel}")
                 axs[3, j].set_title(f"Diff: Channel {channel}")
-        
+
         # Add a single colorbar for all subplots
         fig.subplots_adjust(right=0.85)
         cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])
@@ -89,6 +93,7 @@ def visualize_predictions(
 
         # plt.tight_layout(rect=[0, 0, 0.85, 1])
         fig.savefig(save_path / f"channel_{channel}.png")
+        plt.close(fig)
 
 
 def log_predictions_wandb(
