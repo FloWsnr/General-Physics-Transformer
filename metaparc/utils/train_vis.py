@@ -106,6 +106,7 @@ def visualize_predictions(
 def log_predictions_wandb(
     run,
     image_path: Path,
+    name_prefix: str,
 ):
     """
     Log the predictions and targets to wandb.
@@ -116,10 +117,14 @@ def log_predictions_wandb(
         The wandb run.
     image_path: Path
         path to the images
+    name_prefix: str
+        prefix for the image names
     """
 
     data = {}
     for image in image_path.glob("**/*.png"):
         img = Image.open(image)
-        data[f"{image.name}"] = wandb.Image(img, file_type="png", mode="RGB")
+        data[f"{name_prefix}/{image.name}"] = wandb.Image(
+            img, file_type="png", mode="RGB"
+        )
     run.log(data)

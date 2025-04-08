@@ -62,7 +62,7 @@ class Trainer:
         self.logger.info(f"Model size: {total_params / 1e6:.2f}M parameters")
         self.logger.info(f"Model architecture: {self.model}")
 
-        self.wandb_run.config.update({"model": {"model_size [M]": total_params / 1e6}})
+        self.wandb_run.config.update({"model/model_size [M]": total_params / 1e6})
 
         # print the model architecture
         self.model.to(self.device)
@@ -245,7 +245,11 @@ class Trainer:
         # Visualize predictions
         vis_path = self.log_dir / f"epoch_{self.epoch}"
         visualize_predictions(vis_path, x, output, target)
-        log_predictions_wandb(run=self.wandb_run, image_path=vis_path)
+        log_predictions_wandb(
+            run=self.wandb_run,
+            image_path=vis_path,
+            name_prefix=f"epoch_{self.epoch}",
+        )
 
         return val_loss / total_batches
 
