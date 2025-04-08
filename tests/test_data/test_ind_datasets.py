@@ -13,6 +13,7 @@ from metaparc.data.ind_datasets import (
     TurbulentRadiativeDataset,
     EulerDataset,
     ComsolIncompressibleFlowDataset,
+    ComsolHeatedFlowDataset,
 )
 
 
@@ -170,3 +171,37 @@ def test_object_sym_flow_air_dataset():
     # check that the density and temperature are zero
     assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
     assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+
+
+def test_object_sym_flow_water_dataset():
+    """Test ComsolIncompressibleFlowDataset returns correct tensor shapes and field order."""
+    path = Path("data/datasets/object_sym_flow_water/data/train")
+    dataset = ComsolIncompressibleFlowDataset(data_dir=path)
+
+    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
+    x, y = dataset[0]
+
+    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+    assert x.shape == (1, 256, 128, 5)
+    assert y.shape == (1, 256, 128, 5)
+
+    # check that the density and temperature are zero
+    assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+
+
+def test_heated_flow_dataset():
+    """Test ComsolHeatedFlowDataset returns correct tensor shapes and field order."""
+    path = Path("data\datasets\heated_object_pipe_flow_air\data")
+    dataset = ComsolHeatedFlowDataset(data_dir=path)
+
+    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
+    x, y = dataset[0]
+
+    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+    assert x.shape == (1, 256, 128, 5)
+    assert y.shape == (1, 256, 128, 5)
+
+    # check that the density and temperature are not zero
+    assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+    assert not torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
