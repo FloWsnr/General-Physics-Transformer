@@ -117,10 +117,10 @@ class PhysicsTransformer(nn.Module):
             mode=tokenizer_mode,
         )
 
-        # self.revin = RevIN(num_channels=input_channels)
+        self.revin = RevIN(num_channels=input_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x = self.revin(x, mode="norm")
+        x = self.revin(x, mode="norm")
         # Split into patches
         x = self.tokenizer(x)
         if self.init_pos_encodings is not None:
@@ -135,6 +135,6 @@ class PhysicsTransformer(nn.Module):
 
         # # Apply de-patching
         x = self.detokenizer(x)
-        # x = self.revin(x, mode="denorm")
+        x = self.revin(x, mode="denorm")
 
         return x

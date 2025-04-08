@@ -1,12 +1,12 @@
 wandb:
   project: General Physics Model
   entity: wsnr-florian
-  id: test_run-20-no_normalization
+  id: test_run-22-absolute_pos_enc
   tags:
     - TestRun
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
-  notes: "Test run with no normalization"
+  notes: "Test run with absolute positional encoding"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/MetaPARC/logs
@@ -17,7 +17,7 @@ model:
   architecture:
     name: Spatial-Temporal Transformer
     backbone: spatial temporal attention
-    normalization: "None"
+    normalization: "RevIN (T,H,W)"
     activation: GELU
     patch_net: linear
 
@@ -29,7 +29,7 @@ model:
   mlp_dim: 512 # number of hidden channels in the MLP
   num_heads: 4 # number of attention heads
   dropout: 0.1 # dropout rate
-  pos_enc_mode: rope # positional encoding mode (usually rope or absolute)
+  pos_enc_mode: absolute # positional encoding mode (usually rope or absolute)
   patch_size: [4, 16, 16] # patch size (usually 4x16x16)
   tokenizer_mode: linear # tokenizer mode (usually linear or non_linear)
   num_layers: 2 # number of attention layers
