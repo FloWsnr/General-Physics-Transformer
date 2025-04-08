@@ -28,12 +28,11 @@ def main():
         # "euler",
     ]
 
-    config["data"]["length_limit"] = 100
     config["wandb"]["tags"] = config["wandb"]["tags"] + ["DatasetSweep"]
 
     for dataset in datasets:
         config["data"]["datasets"] = [dataset]
-        config["wandb"]["id"] = f"sweep_{dataset}"
+        config["wandb"]["id"] = f"sweep0_{dataset}"
         run_sweep(config)
 
 
