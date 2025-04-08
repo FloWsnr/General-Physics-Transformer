@@ -16,6 +16,7 @@ def visualize_predictions(
     inputs: torch.Tensor,
     predictions: torch.Tensor,
     targets: torch.Tensor,
+    show: bool = False,
 ) -> None:
     """
     Visualize the inputs, predictions and targets. (batch_size, time_steps, height, width, channels)
@@ -33,6 +34,8 @@ def visualize_predictions(
         The predictions.
     targets : torch.Tensor
         The targets.
+    show : bool
+        Whether to show the plots.
     """
     save_path.mkdir(parents=True, exist_ok=True)
 
@@ -61,11 +64,13 @@ def visualize_predictions(
             inputs[0, ..., channel].min(),
             predictions[0, ..., channel].min(),
             targets[0, ..., channel].min(),
+            differences[0, ..., channel].min(),
         )
         vmax = max(
             inputs[0, ..., channel].max(),
             predictions[0, ..., channel].max(),
             targets[0, ..., channel].max(),
+            differences[0, ..., channel].max(),
         )
 
         for j in range(T):
@@ -74,10 +79,10 @@ def visualize_predictions(
             target = targets[0, j, :, :, channel]
             diff = differences[0, j, :, :, channel]
 
-            axs[0, j].imshow(input, vmin=vmin, vmax=vmax)
-            axs[1, j].imshow(pred, vmin=vmin, vmax=vmax)
-            axs[2, j].imshow(target, vmin=vmin, vmax=vmax)
-            axs[3, j].imshow(diff, vmin=vmin, vmax=vmax)
+            img1 = axs[0, j].imshow(input, vmin=vmin, vmax=vmax)
+            img2 = axs[1, j].imshow(pred, vmin=vmin, vmax=vmax)
+            img3 = axs[2, j].imshow(target, vmin=vmin, vmax=vmax)
+            img4 = axs[3, j].imshow(diff, vmin=vmin, vmax=vmax)
 
             # set the title only once for the first row
             if j == 0:
@@ -87,19 +92,20 @@ def visualize_predictions(
                 axs[3, j].set_title(f"Diff: Channel {channel}")
 
         # Add a single colorbar for all subplots
-        fig.subplots_adjust(right=0.85)
+        fig.subplots_adjust(
+            left=0.1, right=0.85, bottom=0.1, top=0.9, wspace=0.3, hspace=0.3
+        )
         cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])
-        fig.colorbar(axs[3, 0].imshow(diff, vmin=vmin, vmax=vmax), cax=cbar_ax)
+        fig.colorbar(img1, cax=cbar_ax)
 
         # plt.tight_layout(rect=[0, 0, 0.85, 1])
-        fig.savefig(save_path / f"channel_{channel}.png")
+        fig.savefig(save_path / f"channel_{channel}.png", dpi=300, bbox_inches="tight")
         plt.close(fig)
 
 
 def log_predictions_wandb(
     run,
     image_path: Path,
-    name_prefix: str | None = None,
 ):
     """
     Log the predictions and targets to wandb.
@@ -110,14 +116,10 @@ def log_predictions_wandb(
         The wandb run.
     image_path: Path
         path to the images
-    name_prefix : str | None
-        The prefix to add to the names of the images.
     """
 
     data = {}
     for image in image_path.glob("**/*.png"):
         img = Image.open(image)
-        data[f"{name_prefix}/{image.name}"] = wandb.Image(
-            img, file_type="png", mode="RGB"
-        )
+        data[f"{image.name}"] = wandb.Image(img, file_type="png", mode="RGB")
     run.log(data)
