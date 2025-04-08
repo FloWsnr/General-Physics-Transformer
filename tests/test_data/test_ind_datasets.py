@@ -178,7 +178,6 @@ def test_object_sym_flow_water_dataset():
     path = Path("data/datasets/object_sym_flow_water/data/train")
     dataset = ComsolIncompressibleFlowDataset(data_dir=path)
 
-    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
     x, y = dataset[0]
 
     # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
@@ -195,7 +194,6 @@ def test_heated_flow_dataset():
     path = Path("data\datasets\heated_object_pipe_flow_air\data")
     dataset = ComsolHeatedFlowDataset(data_dir=path)
 
-    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
     x, y = dataset[0]
 
     # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
