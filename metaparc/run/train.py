@@ -110,7 +110,7 @@ class Trainer:
         if "lr_scheduler" in self.config["training"]:
             lrs_config = self.config["training"]["lr_scheduler"]
             self.scheduler = get_lr_scheduler(
-                self.optimizer, lrs_config, self.epoch_size
+                self.optimizer, lrs_config, self.train_batches_per_epoch
             )
         else:
             self.scheduler = None
@@ -313,7 +313,7 @@ class Trainer:
 
 
 def get_lr_scheduler(
-    optimizer: torch.optim.Optimizer, config: dict, epoch_size: int
+    optimizer: torch.optim.Optimizer, config: dict, train_batches_per_epoch: int
 ) -> optim.lr_scheduler.SequentialLR:
     """Create a learning rate scheduler.
 
@@ -323,8 +323,8 @@ def get_lr_scheduler(
         Optimizer for training
     config : dict
         Configuration dictionary for the learning rate scheduler
-    epoch_size : int
-        Number of training steps per epoch
+    train_batches_per_epoch : int
+        Number of training batches per epoch
 
     Returns
     -------
@@ -339,16 +339,16 @@ def get_lr_scheduler(
         optimizer,
         start_factor=lrs1["start_factor"],
         end_factor=lrs1["end_factor"],
-        total_iters=lrs1["total_iters"],
+        total_num_batches=lrs1["total_num_batches"],
     )
 
     if lrs2["name"] == "CosineAnnealingWarmRestarts":
-        t_steps = epoch_size * lrs2["T_0"]
+        t_steps = train_batches_per_epoch * lrs2["T_0"]
         cosine_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer, T_0=t_steps, eta_min=lrs2["min_lr"]
         )
     elif lrs2["name"] == "CosineAnnealingLR":
-        t_steps = epoch_size * lrs2["T_max"]
+        t_steps = train_batches_per_epoch * lrs2["T_max"]
         cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=t_steps, eta_min=lrs2["min_lr"]
         )
@@ -356,7 +356,7 @@ def get_lr_scheduler(
     scheduler = optim.lr_scheduler.SequentialLR(
         optimizer,
         schedulers=[warmup_scheduler, cosine_scheduler],
-        milestones=[lrs1["total_iters"]],
+        milestones=[lrs1["total_num_batches"]],
     )
 
     return scheduler

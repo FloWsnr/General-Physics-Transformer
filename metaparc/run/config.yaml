@@ -1,7 +1,7 @@
 wandb:
   project: General Physics Model
   entity: wsnr-florian
-  id: test_run-13
+  id: test_run-14
   tags:
     - TestRun
   log_model: gradients # log :all", "parameters" or "gradients"
@@ -21,7 +21,10 @@ model:
     patch_net: linear
 
   input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
-  hidden_channels: 126 # number of hidden channels across all layers (must be divisible by 6)
+  
+  # number of hidden channels across all layers (must be divisible by 6 and by num_heads)
+  hidden_channels: 120
+  
   mlp_dim: 512 # number of hidden channels in the MLP
   num_heads: 4 # number of attention heads
   dropout: 0.1 # dropout rate
@@ -59,7 +62,7 @@ training:
       - name: LinearLR # linear warmup scheduler
         start_factor: 0.001
         end_factor: 1.0
-        total_iters: 2000 # number of training steps for linear warmup
+        total_num_batches: 1000 # number of training batches for linear warmup
       # - name: CosineAnnealingWarmRestarts # cosine annealing scheduler
       #   T_0: 10 # number epochs for one cosine annealing cycle
       #   T_mult: 2 # multiplicative factor for the number of epochs in each cycle
@@ -68,7 +71,7 @@ training:
         T_max: 2 # Number of epochs for one cosine annealing cycle
         min_lr: 0.0001
 data:
-  length_limit: null # limit the number of samples in the dataset, set to null for no limit
+  length_limit: null # limit the number of samples per epoch, set to null for no limit
   dt_stride: 1 # take every dt_stride-th timestep
   n_steps_input: 4 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
@@ -84,7 +87,7 @@ data:
 
     # - heated_object_pipe_flow_air
 
-    # - turbulent_radiative_layer_2D
-    - rayleigh_benard
+    - turbulent_radiative_layer_2D
+    # - rayleigh_benard
     # - shear_flow
     # - euler
