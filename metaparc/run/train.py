@@ -214,6 +214,17 @@ class Trainer:
                     }
                 )
 
+        ############################################################
+        # Visualize predictions ####################################
+        ############################################################
+        vis_path = self.log_dir / f"epoch_{self.epoch}" / "train"
+        visualize_predictions(vis_path, x, output, target)
+        log_predictions_wandb(
+            run=self.wandb_run,
+            image_path=vis_path,
+            name_prefix=f"epoch_{self.epoch}_train",
+        )
+
         return train_loss / total_batches
 
     def validate(self) -> float:
@@ -243,12 +254,12 @@ class Trainer:
                 )
 
         # Visualize predictions
-        vis_path = self.log_dir / f"epoch_{self.epoch}"
+        vis_path = self.log_dir / f"epoch_{self.epoch}" / "val"
         visualize_predictions(vis_path, x, output, target)
         log_predictions_wandb(
             run=self.wandb_run,
             image_path=vis_path,
-            name_prefix=f"epoch_{self.epoch}",
+            name_prefix=f"epoch_{self.epoch}_val",
         )
 
         return val_loss / total_batches

@@ -1,12 +1,12 @@
 wandb:
   project: General Physics Model
   entity: wsnr-florian
-  id: test_run-22-absolute_pos_enc
+  id: test_run-24-conv_net_tokenizer2
   tags:
     - TestRun
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
-  notes: "Test run with absolute positional encoding"
+  notes: "Test run with conv_net tokenizer and detokenizer, no activation function in the final layer"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/MetaPARC/logs
@@ -27,11 +27,11 @@ model:
     
     mlp_dim: 512 # number of hidden channels in the MLP
     num_heads: 4 # number of attention heads
-    dropout: 0.1 # dropout rate
+    dropout: 0.0 # dropout rate
     pos_enc_mode: absolute # positional encoding mode (usually rope or absolute)
     patch_size: [4, 16, 16] # patch size (usually 4x16x16)
     num_layers: 2 # number of attention layers
-    stochastic_depth_rate: 0.1 # stochastic depth rate
+    stochastic_depth_rate: 0.0 # stochastic depth rate
   tokenizer:
     tokenizer_mode: conv_net # tokenizer mode (usually linear or conv_net)
     detokenizer_mode: conv_net # detokenizer mode (usually linear or conv_net)
