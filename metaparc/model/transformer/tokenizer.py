@@ -4,11 +4,14 @@ By: Florian Wiesner
 Date: 2025-04-01
 """
 
+from typing import Optional
 import torch
 import torch.nn as nn
 
 from einops import rearrange
 from einops.layers.torch import Rearrange
+
+from metaparc.model.base_models.autoencoder import Encoder, Decoder
 
 
 def get_patch_conv_size(
@@ -85,6 +88,8 @@ class Tokenizer(nn.Module):
     mode : str
         The mode of the tokenizer. Can be "linear" or "non_linear".
         Non-linear uses two 3D convolutions with GELU and instance normalization.
+    autoencoder_channels : list, optional
+        The hidden channels of the autoencoder.
     """
 
     def __init__(
@@ -93,6 +98,7 @@ class Tokenizer(nn.Module):
         in_channels: int,
         dim_embed: int,
         mode: str,
+        decoder_channels: Optional[list] = None,
     ):
         super().__init__()
 
@@ -115,9 +121,8 @@ class Tokenizer(nn.Module):
                 patch_size=patch_size,
             )
         elif self.mode == "autoencoder":
-            self.tokenizer = AutoencoderTokenizer(
-                in_channels=in_channels,
-                dim_embed=dim_embed,
+            self.tokenizer = Encoder(
+                channels=[in_channels, *decoder_channels, dim_embed],
                 patch_size=patch_size,
             )
         else:
@@ -150,6 +155,7 @@ class Detokenizer(nn.Module):
         dim_embed: int,
         out_channels: int,
         mode: str,
+        decoder_channels: Optional[list] = None,
     ):
         super().__init__()
         self.patch_size = patch_size
@@ -167,6 +173,11 @@ class Detokenizer(nn.Module):
             self.detokenizer = NonlinearDetokenizer(
                 dim_embed=dim_embed,
                 out_channels=out_channels,
+                patch_size=patch_size,
+            )
+        elif self.mode == "autoencoder":
+            self.detokenizer = Decoder(
+                channels=[dim_embed, *decoder_channels, out_channels],
                 patch_size=patch_size,
             )
         else:
@@ -283,68 +294,56 @@ class NonlinearTokenizer(nn.Module):
         self,
         in_channels: int,
         dim_embed: int,
-        img_size: tuple,
         patch_size: tuple,
-        num_layers: int,
     ):
         super().__init__()
 
-        # Calculate conv sizes from patch size and the number of layers
-        # Calculate the stride and kernel size based on the number of layers, patch size, and img size
-        # For each dimension (time, height, width), we need to calculate the stride and kernel size
-        # such that after num_layers of convolutions, we get the desired patch size
-        
-        # Calculate the ratio between img_size and patch_size for each dimension
-        t_ratio = img_size[0] / patch_size[0]
-        h_ratio = img_size[1] / patch_size[1]
-        w_ratio = img_size[2] / patch_size[2]
-        
-        # Calculate the stride for each layer (same for both convolutions in a layer)
-        # Using the num_layers-th root of the ratio
-        t_stride = int(t_ratio ** (1 / (2 * num_layers)))
-        h_stride = int(h_ratio ** (1 / (2 * num_layers)))
-        w_stride = int(w_ratio ** (1 / (2 * num_layers)))
+        # Calculate conv sizes from patch size
+        t1, t2 = find_closest_factors_power_of_two(patch_size[0])
+        h1, h2 = find_closest_factors_power_of_two(patch_size[1])
+        w1, w2 = find_closest_factors_power_of_two(patch_size[2])
 
-        conv_size = (t_stride, h_stride, w_stride)
-        
-        # Ensure we're using valid values
-        if t_stride < 1 or h_stride < 1 or w_stride < 1:
-            raise ValueError(
-                f"Invalid stride values calculated: {conv_size}. "
-                f"Check that img_size {img_size} and patch_size {patch_size} are compatible with {num_layers} layers."
-            )
+        conv1_size = (t1, h1, w1)
+        conv2_size = (t2, h2, w2)
 
-        # calculate the number of channels in the output of the first conv
-        # using the num_layers-th root of the ratio
-        out_channels = int(in_channels * (t_ratio * h_ratio * w_ratio) ** (1 / num_layers))
-
-        token_net = []
-        for _ in range(num_layers):
-            token_net.append(
-                nn.Conv3d(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    kernel_size=conv_size,
-                    stride=conv_size,
-                    padding="valid",
-                    bias=False,
+        tokenizer_net = [
+            nn.Conv3d(
+                in_channels=in_channels,
+                out_channels=dim_embed // 2,
+                kernel_size=conv1_size,
+                stride=conv1_size,
+                padding=0,
+                bias=False,
             ),
-                nn.InstanceNorm3d(
-                    num_features=out_channels,
-                    affine=True,
-                ),
-                nn.GELU(),
-            )
+            nn.InstanceNorm3d(
+                num_features=dim_embed // 2,
+                affine=True,
+            ),
+            nn.GELU(),
+            nn.Conv3d(
+                in_channels=dim_embed // 2,
+                out_channels=dim_embed,
+                kernel_size=conv2_size,
+                stride=conv2_size,
+                padding=0,
+                bias=False,
+            ),
+            nn.InstanceNorm3d(
+                num_features=dim_embed,
+                affine=True,
+            ),
+            nn.GELU(),
+        ]
 
-        self.token_net = nn.Sequential(*token_net)
+        self.tokenizer = nn.Sequential(*tokenizer_net)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Tokenizes the input tensor into spatial and temporal tokens.
+        Convert a 5D input tensor (batch_size, time, height, width, channels) to a 5D output tensor of images.
         """
         b, t, h, w, c = x.shape
         x = rearrange(x, "b t h w c -> b c t h w")
-        x = self.token_net(x)
+        x = self.tokenizer(x)
         x = rearrange(x, "b c t h w -> b t h w c")
         return x
 
@@ -407,7 +406,7 @@ class NonlinearDetokenizer(nn.Module):
                 num_features=self.out_channels,
                 affine=True,
             ),
-            # nn.GELU(),
+            nn.GELU(),
         ]
 
         self.de_patch_net = nn.Sequential(*de_patch_net)
