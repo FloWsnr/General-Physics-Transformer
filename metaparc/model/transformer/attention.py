@@ -29,8 +29,8 @@ class AbstractAttention(nn.Module):
         self.num_heads = num_heads
         self.pe = pe
 
-        self.to_qkv = nn.Conv3d(
-            hidden_dim, 3 * hidden_dim, kernel_size=1, bias=False
+        self.to_qkv = nn.Linear(
+            hidden_dim, 3 * hidden_dim, bias=False
         )  # no bias for qkv projections
 
         self.attention = nn.MultiheadAttention(
@@ -52,11 +52,8 @@ class AbstractAttention(nn.Module):
     def _get_qkv(
         self, x: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        x = rearrange(x, "b t h w c -> b c t h w")
-        qkv = self.to_qkv(x)  # B, 3C, T, H, W
-        qkv = rearrange(qkv, "b c t h w -> b t h w c")
+        qkv = self.to_qkv(x)  # B, T, H, W, 3C
         q, k, v = qkv.chunk(3, dim=-1)  # B, T, H, W, C
-
         q, k = self._add_pos_embeddings(q, k)
 
         return q, k, v
@@ -193,23 +190,21 @@ class TemporalAttention(AbstractAttention):
 
 class MLP(nn.Module):
     """
-    MLP with 1x1 convolutions.
+    MLP with linear layers.
     """
 
     def __init__(self, hidden_dim: int, mlp_dim: int, dropout: float = 0.0):
         super().__init__()
         self.mlp = nn.Sequential(
-            nn.Conv3d(hidden_dim, mlp_dim, kernel_size=1, padding="valid"),
+            nn.Linear(hidden_dim, mlp_dim),
             nn.GELU(),
-            nn.Conv3d(mlp_dim, hidden_dim, kernel_size=1, padding="valid"),
+            nn.Linear(mlp_dim, hidden_dim),
             nn.Dropout(dropout),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, H, W, C = x.shape
-        x = rearrange(x, "b t h w c -> b c t h w")
         x = self.mlp(x)
-        x = rearrange(x, "b c t h w -> b t h w c")
         return x
 
 

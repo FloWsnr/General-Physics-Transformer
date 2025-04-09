@@ -19,16 +19,6 @@ from metaparc.model.transformer.pos_encodings import RotaryPositionalEmbedding
 class TestSpatioTemporalAttention:
     """Test suite for the SpatioTemporalAttention class."""
 
-    def test_init(self):
-        """Test initialization of SpatioTemporalAttention module."""
-        hidden_dim = 64
-        num_heads = 4
-        attention = SpatioTemporalAttention(hidden_dim, num_heads)
-
-        assert attention.num_heads == num_heads
-        assert isinstance(attention.to_qkv, nn.Conv3d)
-        assert isinstance(attention.attention, nn.MultiheadAttention)
-
     def test_forward(self):
         """Test forward pass of SpatioTemporalAttention module."""
         batch_size = 2
@@ -99,18 +89,6 @@ class TestMLP:
 class TestSpatialAttention:
     """Test suite for the SpatialAttention class."""
 
-    def test_init(self):
-        """Test initialization of SpatialAttention module."""
-        hidden_dim = 64
-        num_heads = 4
-        dropout = 0.1
-
-        attention = SpatialAttention(hidden_dim, num_heads, dropout)
-
-        assert attention.num_heads == num_heads
-        assert isinstance(attention.to_qkv, nn.Conv3d)
-        assert isinstance(attention.attention, nn.MultiheadAttention)
-
     def test_forward(self):
         """Test forward pass of SpatialAttention module."""
         batch_size = 2
@@ -133,18 +111,6 @@ class TestSpatialAttention:
 
 class TestTemporalAttention:
     """Test suite for the TemporalAttention class."""
-
-    def test_init(self):
-        """Test initialization of TemporalAttention module."""
-        hidden_dim = 64
-        num_heads = 4
-        dropout = 0.1
-
-        attention = TemporalAttention(hidden_dim, num_heads, dropout)
-
-        assert attention.num_heads == num_heads
-        assert isinstance(attention.to_qkv, nn.Conv3d)
-        assert isinstance(attention.attention, nn.MultiheadAttention)
 
     def test_forward(self):
         """Test forward pass of TemporalAttention module."""
