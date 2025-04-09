@@ -61,7 +61,17 @@ def _calculate_strides(
 
 
 class Encoder(nn.Module):
-    """ """
+    """
+    Encoder module that downsamples an input tensor to a latent representation.
+
+    Parameters
+    ----------
+    channels : list
+        List of channel dimensions for each layer. The first element is the input channels,
+        and the last element is the output (latent) channels.
+    patch_size : tuple
+        Tuple of (time, height, width) indicating the total downsampling factor.
+    """
 
     def __init__(
         self,
@@ -122,7 +132,8 @@ class Encoder(nn.Module):
         Returns
         -------
         torch.Tensor
-            Encoded representation of shape (batch_size, encoded_time, encoded_height, encoded_width, out_channels)
+            Encoded representation of shape
+            (batch_size, encoded_time, encoded_height, encoded_width, out_channels)
         """
         return self.encoder(x)
 
@@ -199,12 +210,14 @@ class Decoder(nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor of shape (batch_size, encoded_time, encoded_height, encoded_width, channels)
+            Input tensor of shape
+            (batch_size, encoded_time, encoded_height, encoded_width, channels)
 
         Returns
         -------
         torch.Tensor
-            Decoded representation of shape (batch_size, time, height, width, out_channels)
+            Decoded representation of shape
+            (batch_size, time, height, width, out_channels)
         """
         return self.decoder(x)
 
