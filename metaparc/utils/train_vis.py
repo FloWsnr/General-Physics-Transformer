@@ -77,17 +77,30 @@ def visualize_predictions(
             target = targets[0, j, :, :, channel]
             diff = differences[0, j, :, :, channel]
 
-            img1 = axs[0, j].imshow(input, vmin=vmin, vmax=vmax)
-            img2 = axs[1, j].imshow(pred, vmin=vmin, vmax=vmax)
-            img3 = axs[2, j].imshow(target, vmin=vmin, vmax=vmax)
-            img4 = axs[3, j].imshow(diff)
+            if T > 1:
+                img1 = axs[0, j].imshow(input, vmin=vmin, vmax=vmax)
+                img2 = axs[1, j].imshow(pred, vmin=vmin, vmax=vmax)
+                img3 = axs[2, j].imshow(target, vmin=vmin, vmax=vmax)
+                img4 = axs[3, j].imshow(diff)
 
-            # set the title only once for the first row
-            if j == 0:
-                axs[0, j].set_title(f"Input: Channel {channel}")
-                axs[1, j].set_title(f"Pred: Channel {channel}")
-                axs[2, j].set_title(f"Target: Channel {channel}")
-                axs[3, j].set_title(f"Diff: Channel {channel}")
+                # set the title only once for the first row
+                if j == 0:
+                    axs[0, j].set_title(f"Input: Channel {channel}")
+                    axs[1, j].set_title(f"Pred: Channel {channel}")
+                    axs[2, j].set_title(f"Target: Channel {channel}")
+                    axs[3, j].set_title(f"Diff: Channel {channel}")
+
+            else:
+                img1 = axs[0].imshow(input, vmin=vmin, vmax=vmax)
+                img2 = axs[1].imshow(pred, vmin=vmin, vmax=vmax)
+                img3 = axs[2].imshow(target, vmin=vmin, vmax=vmax)
+                img4 = axs[3].imshow(diff)
+
+                # set the title only once
+                axs[0].set_title(f"Input: Channel {channel}")
+                axs[1].set_title(f"Pred: Channel {channel}")
+                axs[2].set_title(f"Target: Channel {channel}")
+                axs[3].set_title(f"Diff: Channel {channel}")
 
         # Add two colorbars - one for input/pred/target and one for diff
         fig.subplots_adjust(
