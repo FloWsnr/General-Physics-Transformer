@@ -154,7 +154,8 @@ class Trainer:
             x = x.to(self.device)
             y = y.to(self.device)
 
-            target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
+            target = x
+            # target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
 
             self.optimizer.zero_grad()
             output = self.model(x)
@@ -240,7 +241,8 @@ class Trainer:
                 x = x.to(self.device)
                 y = y.to(self.device)
 
-                target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
+                target = x
+                # target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
 
                 output = self.model(x)
                 loss = self.criterion(output, target)

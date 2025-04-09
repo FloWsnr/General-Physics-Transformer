@@ -447,3 +447,201 @@ class ConvNetDetokenizer(nn.Module):
             (batch_size, time, height, width, out_channels)
         """
         return self.decoder(x)
+
+
+class ConvNet2DTokenizer(nn.Module):
+    """
+    ConvNet module that downsamples an input tensor to a latent representation.
+
+    Parameters
+    ----------
+    channels : list
+        List of channel dimensions for each layer. The first element is the input channels,
+        and the last element is the output (latent) channels.
+    patch_size : tuple
+        Tuple of (time, height, width) indicating the total downsampling factor.
+    """
+
+    def __init__(
+        self,
+        channels: list[int],
+        patch_size: tuple[int, int, int],
+    ):
+        super().__init__()
+
+        num_layers = len(channels) - 1
+
+        # Calculate strides based on patch size and number of layers
+        time_stride = _calculate_strides(patch_size[0], num_layers)
+        height_stride = _calculate_strides(patch_size[1], num_layers)
+        width_stride = _calculate_strides(patch_size[2], num_layers)
+
+        modules = []
+        for i in range(num_layers - 1):
+            padding = [1, 1, 1]
+            stride = (time_stride[i], height_stride[i], width_stride[i])
+            kernel_size = [4, 4, 4]
+
+            # if the stride is 1, we need to set the kernel size to 1 and the padding to 0
+            for j in range(3):
+                if stride[j] == 1:
+                    kernel_size[j] = 1
+                    padding[j] = 0
+
+            modules.append(
+                nn.Sequential(
+                    nn.Conv3d(
+                        in_channels=channels[i],
+                        out_channels=channels[i + 1],
+                        kernel_size=kernel_size,
+                        stride=stride,
+                        padding=padding,
+                    ),
+                    nn.InstanceNorm3d(
+                        num_features=channels[i + 1],
+                        affine=True,
+                    ),
+                    nn.GELU(),
+                )
+            )
+
+        # final layer
+        stride = (time_stride[-1], height_stride[-1], width_stride[-1])
+        kernel_size = [4, 4, 4]
+        padding = [1, 1, 1]
+
+        # if the stride is 1, we need to set the kernel size to 1 and the padding to 0
+        for j in range(3):
+            if stride[j] == 1:
+                kernel_size[j] = 1
+                padding[j] = 0
+
+        final_layer = nn.Sequential(
+            nn.Conv3d(
+                in_channels=channels[-2],
+                out_channels=channels[-1],
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+            ),
+        )
+
+        self.encoder = nn.Sequential(
+            Rearrange("b t h w c -> b c t h w"),  # Rearrange for Conv3d
+            *modules,
+            final_layer,
+            Rearrange("b c t h w -> b t h w c"),  # Rearrange back to original format
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through the encoder.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (batch_size, time, height, width, channels)
+
+        Returns
+        -------
+        torch.Tensor
+            Encoded representation of shape
+            (batch_size, encoded_time, encoded_height, encoded_width, out_channels)
+        """
+        return self.encoder(x)
+
+
+class ConvNet2DDetokenizer(nn.Module):
+    """
+    ConvNet module that upsamples a latent representation back to the original dimensions.
+
+    Parameters
+    ----------
+    channels : list
+        List of channel dimensions for each layer. The first element is the latent channels,
+        and the last element is the output channels.
+    patch_size : tuple
+        Tuple of (time, height, width) indicating the total downsampling factor to reverse.
+    """
+
+    def __init__(
+        self,
+        channels: list,
+        patch_size: tuple,
+    ):
+        super().__init__()
+
+        # Calculate stride for each dimension and layer
+        num_layers = len(channels) - 1
+
+        # Calculate strides for each layer to achieve the desired upsampling
+        time_ratio, height_ratio, width_ratio = patch_size
+
+        # Calculate the stride for each layer
+        time_stride = _calculate_strides(time_ratio, num_layers)
+        height_stride = _calculate_strides(height_ratio, num_layers)
+        width_stride = _calculate_strides(width_ratio, num_layers)
+
+        # reverse the strides
+        time_stride = time_stride[::-1]
+        height_stride = height_stride[::-1]
+        width_stride = width_stride[::-1]
+
+        modules = []
+        for i in range(num_layers - 1):
+            stride = (time_stride[i], height_stride[i], width_stride[i])
+            kernel_size = stride
+            modules.append(
+                nn.Sequential(
+                    nn.ConvTranspose3d(
+                        in_channels=channels[i],
+                        out_channels=channels[i + 1],
+                        kernel_size=kernel_size,
+                        stride=stride,
+                        padding=0,
+                    ),
+                    nn.InstanceNorm3d(
+                        num_features=channels[i + 1],
+                        affine=True,
+                    ),
+                    nn.GELU(),
+                )
+            )
+
+        # final layer
+        stride = (time_stride[-1], height_stride[-1], width_stride[-1])
+        kernel_size = stride
+
+        final_layer = nn.Sequential(
+            nn.ConvTranspose3d(
+                in_channels=channels[-2],
+                out_channels=channels[-1],
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=0,
+            ),
+        )
+        self.decoder = nn.Sequential(
+            Rearrange("b t h w c -> b c t h w"),  # Rearrange for ConvTranspose3d
+            *modules,
+            final_layer,
+            Rearrange("b c t h w -> b t h w c"),  # Rearrange back to original format
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through the decoder.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape
+            (batch_size, encoded_time, encoded_height, encoded_width, channels)
+
+        Returns
+        -------
+        torch.Tensor
+            Decoded representation of shape
+            (batch_size, time, height, width, out_channels)
+        """
+        return self.decoder(x)

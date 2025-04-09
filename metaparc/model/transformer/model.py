@@ -151,21 +151,21 @@ class PhysicsTransformer(nn.Module):
         self.revin = RevIN(num_channels=input_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.revin(x, mode="norm")
+        # x = self.revin(x, mode="norm")
         # Split into patches
         x = self.tokenizer(x)
-        if self.init_pos_encodings is not None:
-            x = self.init_pos_encodings(x)
+        # if self.init_pos_encodings is not None:
+        #     x = self.init_pos_encodings(x)
 
-        # Apply N attention blocks (norm, att, norm, mlp)
-        for block in self.attention_blocks:
-            x = block(x)
-            x = stochastic_depth(
-                x, p=self.stochastic_depth_rate, mode="row", training=self.training
-            )
+        # # Apply N attention blocks (norm, att, norm, mlp)
+        # for block in self.attention_blocks:
+        #     x = block(x)
+        #     x = stochastic_depth(
+        #         x, p=self.stochastic_depth_rate, mode="row", training=self.training
+        #     )
 
         # # Apply de-patching
         x = self.detokenizer(x)
-        x = self.revin(x, mode="denorm")
+        # x = self.revin(x, mode="denorm")
 
         return x

@@ -1,12 +1,12 @@
 wandb:
   project: General Physics Model
   entity: wsnr-florian
-  id: test_run-24-conv_net_tokenizer2
+  id: test_run-28-test_only_tokenizer_reconstruction
   tags:
     - TestRun
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
-  notes: "Test run with conv_net tokenizer and detokenizer, no activation function in the final layer"
+  notes: "Test run no transformer, only tokenizer, only reconstruction of input"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/MetaPARC/logs
@@ -29,7 +29,7 @@ model:
     num_heads: 4 # number of attention heads
     dropout: 0.0 # dropout rate
     pos_enc_mode: absolute # positional encoding mode (usually rope or absolute)
-    patch_size: [4, 16, 16] # patch size (usually 4x16x16)
+    patch_size: [1, 16, 16] # patch size (usually 4x16x16)
     num_layers: 2 # number of attention layers
     stochastic_depth_rate: 0.0 # stochastic depth rate
   tokenizer:
@@ -77,7 +77,7 @@ training:
 data:
   length_limit: null # limit the number of samples per epoch, set to null for no limit
   dt_stride: 1 # take every dt_stride-th timestep
-  n_steps_input: 4 # number of input timesteps
+  n_steps_input: 1 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
   out_shape: [128, 64] # output shape (usually)
 
