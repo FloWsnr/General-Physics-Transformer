@@ -14,19 +14,23 @@ from metaparc.model.transformer.norms import RevIN
 
 def get_model(model_config: dict):
     """Get the model."""
+    transformer_config = model_config["transformer"]
+    tokenizer_config = model_config["tokenizer"]
     return PhysicsTransformer(
-        input_channels=model_config["input_channels"],
-        hidden_dim=model_config["hidden_channels"],
-        mlp_dim=model_config["mlp_dim"],
-        num_heads=model_config["num_heads"],
-        num_layers=model_config["num_layers"],
-        pos_enc_mode=model_config["pos_enc_mode"],
+        input_channels=transformer_config["input_channels"],
+        hidden_dim=transformer_config["hidden_channels"],
+        mlp_dim=transformer_config["mlp_dim"],
+        num_heads=transformer_config["num_heads"],
+        num_layers=transformer_config["num_layers"],
+        pos_enc_mode=transformer_config["pos_enc_mode"],
         img_size=model_config["img_size"],
-        patch_size=model_config["patch_size"],
-        tokenizer_mode=model_config["tokenizer_mode"],
-        detokenizer_mode=model_config["detokenizer_mode"],
-        dropout=model_config["dropout"],
-        stochastic_depth_rate=model_config["stochastic_depth_rate"],
+        patch_size=transformer_config["patch_size"],
+        tokenizer_mode=tokenizer_config["tokenizer_mode"],
+        detokenizer_mode=tokenizer_config["detokenizer_mode"],
+        tokenizer_net_channels=tokenizer_config["tokenizer_net_channels"],
+        detokenizer_net_channels=tokenizer_config["detokenizer_net_channels"],
+        dropout=transformer_config["dropout"],
+        stochastic_depth_rate=transformer_config["stochastic_depth_rate"],
     )
 
 
@@ -36,10 +40,15 @@ class PhysicsTransformer(nn.Module):
 
     Parameters
     ----------
+    ################################################################
+    ########### Transformer parameters #############################
+    ################################################################
+
     input_channels: int
         Number of input channels (physical fields).
     hidden_dim: int
-        Hidden dimension inside the attention blocks. Should be divisible by 6 if Rope positional encoding is used.
+        Hidden dimension inside the attention blocks.
+        Should be divisible by 6 if Rope positional encoding is used.
     mlp_dim: int
         Hidden dimension inside the MLP.
     num_heads: int
@@ -52,10 +61,24 @@ class PhysicsTransformer(nn.Module):
         Patch size for spatial-temporal embeddings. (time, height, width)
     img_size: tuple[int, int, int]
         Incoming image size (time, height, width)
+
+    ################################################################
+    ########### Tokenizer parameters ###############################
+    ################################################################
+
     tokenizer_mode: str
         Tokenizer mode. Can be "linear" or "non_linear".
     detokenizer_mode: str
         Detokenizer mode. Can be "linear" or "non_linear".
+    tokenizer_net_channels: list[int]
+        Number of channels in the tokenizer conv_net.
+    detokenizer_net_channels: list[int]
+        Number of channels in the detokenizer conv_net.
+
+    ################################################################
+    ########### Training parameters ################################
+    ################################################################
+
     dropout: float
         Dropout rate.
     stochastic_depth_rate: float
@@ -66,14 +89,16 @@ class PhysicsTransformer(nn.Module):
         self,
         input_channels: int,
         hidden_dim: int,
+        mlp_dim: int,
         num_heads: int,
         num_layers: int,
-        mlp_dim: int,
-        img_size: tuple[int, int, int],
+        pos_enc_mode: str,
         patch_size: tuple[int, int, int],
+        img_size: tuple[int, int, int],
         tokenizer_mode: str,
         detokenizer_mode: str,
-        pos_enc_mode: str,
+        tokenizer_net_channels: list[int] | None = None,
+        detokenizer_net_channels: list[int] | None = None,
         dropout: float = 0.0,
         stochastic_depth_rate: float = 0.0,
     ):
@@ -113,12 +138,14 @@ class PhysicsTransformer(nn.Module):
             in_channels=input_channels,
             dim_embed=hidden_dim,
             mode=tokenizer_mode,
+            conv_net_channels=tokenizer_net_channels,
         )
         self.detokenizer = Detokenizer(
             patch_size=patch_size,
             dim_embed=hidden_dim,
             out_channels=input_channels,
             mode=detokenizer_mode,
+            conv_net_channels=detokenizer_net_channels,
         )
 
         self.revin = RevIN(num_channels=input_channels)
