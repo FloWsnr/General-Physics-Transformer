@@ -8,10 +8,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-from einops import rearrange
 from einops.layers.torch import Rearrange
-
-from metaparc.model.base_models.autoencoder import Encoder, Decoder
 
 
 def get_patch_conv_size(
@@ -86,10 +83,10 @@ class Tokenizer(nn.Module):
     dim_embed : int
         The dimension of the embedding.
     mode : str
-        The mode of the tokenizer. Can be "linear" or "non_linear".
+        The mode of the tokenizer. Can be "linear" or "conv_net".
         Non-linear uses two 3D convolutions with GELU and instance normalization.
-    autoencoder_channels : list, optional
-        The hidden channels of the autoencoder.
+    conv_net_channels : list, optional
+        The hidden channels of the conv net.
     """
 
     def __init__(
@@ -98,7 +95,7 @@ class Tokenizer(nn.Module):
         in_channels: int,
         dim_embed: int,
         mode: str,
-        decoder_channels: Optional[list] = None,
+        conv_net_channels: Optional[list] = None,
     ):
         super().__init__()
 
@@ -114,15 +111,9 @@ class Tokenizer(nn.Module):
                 in_channels=in_channels,
                 dim_embed=dim_embed,
             )
-        elif self.mode == "non_linear":
-            self.tokenizer = NonlinearTokenizer(
-                in_channels=in_channels,
-                dim_embed=dim_embed,
-                patch_size=patch_size,
-            )
-        elif self.mode == "autoencoder":
-            self.tokenizer = Encoder(
-                channels=[in_channels, *decoder_channels, dim_embed],
+        elif self.mode == "conv_net":
+            self.tokenizer = ConvNetTokenizer(
+                channels=[in_channels, *conv_net_channels, dim_embed],
                 patch_size=patch_size,
             )
         else:
@@ -145,8 +136,9 @@ class Detokenizer(nn.Module):
     out_channels : int
         The number of channels in the output image.
     mode : str
-        The mode of the detokenizer. Can be "linear" or "non_linear".
-        Non-linear uses two 3D convolutions with GELU and instance normalization.
+        The mode of the detokenizer. Can be "linear" or "conv_net".
+    conv_net_channels : list, optional
+        The hidden channels of the conv net.
     """
 
     def __init__(
@@ -155,7 +147,7 @@ class Detokenizer(nn.Module):
         dim_embed: int,
         out_channels: int,
         mode: str,
-        decoder_channels: Optional[list] = None,
+        conv_net_channels: Optional[list] = None,
     ):
         super().__init__()
         self.patch_size = patch_size
@@ -169,15 +161,9 @@ class Detokenizer(nn.Module):
                 out_channels=out_channels,
                 dim_embed=dim_embed,
             )
-        elif self.mode == "non_linear":
-            self.detokenizer = NonlinearDetokenizer(
-                dim_embed=dim_embed,
-                out_channels=out_channels,
-                patch_size=patch_size,
-            )
-        elif self.mode == "autoencoder":
-            self.detokenizer = Decoder(
-                channels=[dim_embed, *decoder_channels, out_channels],
+        elif self.mode == "conv_net":
+            self.detokenizer = ConvNetDetokenizer(
+                channels=[dim_embed, *conv_net_channels, out_channels],
                 patch_size=patch_size,
             )
         else:
@@ -267,156 +253,220 @@ class LinearDetokenizer(nn.Module):
         return x
 
 
-class NonlinearTokenizer(nn.Module):
+def _calculate_strides(
+    dimension_size: int,
+    num_layers: int,
+    default_stride: int = 2,
+) -> list[int]:
     """
-    Tokenizes the input tensor (b, time, height, width, channels) into spatio-temporal tokens.
-
-    Tokenization is done by two 3D convolutions with GELU and instance normalization.
-    The final patch size is the product of the two patch sizes, i.e.
-    time size = conv1_size[0] * conv2_size[0]
-    height size = conv1_size[1] * conv2_size[1]
-    width size = conv1_size[2] * conv2_size[2]
-
-    For pure spatial tokenization, use a time size of 1.
+    Calculate the strides for each layer to achieve the desired downsampling.
 
     Parameters
     ----------
-    in_channels : int
-        Number of channels in the input tensor (number of physics states).
-    dim_embed : int
-        Dimension of the embedding.
-    patch_size : tuple (time, height, width)
-        The desired final patch size. This will be split into two conv layers.
-        Must be a power of two.
+    dimension_size : int
+        The size of the dimension to downsample (time, height, or width)
+    num_layers : int
+        The number of layers in the encoder
+    default_stride : int
+        The default stride to use if the dimension size is not divisible by the total downsampling factor
+
+    Returns
+    -------
+    list[int]
+        A list of stride values for each layer
+    """
+    # Initialize all strides to 2 (default downsampling factor)
+    strides = [default_stride] * num_layers
+
+    # Calculate the total downsampling factor with all strides=2
+    total_downsampling = default_stride**num_layers
+
+    # If we need more downsampling, increase some strides
+    if total_downsampling < dimension_size:
+        remaining_factor = dimension_size // total_downsampling
+
+        # Find the number of additional powers of 2 needed
+        additional_power = 0
+        while 2**additional_power < remaining_factor:
+            additional_power += 1
+
+        # Distribute the additional downsampling across layers
+        for i in range(additional_power):
+            if i < num_layers:
+                strides[i] *= 2
+
+    # If we need less downsampling, decrease some strides
+    elif total_downsampling > dimension_size:
+        # Find the number of powers of 2 we need to remove
+        excess_power = 0
+        while total_downsampling // (2**excess_power) > dimension_size:
+            excess_power += 1
+
+        # Adjust strides to achieve the desired downsampling
+        for i in range(excess_power):
+            if i < num_layers:
+                strides[num_layers - i - 1] = 1
+
+    return strides
+
+
+class ConvNetTokenizer(nn.Module):
+    """
+    ConvNet module that downsamples an input tensor to a latent representation.
+
+    Parameters
+    ----------
+    channels : list
+        List of channel dimensions for each layer. The first element is the input channels,
+        and the last element is the output (latent) channels.
+    patch_size : tuple
+        Tuple of (time, height, width) indicating the total downsampling factor.
     """
 
     def __init__(
         self,
-        in_channels: int,
-        dim_embed: int,
-        patch_size: tuple,
+        channels: list[int],
+        patch_size: tuple[int, int, int],
     ):
         super().__init__()
 
-        # Calculate conv sizes from patch size
-        t1, t2 = find_closest_factors_power_of_two(patch_size[0])
-        h1, h2 = find_closest_factors_power_of_two(patch_size[1])
-        w1, w2 = find_closest_factors_power_of_two(patch_size[2])
+        num_layers = len(channels) - 1
 
-        conv1_size = (t1, h1, w1)
-        conv2_size = (t2, h2, w2)
+        # Calculate strides based on patch size and number of layers
+        time_stride = _calculate_strides(patch_size[0], num_layers)
+        height_stride = _calculate_strides(patch_size[1], num_layers)
+        width_stride = _calculate_strides(patch_size[2], num_layers)
 
-        tokenizer_net = [
-            nn.Conv3d(
-                in_channels=in_channels,
-                out_channels=dim_embed // 2,
-                kernel_size=conv1_size,
-                stride=conv1_size,
-                padding=0,
-                bias=False,
-            ),
-            nn.InstanceNorm3d(
-                num_features=dim_embed // 2,
-                affine=True,
-            ),
-            nn.GELU(),
-            nn.Conv3d(
-                in_channels=dim_embed // 2,
-                out_channels=dim_embed,
-                kernel_size=conv2_size,
-                stride=conv2_size,
-                padding=0,
-                bias=False,
-            ),
-            nn.InstanceNorm3d(
-                num_features=dim_embed,
-                affine=True,
-            ),
-            nn.GELU(),
-        ]
+        modules = []
+        for i in range(num_layers):
+            padding = [1, 1, 1]
+            stride = (time_stride[i], height_stride[i], width_stride[i])
+            kernel_size = [4, 4, 4]
+            for j in range(3):
+                if stride[j] == 1:
+                    kernel_size[j] = 1
+                    padding[j] = 0
 
-        self.tokenizer = nn.Sequential(*tokenizer_net)
+            modules.append(
+                nn.Sequential(
+                    nn.Conv3d(
+                        in_channels=channels[i],
+                        out_channels=channels[i + 1],
+                        kernel_size=kernel_size,
+                        stride=stride,
+                        padding=padding,
+                    ),
+                    nn.InstanceNorm3d(
+                        num_features=channels[i + 1],
+                        affine=True,
+                    ),
+                    nn.GELU(),
+                )
+            )
+
+        self.encoder = nn.Sequential(
+            Rearrange("b t h w c -> b c t h w"),  # Rearrange for Conv3d
+            *modules,
+            Rearrange("b c t h w -> b t h w c"),  # Rearrange back to original format
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Convert a 5D input tensor (batch_size, time, height, width, channels) to a 5D output tensor of images.
+        Forward pass through the encoder.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (batch_size, time, height, width, channels)
+
+        Returns
+        -------
+        torch.Tensor
+            Encoded representation of shape
+            (batch_size, encoded_time, encoded_height, encoded_width, out_channels)
         """
-        b, t, h, w, c = x.shape
-        x = rearrange(x, "b t h w c -> b c t h w")
-        x = self.tokenizer(x)
-        x = rearrange(x, "b c t h w -> b t h w c")
-        return x
+        return self.encoder(x)
 
 
-class NonlinearDetokenizer(nn.Module):
+class ConvNetDetokenizer(nn.Module):
     """
-    Converts back spatio-temporal tokens into a physical tensor.
+    ConvNet module that upsamples a latent representation back to the original dimensions.
 
     Parameters
     ----------
-    dim_embed : int
-        Dimension of the incoming embedding.
-    out_channels : int
-        Number of channels in the output tensor (number of physics states).
-    patch_size : tuple (time, height, width)
-        The desired final patch size. This will be split into two conv layers.
+    channels : list
+        List of channel dimensions for each layer. The first element is the latent channels,
+        and the last element is the output channels.
+    patch_size : tuple
+        Tuple of (time, height, width) indicating the total downsampling factor to reverse.
     """
 
     def __init__(
         self,
-        dim_embed: int,
-        out_channels: int,
+        channels: list,
         patch_size: tuple,
     ):
         super().__init__()
-        self.in_channels = dim_embed
-        self.out_channels = out_channels
 
-        # Calculate conv sizes from patch size
-        t1, t2 = find_closest_factors_power_of_two(patch_size[0])
-        h1, h2 = find_closest_factors_power_of_two(patch_size[1])
-        w1, w2 = find_closest_factors_power_of_two(patch_size[2])
+        # Calculate stride for each dimension and layer
+        num_layers = len(channels) - 1
 
-        conv1_size = (t1, h1, w1)
-        conv2_size = (t2, h2, w2)
+        # Calculate strides for each layer to achieve the desired upsampling
+        time_ratio, height_ratio, width_ratio = patch_size
 
-        de_patch_net = [
-            nn.ConvTranspose3d(
-                in_channels=self.in_channels,
-                out_channels=self.in_channels // 2,
-                kernel_size=conv1_size,
-                stride=conv1_size,
-                padding=0,
-                bias=False,
-            ),
-            nn.InstanceNorm3d(
-                num_features=self.in_channels // 2,
-                affine=True,
-            ),
-            nn.GELU(),
-            nn.ConvTranspose3d(
-                in_channels=self.in_channels // 2,
-                out_channels=self.out_channels,
-                kernel_size=conv2_size,
-                stride=conv2_size,
-                padding=0,
-                bias=False,
-            ),
-            nn.InstanceNorm3d(
-                num_features=self.out_channels,
-                affine=True,
-            ),
-            nn.GELU(),
-        ]
+        # Calculate the stride for each layer
+        time_stride = _calculate_strides(time_ratio, num_layers)
+        height_stride = _calculate_strides(height_ratio, num_layers)
+        width_stride = _calculate_strides(width_ratio, num_layers)
 
-        self.de_patch_net = nn.Sequential(*de_patch_net)
+        # reverse the strides
+        time_stride = time_stride[::-1]
+        height_stride = height_stride[::-1]
+        width_stride = width_stride[::-1]
+
+        print(time_stride, height_stride, width_stride)
+
+        modules = []
+        for i in range(num_layers):
+            stride = (time_stride[i], height_stride[i], width_stride[i])
+            kernel_size = stride
+            modules.append(
+                nn.Sequential(
+                    nn.ConvTranspose3d(
+                        in_channels=channels[i],
+                        out_channels=channels[i + 1],
+                        kernel_size=kernel_size,
+                        stride=stride,
+                        padding=0,
+                    ),
+                    nn.InstanceNorm3d(
+                        num_features=channels[i + 1],
+                        affine=True,
+                    ),
+                    nn.GELU(),
+                )
+            )
+
+        self.decoder = nn.Sequential(
+            Rearrange("b t h w c -> b c t h w"),  # Rearrange for ConvTranspose3d
+            *modules,
+            Rearrange("b c t h w -> b t h w c"),  # Rearrange back to original format
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Convert a 5D input tensor (batch_size, time, height, width, channels) to a 5D output tensor of images.
+        Forward pass through the decoder.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape
+            (batch_size, encoded_time, encoded_height, encoded_width, channels)
+
+        Returns
+        -------
+        torch.Tensor
+            Decoded representation of shape
+            (batch_size, time, height, width, out_channels)
         """
-        b, t, h, w, c = x.shape
-        x = rearrange(x, "b t h w c -> b c t h w")
-        x = self.de_patch_net(x)
-        x = rearrange(x, "b c t h w -> b t h w c")
-        return x
+        return self.decoder(x)
