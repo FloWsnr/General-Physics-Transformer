@@ -64,13 +64,11 @@ def visualize_predictions(
             inputs[0, ..., channel].min(),
             predictions[0, ..., channel].min(),
             targets[0, ..., channel].min(),
-            differences[0, ..., channel].min(),
         )
         vmax = max(
             inputs[0, ..., channel].max(),
             predictions[0, ..., channel].max(),
             targets[0, ..., channel].max(),
-            differences[0, ..., channel].max(),
         )
 
         for j in range(T):
@@ -82,7 +80,7 @@ def visualize_predictions(
             img1 = axs[0, j].imshow(input, vmin=vmin, vmax=vmax)
             img2 = axs[1, j].imshow(pred, vmin=vmin, vmax=vmax)
             img3 = axs[2, j].imshow(target, vmin=vmin, vmax=vmax)
-            img4 = axs[3, j].imshow(diff, vmin=vmin, vmax=vmax)
+            img4 = axs[3, j].imshow(diff)
 
             # set the title only once for the first row
             if j == 0:
@@ -91,14 +89,21 @@ def visualize_predictions(
                 axs[2, j].set_title(f"Target: Channel {channel}")
                 axs[3, j].set_title(f"Diff: Channel {channel}")
 
-        # Add a single colorbar for all subplots
+        # Add two colorbars - one for input/pred/target and one for diff
         fig.subplots_adjust(
-            left=0.1, right=0.85, bottom=0.1, top=0.9, wspace=0.3, hspace=0.3
+            left=0.1, right=0.8, bottom=0.1, top=0.9, wspace=0.3, hspace=0.3
         )
-        cbar_ax = fig.add_axes([0.88, 0.15, 0.03, 0.7])
-        fig.colorbar(img1, cax=cbar_ax)
 
-        # plt.tight_layout(rect=[0, 0, 0.85, 1])
+        # First colorbar for input, prediction, and target
+        cbar_ax1 = fig.add_axes([0.83, 0.4, 0.03, 0.45])
+        cbar1 = fig.colorbar(img1, cax=cbar_ax1)
+        cbar1.set_label("Input/Pred/Target")
+
+        # Second colorbar for difference
+        cbar_ax2 = fig.add_axes([0.83, 0.15, 0.03, 0.2])
+        cbar2 = fig.colorbar(img4, cax=cbar_ax2)
+        cbar2.set_label("Difference")
+
         fig.savefig(save_path / f"channel_{channel}.png", dpi=300, bbox_inches="tight")
         plt.close(fig)
 

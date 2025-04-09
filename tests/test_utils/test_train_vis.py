@@ -27,6 +27,11 @@ def sample_data():
     predictions = torch.ones((4, 4, 32, 32, 5)) * 0.7
     targets = torch.ones((4, 4, 32, 32, 5)) * 0.6
 
+    # add some noise to the targets
+    targets += torch.randn((4, 4, 32, 32, 5)) * 0.05
+    predictions += torch.randn((4, 4, 32, 32, 5)) * 0.05
+    inputs += torch.randn((4, 4, 32, 32, 5)) * 0.05
+
     return inputs, predictions, targets
 
 
