@@ -11,65 +11,6 @@ import torch.nn as nn
 from einops.layers.torch import Rearrange
 
 
-def get_patch_conv_size(
-    patch_size: tuple[int, int, int],
-) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
-    """
-    Get the conv sizes depending on the desired patch size.
-
-    Parameters
-    ----------
-    patch_size : tuple
-        The size of the patches to split the image into (time, height, width).
-
-    Returns
-    -------
-    conv1_size : tuple
-        The size of the patch for the first convolutional layer.
-    conv2_size : tuple
-        The size of the patch for the second convolutional layer.
-    """
-    t1, t2 = find_closest_factors_power_of_two(patch_size[0])
-    h1, h2 = find_closest_factors_power_of_two(patch_size[1])
-    w1, w2 = find_closest_factors_power_of_two(patch_size[2])
-
-    conv1_size = (t1, h1, w1)
-    conv2_size = (t2, h2, w2)
-    return conv1_size, conv2_size
-
-
-def find_closest_factors_power_of_two(n: int) -> tuple[int, int]:
-    """
-    Finds two factors (a, b) of a power of two 'n' such that a*b=n
-    and 'a' and 'b' are the closest possible powers of two.
-
-    Parameters
-    ----------
-    n : int
-        The number to find the closest factors of.
-
-    Returns
-    -------
-    factor1 : int
-        The first factor.
-    factor2 : int
-        The second factor.
-    """
-    if n <= 0 or (n & (n - 1) != 0):
-        raise ValueError("Input must be a positive power of two.")
-
-    # Using the exponent method
-    k = n.bit_length() - 1  # Efficient way to get log2(n) for powers of 2
-
-    exp1 = k // 2  # Integer division equivalent to floor(k/2)
-    exp2 = (k + 1) // 2  # Equivalent to ceil(k/2) for integers
-
-    factor1 = 1 << exp1  # Efficient power of 2: 2**exp1
-    factor2 = 1 << exp2  # Efficient power of 2: 2**exp2
-
-    return factor1, factor2
-
-
 class Tokenizer(nn.Module):
     """
     Base class for tokenizers.
