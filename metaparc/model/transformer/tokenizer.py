@@ -279,10 +279,12 @@ class ConvNetTokenizer(nn.Module):
         width_stride = _calculate_strides(patch_size[2], num_layers)
 
         modules = []
-        for i in range(num_layers):
+        for i in range(num_layers - 1):
             padding = [1, 1, 1]
             stride = (time_stride[i], height_stride[i], width_stride[i])
             kernel_size = [4, 4, 4]
+
+            # if the stride is 1, we need to set the kernel size to 1 and the padding to 0
             for j in range(3):
                 if stride[j] == 1:
                     kernel_size[j] = 1
@@ -305,9 +307,31 @@ class ConvNetTokenizer(nn.Module):
                 )
             )
 
+        # final layer
+        stride = (time_stride[-1], height_stride[-1], width_stride[-1])
+        kernel_size = [4, 4, 4]
+        padding = [1, 1, 1]
+
+        # if the stride is 1, we need to set the kernel size to 1 and the padding to 0
+        for j in range(3):
+            if stride[j] == 1:
+                kernel_size[j] = 1
+                padding[j] = 0
+
+        final_layer = nn.Sequential(
+            nn.Conv3d(
+                in_channels=channels[-2],
+                out_channels=channels[-1],
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+            ),
+        )
+
         self.encoder = nn.Sequential(
             Rearrange("b t h w c -> b c t h w"),  # Rearrange for Conv3d
             *modules,
+            final_layer,
             Rearrange("b c t h w -> b t h w c"),  # Rearrange back to original format
         )
 
@@ -365,10 +389,8 @@ class ConvNetDetokenizer(nn.Module):
         height_stride = height_stride[::-1]
         width_stride = width_stride[::-1]
 
-        print(time_stride, height_stride, width_stride)
-
         modules = []
-        for i in range(num_layers):
+        for i in range(num_layers - 1):
             stride = (time_stride[i], height_stride[i], width_stride[i])
             kernel_size = stride
             modules.append(
@@ -388,9 +410,23 @@ class ConvNetDetokenizer(nn.Module):
                 )
             )
 
+        # final layer
+        stride = (time_stride[-1], height_stride[-1], width_stride[-1])
+        kernel_size = stride
+
+        final_layer = nn.Sequential(
+            nn.ConvTranspose3d(
+                in_channels=channels[-2],
+                out_channels=channels[-1],
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=0,
+            ),
+        )
         self.decoder = nn.Sequential(
             Rearrange("b t h w c -> b c t h w"),  # Rearrange for ConvTranspose3d
             *modules,
+            final_layer,
             Rearrange("b c t h w -> b t h w c"),  # Rearrange back to original format
         )
 
