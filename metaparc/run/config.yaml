@@ -32,6 +32,7 @@ model:
   pos_enc_mode: absolute # positional encoding mode (usually rope or absolute)
   patch_size: [4, 16, 16] # patch size (usually 4x16x16)
   tokenizer_mode: linear # tokenizer mode (usually linear or non_linear)
+  detokenizer_mode: linear # detokenizer mode (usually linear or non_linear)
   num_layers: 2 # number of attention layers
   stochastic_depth_rate: 0.1 # stochastic depth rate
 

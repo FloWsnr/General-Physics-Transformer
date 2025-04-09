@@ -24,6 +24,7 @@ def get_model(model_config: dict):
         img_size=model_config["img_size"],
         patch_size=model_config["patch_size"],
         tokenizer_mode=model_config["tokenizer_mode"],
+        detokenizer_mode=model_config["detokenizer_mode"],
         dropout=model_config["dropout"],
         stochastic_depth_rate=model_config["stochastic_depth_rate"],
     )
@@ -52,7 +53,9 @@ class PhysicsTransformer(nn.Module):
     img_size: tuple[int, int, int]
         Incoming image size (time, height, width)
     tokenizer_mode: str
-        Tokenizer mode. Can be "linear" or "conv3d".
+        Tokenizer mode. Can be "linear" or "non_linear".
+    detokenizer_mode: str
+        Detokenizer mode. Can be "linear" or "non_linear".
     dropout: float
         Dropout rate.
     stochastic_depth_rate: float
@@ -69,6 +72,7 @@ class PhysicsTransformer(nn.Module):
         img_size: tuple[int, int, int],
         patch_size: tuple[int, int, int],
         tokenizer_mode: str,
+        detokenizer_mode: str,
         pos_enc_mode: str,
         dropout: float = 0.0,
         stochastic_depth_rate: float = 0.0,
@@ -114,7 +118,7 @@ class PhysicsTransformer(nn.Module):
             patch_size=patch_size,
             dim_embed=hidden_dim,
             out_channels=input_channels,
-            mode=tokenizer_mode,
+            mode=detokenizer_mode,
         )
 
         self.revin = RevIN(num_channels=input_channels)
