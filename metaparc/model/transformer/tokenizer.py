@@ -114,6 +114,12 @@ class Tokenizer(nn.Module):
                 dim_embed=dim_embed,
                 patch_size=patch_size,
             )
+        elif self.mode == "autoencoder":
+            self.tokenizer = AutoencoderTokenizer(
+                in_channels=in_channels,
+                dim_embed=dim_embed,
+                patch_size=patch_size,
+            )
         else:
             raise ValueError(f"Invalid tokenizer mode: {self.mode}")
 
@@ -270,52 +276,65 @@ class NonlinearTokenizer(nn.Module):
         Dimension of the embedding.
     patch_size : tuple (time, height, width)
         The desired final patch size. This will be split into two conv layers.
+        Must be a power of two.
     """
 
     def __init__(
         self,
         in_channels: int,
         dim_embed: int,
+        img_size: tuple,
         patch_size: tuple,
+        num_layers: int,
     ):
         super().__init__()
 
-        # Calculate conv sizes from patch size
-        t1, t2 = find_closest_factors_power_of_two(patch_size[0])
-        h1, h2 = find_closest_factors_power_of_two(patch_size[1])
-        w1, w2 = find_closest_factors_power_of_two(patch_size[2])
+        # Calculate conv sizes from patch size and the number of layers
+        # Calculate the stride and kernel size based on the number of layers, patch size, and img size
+        # For each dimension (time, height, width), we need to calculate the stride and kernel size
+        # such that after num_layers of convolutions, we get the desired patch size
+        
+        # Calculate the ratio between img_size and patch_size for each dimension
+        t_ratio = img_size[0] / patch_size[0]
+        h_ratio = img_size[1] / patch_size[1]
+        w_ratio = img_size[2] / patch_size[2]
+        
+        # Calculate the stride for each layer (same for both convolutions in a layer)
+        # Using the num_layers-th root of the ratio
+        t_stride = int(t_ratio ** (1 / (2 * num_layers)))
+        h_stride = int(h_ratio ** (1 / (2 * num_layers)))
+        w_stride = int(w_ratio ** (1 / (2 * num_layers)))
 
-        conv1_size = (t1, h1, w1)
-        conv2_size = (t2, h2, w2)
+        conv_size = (t_stride, h_stride, w_stride)
+        
+        # Ensure we're using valid values
+        if t_stride < 1 or h_stride < 1 or w_stride < 1:
+            raise ValueError(
+                f"Invalid stride values calculated: {conv_size}. "
+                f"Check that img_size {img_size} and patch_size {patch_size} are compatible with {num_layers} layers."
+            )
 
-        token_net = [
-            nn.Conv3d(
-                in_channels=in_channels,
-                out_channels=dim_embed // 2,
-                kernel_size=conv1_size,
-                stride=conv1_size,
-                padding="valid",
-                bias=False,
+        # calculate the number of channels in the output of the first conv
+        # using the num_layers-th root of the ratio
+        out_channels = int(in_channels * (t_ratio * h_ratio * w_ratio) ** (1 / num_layers))
+
+        token_net = []
+        for _ in range(num_layers):
+            token_net.append(
+                nn.Conv3d(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=conv_size,
+                    stride=conv_size,
+                    padding="valid",
+                    bias=False,
             ),
-            nn.InstanceNorm3d(
-                num_features=dim_embed // 2,
-                affine=True,
-            ),
-            nn.GELU(),
-            nn.Conv3d(
-                in_channels=dim_embed // 2,
-                out_channels=dim_embed,
-                kernel_size=conv2_size,
-                stride=conv2_size,
-                padding="valid",
-                bias=False,
-            ),
-            nn.InstanceNorm3d(
-                num_features=dim_embed,
-                affine=True,
-            ),
-            # nn.GELU(),
-        ]
+                nn.InstanceNorm3d(
+                    num_features=out_channels,
+                    affine=True,
+                ),
+                nn.GELU(),
+            )
 
         self.token_net = nn.Sequential(*token_net)
 
