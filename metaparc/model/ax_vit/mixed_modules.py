@@ -48,6 +48,12 @@ class SpaceTimeBlock(nn.Module):
         self.gradient_checkpointing = gradient_checkpointing
         if space_override is not None:
             self.spatial = space_override(drop_path=drop_path)
+        else:
+            self.spatial = AxialAttentionBlock(
+                hidden_dim=hidden_dim,
+                num_heads=num_heads,
+                drop_path=drop_path,
+            )
 
         if time_override is not None:
             self.temporal = time_override(drop_path=drop_path)

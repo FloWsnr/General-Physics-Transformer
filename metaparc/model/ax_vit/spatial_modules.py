@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 from einops import rearrange
-import math
 from functools import partial
-from timm.layers import DropPath
+
+from torchvision.ops import stochastic_depth
 
 from metaparc.model.ax_vit.shared_modules import (
     RelativePositionBias,
@@ -189,7 +188,7 @@ class AxialAttentionBlock(nn.Module):
             self.rel_pos_bias = ContinuousPositionBias1D(n_heads=num_heads)
         else:
             self.rel_pos_bias = RelativePositionBias(n_heads=num_heads)
-        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
+        self.drop_path = drop_path
 
         self.mlp = MLP(hidden_dim)
         self.mlp_norm = RMSInstanceNorm2d(hidden_dim, affine=True)
@@ -236,7 +235,12 @@ class AxialAttentionBlock(nn.Module):
         x = (xx + xy) / 2
         x = self.norm2(x)
         x = self.output_head(x)
-        x = self.drop_path(x * self.gamma_att[None, :, None, None]) + input
+        x = input + stochastic_depth(
+            x * self.gamma_att[None, :, None, None],
+            self.drop_path,
+            "row",
+            training=self.training,
+        )
 
         # MLP
         input = x.clone()
@@ -244,6 +248,11 @@ class AxialAttentionBlock(nn.Module):
         x = self.mlp(x)
         x = rearrange(x, "b h w c -> b c h w")
         x = self.mlp_norm(x)
-        output = input + self.drop_path(self.gamma_mlp[None, :, None, None] * x)
+        output = input + stochastic_depth(
+            self.gamma_mlp[None, :, None, None] * x,
+            self.drop_path,
+            "row",
+            training=self.training,
+        )
 
         return output

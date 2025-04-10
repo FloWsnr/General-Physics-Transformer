@@ -10,6 +10,7 @@ from metaparc.model.ax_vit.spatial_modules import (
     SubsampledLinear,
 )
 from metaparc.model.ax_vit.mixed_modules import build_spacetime_block, SpaceTimeBlock
+from dataclasses import dataclass
 
 
 def build_avit(params):
@@ -156,21 +157,53 @@ class AViT(nn.Module):
         return x[-1]  # Just return last step - now just predict delta.
 
 
+@dataclass
+class AViTParams:
+    patch_size: tuple
+    embed_dim: int
+    processor_blocks: int
+    n_states: int
+    block_type: str
+    space_type: str
+    time_type: str
+    num_heads: int
+    bias_type: str
+    gradient_checkpointing: bool
+
+
 if __name__ == "__main__":
     print(torch.cuda.is_available())
-    model = AViT().cuda()
+
+    params = AViTParams(
+        patch_size=(16, 16),
+        embed_dim=384,
+        processor_blocks=2,
+        n_states=2,
+        block_type="axial",
+        space_type="axial_attention",
+        time_type="attention",
+        num_heads=4,
+        bias_type="rel",
+        gradient_checkpointing=False,
+    )
+
+    model = build_avit(params)
     # model.expand_projections(2)
     for n, p in model.debed.named_parameters():
         print(n, p.shape)
     model.expand_projections(2)
     for n, p in model.debed.named_parameters():
         print(n, p.shape)
+
+    model.cuda()
     T = 10
     bs = 4
     nx = 128
     ny = 128
     x = torch.randn(T, bs, 2, nx, ny).cuda()
     print("xshape", x.shape)
-    labels = [0, 1]
-    y = model(x, labels)
+    labels = [[0, 1] for _ in range(bs)]
+    labels = torch.tensor(labels).cuda()
+    bcs = torch.tensor([[0, 0]]).cuda()
+    y = model(x, labels, bcs)
     print("yshape", y.shape)

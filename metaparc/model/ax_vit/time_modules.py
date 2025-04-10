@@ -4,8 +4,8 @@ import torch.nn.functional as F
 import numpy as np
 from einops import rearrange
 from functools import partial
-from timm.layers import DropPath
-# from flash_cosine_sim_attention import flash_cosine_sim_attention
+
+from torchvision.ops import stochastic_depth
 
 from metaparc.model.ax_vit.shared_modules import (
     RelativePositionBias,
@@ -59,7 +59,7 @@ class AttentionBlock(nn.Module):
             self.rel_pos_bias = ContinuousPositionBias1D(n_heads=num_heads)
         else:
             self.rel_pos_bias = RelativePositionBias(n_heads=num_heads)
-        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
+        self.drop_path = drop_path
 
     def forward(self, x):
         # input is t x b x c x h x w
@@ -85,5 +85,10 @@ class AttentionBlock(nn.Module):
         x = self.norm2(x)
         x = self.output_head(x)
         x = rearrange(x, "(t b) c h w -> t b c h w", t=T)
-        output = self.drop_path(x * self.gamma[None, None, :, None, None]) + input
+        output = input + stochastic_depth(
+            x * self.gamma[None, None, :, None, None],
+            self.drop_path,
+            "row",
+            training=self.training,
+        )
         return output
