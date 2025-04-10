@@ -3,17 +3,21 @@ from typing import List, Union
 import torch
 import torch.nn as nn
 
+
 def get_model(config: dict) -> nn.Module:
     """
     Get a ResNet model based on the provided configuration.
     """
-    return ResNet(in_channels=config["in_channels"],
-                  block_dimensions=config["block_dimensions"],
-                  kernel_size=config["kernel_size"],
-                  pooling=config["pooling"],
-                  padding=config["padding"],
-                  padding_mode=config["padding_mode"],
-                  stride=config["stride"])
+    return ResNet(
+        in_channels=config["in_channels"],
+        block_dimensions=config["block_dimensions"],
+        kernel_size=config["kernel_size"],
+        pooling=config["pooling"],
+        padding=config["padding"],
+        padding_mode=config["padding_mode"],
+        stride=config["stride"],
+    )
+
 
 class ResNetBlock(nn.Module):
     """
@@ -103,8 +107,6 @@ class ResNet(nn.Module):
 
     Parameters
     ----------
-    in_channels : int
-        Number of input channels.
     block_dimensions : List[int]
         List specifying the number of feature channels for each residual block.
     kernel_size : int, optional
@@ -117,17 +119,19 @@ class ResNet(nn.Module):
         Padding mode for convolutional layers. Default is 'zeros'.
     stride : int, optional
         Stride for the convolutional layers. Default is 1.
+    end_activation : bool, optional
+        Whether to apply a final activation function to the output. Default is True.
     """
 
     def __init__(
         self,
-        in_channels: int,
         block_dimensions: List[int],
         kernel_size: int = 3,
         pooling: bool = False,
         padding: Union[int, tuple, str] = "same",
         padding_mode: str = "zeros",
         stride: int = 1,
+        end_activation: bool = True,
     ):
         super(ResNet, self).__init__()
         self.pooling = pooling
@@ -135,26 +139,6 @@ class ResNet(nn.Module):
         self.padding = padding
         self.stride = stride
         self.kernel_size = kernel_size
-
-        # Initial convolutions to go to block size
-        self.conv_init = nn.Sequential(
-            nn.Conv2d(
-                in_channels,
-                block_dimensions[0],
-                kernel_size=kernel_size,
-                padding=padding,
-                padding_mode=padding_mode,
-            ),
-            nn.ReLU(),
-            nn.Conv2d(
-                block_dimensions[0],
-                block_dimensions[0],
-                kernel_size=kernel_size,
-                padding=padding,
-                padding_mode=padding_mode,
-            ),
-            nn.ReLU(),
-        )
 
         # The blocks
         module_list = []
@@ -173,7 +157,12 @@ class ResNet(nn.Module):
 
         self.resnet = nn.Sequential(*module_list)
 
+        if end_activation:
+            self.end_activation = nn.ReLU()
+        else:
+            self.end_activation = nn.Identity()
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.conv_init(x)
-        out = self.resnet(out)
-        return out
+        x = self.resnet(x)
+        x = self.end_activation(x)
+        return x

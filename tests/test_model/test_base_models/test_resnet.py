@@ -43,10 +43,9 @@ def test_resnet_shape_no_pooling():
     height = 32
     width = 32
     in_channels = 3
-    block_dimensions = [64, 128, 256]
+    block_dimensions = [in_channels, 64, 128, 256]
 
     model = ResNet(
-        in_channels=in_channels,
         block_dimensions=block_dimensions,
         kernel_size=3,
         pooling=False,
@@ -67,10 +66,9 @@ def test_resnet_shape_with_pooling():
     height = 32
     width = 32
     in_channels = 3
-    block_dimensions = [64, 128, 256]
+    block_dimensions = [in_channels, 64, 128, 256]
 
     model = ResNet(
-        in_channels=in_channels,
         block_dimensions=block_dimensions,
         kernel_size=3,
         pooling=True,
@@ -99,10 +97,9 @@ def test_resnet_gradient_flow():
     height = 32
     width = 32
     in_channels = 3
-    block_dimensions = [64, 128, 256]
+    block_dimensions = [in_channels, 64, 128, 256]
 
     model = ResNet(
-        in_channels=in_channels,
         block_dimensions=block_dimensions,
         kernel_size=3,
         pooling=False,
@@ -161,13 +158,12 @@ def test_resnet_padding_modes():
     height = 32
     width = 32
     in_channels = 3
-    block_dimensions = [64, 128]
+    block_dimensions = [in_channels, 64, 128, 256]
 
     padding_modes = ["zeros", "reflect", "replicate"]
 
     for mode in padding_modes:
         model = ResNet(
-            in_channels=in_channels,
             block_dimensions=block_dimensions,
             kernel_size=3,
             pooling=False,
