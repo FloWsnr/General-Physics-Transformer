@@ -15,30 +15,30 @@ from metaparc.data.mock_data import (
 @pytest.mark.skip(reason="Test is not ready yet")
 def test_model_training_moving_circle():
     channels = 1
-    height = 16
-    width = 16
-    time_steps = 1
+    height = 128
+    width = 128
+    time_steps =4
     num_samples = 1000
     batch_size = 10
 
     config = {
         "transformer": {
             "input_channels": channels,
-            "hidden_channels": 600,  # must be divisible by 6
-            "mlp_dim": 48,
+            "hidden_channels": 60,  # must be divisible by 6
+            "mlp_dim": 128,
             "num_heads": 1,
             "num_layers": 1,
             "pos_enc_mode": "rope",
-            "patch_size": (1, 2, 2),
+            "patch_size": (2, 16, 16),
             "dropout": 0.0,
             "stochastic_depth_rate": 0.0,
         },
         "img_size": (time_steps, height, width),
         "tokenizer": {
-            "tokenizer_mode": "conv_net",
-            "detokenizer_mode": "conv_net",
-            "tokenizer_net_channels": [16, 32, 64, 128, 256],
-            "detokenizer_net_channels": [256, 128, 64, 32, 16],
+            "tokenizer_mode": "linear",
+            "detokenizer_mode": "linear",
+            "tokenizer_net_channels": [16, 32, 64],
+            "detokenizer_net_channels": [64, 32, 16],
         },
     }
 
@@ -51,11 +51,11 @@ def test_model_training_moving_circle():
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     criterion = torch.nn.MSELoss()
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1)
 
     try:
         loss_history = []
-        for epoch in range(10):
+        for epoch in range(5):
             for batch in dataloader:
                 x = batch
                 x = x.to(device)
@@ -65,7 +65,7 @@ def test_model_training_moving_circle():
 
                 optimizer.zero_grad()
                 output = model(x)
-                loss = criterion(output, x)
+                loss = criterion(output, y)
                 loss.backward()
                 optimizer.step()
 
