@@ -151,6 +151,7 @@ class PhysicsTransformer(nn.Module):
         self.revin = RevIN(num_channels=input_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x = [B, T, H, W, C]
         x = self.revin(x, mode="norm")
         # Split into patches
         x = self.tokenizer(x)
@@ -168,4 +169,5 @@ class PhysicsTransformer(nn.Module):
         x = self.detokenizer(x)
         x = self.revin(x, mode="denorm")
 
-        return x
+        # return last time step
+        return x[:, -1, ...].unsqueeze(1)
