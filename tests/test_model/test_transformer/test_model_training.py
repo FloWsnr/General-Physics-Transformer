@@ -17,22 +17,29 @@ def test_model_training_moving_circle():
     channels = 1
     height = 16
     width = 16
-    time_steps = 4
+    time_steps = 1
     num_samples = 1000
     batch_size = 10
 
     config = {
-        "input_channels": channels,
-        "hidden_channels": 24,  # must be divisible by 6
-        "mlp_dim": 48,
-        "num_heads": 1,
-        "num_layers": 1,
-        "patch_size": (4, 4, 4),
-        "tokenizer_mode": "linear",
-        "pos_enc_mode": "rope",
-        "stochastic_depth_rate": 0.0,
-        "dropout": 0.0,
+        "transformer": {
+            "input_channels": channels,
+            "hidden_channels": 600,  # must be divisible by 6
+            "mlp_dim": 48,
+            "num_heads": 1,
+            "num_layers": 1,
+            "pos_enc_mode": "rope",
+            "patch_size": (1, 2, 2),
+            "dropout": 0.0,
+            "stochastic_depth_rate": 0.0,
+        },
         "img_size": (time_steps, height, width),
+        "tokenizer": {
+            "tokenizer_mode": "conv_net",
+            "detokenizer_mode": "conv_net",
+            "tokenizer_net_channels": [16, 32, 64, 128, 256],
+            "detokenizer_net_channels": [256, 128, 64, 32, 16],
+        },
     }
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -58,7 +65,7 @@ def test_model_training_moving_circle():
 
                 optimizer.zero_grad()
                 output = model(x)
-                loss = criterion(output, y)
+                loss = criterion(output, x)
                 loss.backward()
                 optimizer.step()
 
@@ -77,7 +84,9 @@ def test_model_training_moving_circle():
     y = x[:, 1:, ...]
     x = x[:, :-1, ...]
 
-    output = model(x)
+    model.eval()
+    with torch.no_grad():
+        output = model(x)
     # Convert tensors to numpy for plotting
     x_np = x.detach().cpu().numpy()
     y_np = y.detach().cpu().numpy()
