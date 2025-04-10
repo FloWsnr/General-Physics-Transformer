@@ -21,6 +21,7 @@ class MockMovingCircleData(Dataset):
         num_height_pixels: int,
         num_width_pixels: int,
         num_samples: int,
+        binary: bool = False,
     ):
         self.height_pixels = num_height_pixels
         self.width_pixels = num_width_pixels
@@ -29,6 +30,7 @@ class MockMovingCircleData(Dataset):
         self.data = torch.zeros(
             num_time_steps + 1, num_height_pixels, num_width_pixels, num_channels
         )
+        self.binary = binary
 
     def __len__(self) -> int:
         return self.num_samples
@@ -37,8 +39,8 @@ class MockMovingCircleData(Dataset):
         x = self.data.clone()
 
         # Create a circle at a random position
-        center_x = torch.randint(0, self.width_pixels // 2, (1,))
-        center_y = torch.randint(0, self.height_pixels // 2, (1,))
+        center_x = torch.randint(1, self.width_pixels // 2, (1,))
+        center_y = torch.randint(1, self.height_pixels // 2, (1,))
         radius = min(center_x, center_y).clone()
 
         # Create a circle using the circle equation: (x-h)^2 + (y-k)^2 = r^2
@@ -47,23 +49,56 @@ class MockMovingCircleData(Dataset):
             torch.arange(self.width_pixels),
             indexing="ij",
         )
+
         # move the circle in the x direction
         for i in range(self.num_time_steps + 1):  # +1 to include the initial position
-            circle_mask = (
-                (y_indices - center_y) ** 2 + (x_indices - center_x) ** 2
-            ) <= radius**2
-            x[i, circle_mask, :] = 1
+            # Calculate distance from each point to the center
+            distance_squared = (y_indices - center_y) ** 2 + (x_indices - center_x) ** 2
+
+            # Create a gradual circle with intensity decreasing from center to edge
+            # Values will be 1 at center, decreasing to 0 at radius
+            intensity = torch.maximum(
+                1 - torch.sqrt(distance_squared) / radius, torch.tensor(0.0)
+            )
+            intensity = intensity.unsqueeze(-1)
+
+            # Apply the intensity values to all channels
+            x[i, ..., :] = intensity
+            # check for nan
+            assert not torch.isnan(x[i, ..., :]).any(), "x contains nan"
 
             # Move the center for the next time step (after setting the current one)
             center_x += 2
             center_y += 2
 
-        return x
+        y = x[-1, ...].unsqueeze(0)
+        x = x[:-1, ...]
+
+        if self.binary:
+            x = x.round()
+            y = y.round()
+
+        return x, y
 
 
 class MockShrinkingCircleData(Dataset):
     """
     Mock data for checking if the model can learn.
+    
+    Parameters
+    ----------
+    num_channels : int
+        Number of channels in the data.
+    num_time_steps : int
+        Number of time steps in the sequence.
+    num_height_pixels : int
+        Height of the image in pixels.
+    num_width_pixels : int
+        Width of the image in pixels.
+    num_samples : int
+        Number of samples in the dataset.
+    binary : bool, optional
+        Whether to binarize the output. Default is False.
     """
 
     def __init__(
@@ -73,6 +108,7 @@ class MockShrinkingCircleData(Dataset):
         num_height_pixels: int,
         num_width_pixels: int,
         num_samples: int,
+        binary: bool = False,
     ):
         self.height_pixels = num_height_pixels
         self.width_pixels = num_width_pixels
@@ -81,6 +117,7 @@ class MockShrinkingCircleData(Dataset):
         self.data = torch.zeros(
             num_time_steps + 1, num_height_pixels, num_width_pixels, num_channels
         )
+        self.binary = binary
 
     def __len__(self) -> int:
         return self.num_samples
@@ -89,8 +126,12 @@ class MockShrinkingCircleData(Dataset):
         x = self.data.clone()
 
         # Create a circle at a random position
-        center_x = torch.randint(self.width_pixels // 4, self.width_pixels // 2, (1,))
-        center_y = torch.randint(self.height_pixels // 4, self.height_pixels // 2, (1,))
+        center_x = torch.randint(
+            self.width_pixels // 4, self.width_pixels // 4 * 3, (1,)
+        )
+        center_y = torch.randint(
+            self.height_pixels // 4, self.height_pixels // 4 * 3, (1,)
+        )
 
         # Start with a large radius
         max_radius = min(
@@ -114,12 +155,30 @@ class MockShrinkingCircleData(Dataset):
         # Shrink the circle with each time step
         for i in range(self.num_time_steps + 1):  # +1 to include the initial position
             current_radius = initial_radius - i * radius_step
-            circle_mask = (
-                (y_indices - center_y) ** 2 + (x_indices - center_x) ** 2
-            ) <= current_radius**2
-            x[i, circle_mask, :] = 1
+            
+            # Calculate distance from each point to the center
+            distance_squared = (y_indices - center_y) ** 2 + (x_indices - center_x) ** 2
+            
+            # Create a gradual circle with intensity decreasing from center to edge
+            # Values will be 1 at center, decreasing to 0 at radius
+            intensity = torch.maximum(
+                1 - torch.sqrt(distance_squared) / current_radius, torch.tensor(0.0)
+            )
+            intensity = intensity.unsqueeze(-1)
+            
+            # Apply the intensity values to all channels
+            x[i, ..., :] = intensity
+            # check for nan
+            assert not torch.isnan(x[i, ..., :]).any(), "x contains nan"
 
-        return x
+        y = x[-1, ...].unsqueeze(0)
+        x = x[:-1, ...]
+        
+        if self.binary:
+            x = x.round()
+            y = y.round()
+            
+        return x, y
 
 
 class MockCircleData(Dataset):
