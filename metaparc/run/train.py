@@ -216,7 +216,7 @@ class Trainer:
         # Visualize predictions ####################################
         ############################################################
         vis_path = self.epoch_dir / "train.png"
-        visualize_predictions(vis_path, x, output, target)
+        visualize_predictions(vis_path, x, output, target, svg=True)
         log_predictions_wandb(
             run=self.wandb_run,
             image_path=vis_path,
@@ -251,7 +251,7 @@ class Trainer:
 
         # Visualize predictions
         vis_path = self.epoch_dir / "val.png"
-        visualize_predictions(vis_path, x, output, target)
+        visualize_predictions(vis_path, x, output, target, svg=True)
         log_predictions_wandb(
             run=self.wandb_run,
             image_path=vis_path,
