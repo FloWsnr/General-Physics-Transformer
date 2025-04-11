@@ -150,12 +150,9 @@ class Trainer:
 
         total_batches = self.train_batches_per_epoch
         for batch_idx, batch in enumerate(self.train_loader):
-            x, y = batch
+            x, target = batch
             x = x.to(self.device)
-            y = y.to(self.device)
-
-            target = x
-            # target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
+            target = target.to(self.device)
 
             self.optimizer.zero_grad()
             output = self.model(x)
@@ -237,12 +234,9 @@ class Trainer:
         num_batches = 0
         with torch.no_grad():
             for batch_idx, batch in enumerate(self.val_loader):
-                x, y = batch
+                x, target = batch
                 x = x.to(self.device)
-                y = y.to(self.device)
-
-                target = x
-                # target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
+                target = target.to(self.device)
 
                 output = self.model(x)
                 loss = self.criterion(output, target)
