@@ -38,7 +38,7 @@ def visualize_predictions(
     show : bool
         Whether to show the plots.
     """
-    save_path.mkdir(parents=True, exist_ok=True)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
 
     inputs = inputs.detach().cpu().numpy()
     predictions = predictions.detach().cpu().numpy()
@@ -140,9 +140,7 @@ def visualize_predictions(
                 "Prediction", rotation=0, labelpad=40, va="center"
             )
             axs[-2, channel].set_ylabel("Target", rotation=0, labelpad=40, va="center")
-            axs[-1, channel].set_ylabel(
-                "Error", rotation=0, labelpad=40, va="center"
-            )
+            axs[-1, channel].set_ylabel("Error", rotation=0, labelpad=40, va="center")
 
         # Add two colorbars for each column
         # First colorbar for input/prediction/target (top)
@@ -161,7 +159,7 @@ def visualize_predictions(
 
     # Adjust the figure layout to make room for the colorbars
     fig.subplots_adjust(right=0.85)
-    fig.savefig(save_path / "predictions.png", dpi=300, bbox_inches="tight")
+    fig.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 

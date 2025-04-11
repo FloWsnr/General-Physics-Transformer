@@ -45,13 +45,14 @@ def test_visualize_predictions_creates_files(tmp_path: Path, sample_data: tuple)
     """
     # swap the first two dimensions
     inputs, predictions, targets = sample_data
-    save_path = tmp_path / "visualizations"
+    save_path = tmp_path / "visualizations" / "test.png"
 
     # Call the function
     visualize_predictions(save_path, inputs, predictions, targets, show=True)
 
     # Check that files were created
     assert save_path.exists()
+
 
 def test_visualize_predictions_handles_single_timestep(
     tmp_path: Path, sample_data: tuple
