@@ -1,12 +1,12 @@
 wandb:
   project: General Physics Model
   entity: wsnr-florian
-  id: test_run-28-test_only_tokenizer_reconstruction
+  id: huge_model
   tags:
     - TestRun
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
-  notes: "Test run no transformer, only tokenizer, only reconstruction of input"
+  notes: "Huge model (86M params)"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/MetaPARC/logs
@@ -15,38 +15,39 @@ logging:
 
 model:
   architecture:
-    name: Spatial-Temporal Transformer
-    backbone: spatial temporal attention
+    name: "Spatial-Temporal Transformer"
+    backbone: "spatial temporal attention"
     normalization: "RevIN (T,H,W)"
     activation: GELU
 
   transformer:
     input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
     # number of hidden channels across all layers (must be divisible by 6 and by num_heads)
-    hidden_channels: 240
+    hidden_channels: 768
     
-    mlp_dim: 512 # number of hidden channels in the MLP
-    num_heads: 4 # number of attention heads
+    mlp_dim: 3072 # number of hidden channels in the MLP
+    num_heads: 12 # number of attention heads
     dropout: 0.0 # dropout rate
     pos_enc_mode: absolute # positional encoding mode (usually rope or absolute)
-    patch_size: [1, 16, 16] # patch size (usually 4x16x16)
-    num_layers: 2 # number of attention layers
+    patch_size: [2, 16, 16] # patch size (usually 4x16x16)
+    num_layers: 12 # number of attention layers
     stochastic_depth_rate: 0.0 # stochastic depth rate
   tokenizer:
-    tokenizer_mode: conv_net # tokenizer mode (usually linear or conv_net)
-    detokenizer_mode: conv_net # detokenizer mode (usually linear or conv_net)
-    tokenizer_net_channels: [16, 32, 64, 128] # number of channels in the tokenizer conv_net
-    detokenizer_net_channels: [128, 64, 32, 16] # number of channels in the detokenizer conv_net
+    tokenizer_mode: linear # tokenizer mode (usually linear or conv_net)
+    detokenizer_mode: linear # detokenizer mode (usually linear or conv_net)
+    tokenizer_net_channels: null # number of channels in the tokenizer conv_net
+    detokenizer_net_channels: null # number of channels in the detokenizer conv_net
 
 training:
   batch_size: 64
   epochs: 10
-  num_workers: 4
+  num_workers: 6
   grad_clip: 1.0 # gradient clipping
   optimizer:
-    # name: Adam
-    # betas: [0.9, 0.999]
-    # learning_rate: 0.001
+    name: Adam
+    betas: [0.9, 0.999]
+    learning_rate: 0.0001
+    weight_decay: 0.0000
     # name: AdamW
     # learning_rate: 0.001
     # weight_decay: 0.01
@@ -54,30 +55,29 @@ training:
     # name: DAdaptAdam
     # betas: [0.9, 0.999]
     # weight_decay: 0.01
-    name: DAdaptAdamW
-    betas: [0.9, 0.999]
-    weight_decay: 0.1
+    # name: DAdaptAdamW
+    # betas: [0.9, 0.999]
+    # weight_decay: 0.1
   criterion:
     name: MSELoss
 
   lr_scheduler:
-    name: SequentialLR
     schedulers:
-      - name: LinearLR # linear warmup scheduler
+      LinearLR: # linear warmup scheduler
         start_factor: 0.001
         end_factor: 1.0
         epochs: 1 # number of training epochs for linear warmup
-      # - name: CosineAnnealingWarmRestarts # cosine annealing scheduler
+      # CosineAnnealingWarmRestarts: # cosine annealing scheduler
       #   T_0: 10 # number epochs for one cosine annealing cycle
       #   T_mult: 2 # multiplicative factor for the number of epochs in each cycle
       #   min_lr: 0.0001
-      - name: CosineAnnealingLR # cosine annealing scheduler
-        T_max: 2 # Number of epochs for one cosine annealing cycle
-        min_lr: 0.0001
+      # CosineAnnealingLR: # cosine annealing scheduler
+      #   T_max: 2 # Number of epochs for one cosine annealing cycle
+      #   min_lr: 0.0001
 data:
   length_limit: null # limit the number of samples per epoch, set to null for no limit
   dt_stride: 1 # take every dt_stride-th timestep
-  n_steps_input: 1 # number of input timesteps
+  n_steps_input: 4 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
   out_shape: [128, 64] # output shape (usually)
 

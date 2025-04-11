@@ -6,6 +6,7 @@ Date: 2025-04-07
 """
 
 from pathlib import Path
+from datetime import datetime
 
 import wandb
 import wandb.wandb_run
@@ -146,7 +147,7 @@ class Trainer:
             Average training loss for the epoch
         """
         self.model.train()
-        train_loss = 0
+        acc_train_loss = 0
 
         total_batches = self.train_batches_per_epoch
         for batch_idx, batch in enumerate(self.train_loader):
@@ -165,7 +166,7 @@ class Trainer:
             )
             self.optimizer.step()
 
-            train_loss += loss.item()
+            acc_train_loss += loss.item()
 
             ############################################################
             # Step learning rate scheduler #############################
@@ -191,7 +192,7 @@ class Trainer:
 
             self.logger.info(
                 f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
-                f"Loss: {loss.item():.8f}, Acc. Loss: {train_loss / (batch_idx + 1):.8f}, LR: {lr:.8f}, "
+                f"Loss: {loss.item():.8f}, Acc. Loss: {acc_train_loss / (batch_idx + 1):.8f}, LR: {lr:.8f}, "
                 f"Samples: {self.samples_trained}/{self.total_samples}"
             )
 
@@ -205,9 +206,10 @@ class Trainer:
 
                 self.wandb_run.log(
                     {
-                        "training/samples_trained": self.samples_trained,
-                        "training/batch_idx": total_b_idx,
-                        "training/acc_batch_loss": train_loss / (batch_idx + 1),
+                        "training/num_batches": total_b_idx,
+                        "training/num_samples": self.samples_trained,
+                        "training/acc_batch_loss": acc_train_loss / (batch_idx + 1),
+                        "training/batch_loss": loss.item(),
                         "training/learning_rate": lr,
                     }
                 )
@@ -219,11 +221,11 @@ class Trainer:
         visualize_predictions(vis_path, x, output, target, svg=True)
         log_predictions_wandb(
             run=self.wandb_run,
-            image_path=vis_path,
+            image_path=vis_path.parent,
             name_prefix=f"epoch_{self.epoch}",
         )
 
-        return train_loss / total_batches
+        return acc_train_loss / total_batches
 
     def validate(self) -> float:
         """Validate the model."""
@@ -254,7 +256,7 @@ class Trainer:
         visualize_predictions(vis_path, x, output, target, svg=True)
         log_predictions_wandb(
             run=self.wandb_run,
-            image_path=vis_path,
+            image_path=vis_path.parent,
             name_prefix=f"epoch_{self.epoch}",
         )
 
@@ -402,8 +404,12 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
     """
     if config["name"] == "Adam":
         betas = config["betas"]
+        weight_decay = config["weight_decay"]
         optimizer = optim.Adam(
-            model.parameters(), lr=config["learning_rate"], betas=betas
+            model.parameters(),
+            lr=config["learning_rate"],
+            betas=betas,
+            weight_decay=weight_decay,
         )
     elif config["name"] == "AdamW":
         weight_decay = config["weight_decay"]
@@ -437,12 +443,15 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
 
 def login_wandb(config: dict) -> wandb.wandb_run.Run:
     """Log into wandb."""
+    wandb_id = config["wandb"]["id"]
+    # Add date and time to wandb id
+    wandb_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}-{wandb_id}"
     wandb.login()
     run = wandb.init(
         project=config["wandb"]["project"],
         entity=config["wandb"]["entity"],
         config=config,
-        id=config["wandb"]["id"],
+        id=wandb_id,
         tags=config["wandb"]["tags"],
         notes=config["wandb"]["notes"],
     )
