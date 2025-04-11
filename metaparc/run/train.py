@@ -191,7 +191,7 @@ class Trainer:
 
             self.logger.info(
                 f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
-                f"Loss: {loss.item():.6f}, Acc. Loss: {train_loss / (batch_idx + 1):.6f}, LR: {lr:.6f}, "
+                f"Loss: {loss.item():.8f}, Acc. Loss: {train_loss / (batch_idx + 1):.8f}, LR: {lr:.8f}, "
                 f"Samples: {self.samples_trained}/{self.total_samples}"
             )
 
@@ -215,12 +215,12 @@ class Trainer:
         ############################################################
         # Visualize predictions ####################################
         ############################################################
-        vis_path = self.log_dir / f"epoch_{self.epoch}" / "train"
+        vis_path = self.epoch_dir / "train.png"
         visualize_predictions(vis_path, x, output, target)
         log_predictions_wandb(
             run=self.wandb_run,
             image_path=vis_path,
-            name_prefix=f"epoch_{self.epoch}_train",
+            name_prefix=f"epoch_{self.epoch}",
         )
 
         return train_loss / total_batches
@@ -246,16 +246,16 @@ class Trainer:
 
                 self.logger.info(
                     f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
-                    f"Loss: {loss.item():.6f}, Acc. Loss: {val_loss / num_batches:.6f}"
+                    f"Loss: {loss.item():.8f}, Acc. Loss: {val_loss / num_batches:.8f}"
                 )
 
         # Visualize predictions
-        vis_path = self.log_dir / f"epoch_{self.epoch}" / "val"
+        vis_path = self.epoch_dir / "val.png"
         visualize_predictions(vis_path, x, output, target)
         log_predictions_wandb(
             run=self.wandb_run,
             image_path=vis_path,
-            name_prefix=f"epoch_{self.epoch}_val",
+            name_prefix=f"epoch_{self.epoch}",
         )
 
         return val_loss / total_batches
@@ -266,19 +266,21 @@ class Trainer:
         self.samples_trained = 0
         for epoch in range(1, self.total_epochs + 1):
             self.epoch = epoch
+            self.epoch_dir = self.log_dir / f"epoch_{epoch}"
+            self.epoch_dir.mkdir(parents=True, exist_ok=True)
             ######################################################################
             ########### Training ###############################################
             ######################################################################
             self.logger.info(f"Training epoch {epoch}")
             train_loss = self.train_epoch()
-            self.logger.info(f"Epoch {epoch}, Training loss: {train_loss:.4f}")
+            self.logger.info(f"Epoch {epoch}, Training loss: {train_loss:.8f}")
 
             ######################################################################
             ########### Validation ###############################################
             ######################################################################
             self.logger.info(f"Validating epoch {epoch}")
             val_loss = self.validate()
-            self.logger.info(f"Epoch {epoch}, Validation loss: {val_loss:.4f}")
+            self.logger.info(f"Epoch {epoch}, Validation loss: {val_loss:.8f}")
 
             ######################################################################
             ########### Wandb logging ###########################################
@@ -297,7 +299,7 @@ class Trainer:
             if val_loss < best_loss:
                 best_loss = val_loss
                 torch.save(self.model.state_dict(), self.log_dir / "best_model.pth")
-                self.logger.info(f"Model saved with loss: {best_loss:.4f}")
+                self.logger.info(f"Model saved with loss: {best_loss:.8f}")
 
             ######################################################################
             ########### Save checkpoint ########################################
@@ -311,7 +313,10 @@ class Trainer:
             }
             if self.scheduler is not None:
                 checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
-            torch.save(checkpoint, self.log_dir / f"checkpoint_epoch_{epoch}.pth")
+            torch.save(
+                checkpoint,
+                self.epoch_dir / "checkpoint.pth",
+            )
 
         self.wandb_run.finish()
 
@@ -336,33 +341,46 @@ def get_lr_scheduler(
         Learning rate scheduler
     """
 
-    lrs1 = config["schedulers"][0]
-    lrs2 = config["schedulers"][1]
-
-    total_iters = train_batches_per_epoch * lrs1["epochs"]
-    warmup_scheduler = optim.lr_scheduler.LinearLR(
-        optimizer,
-        start_factor=lrs1["start_factor"],
-        end_factor=lrs1["end_factor"],
-        total_iters=total_iters,
-    )
-
-    if lrs2["name"] == "CosineAnnealingWarmRestarts":
-        t_steps = train_batches_per_epoch * lrs2["T_0"]
-        cosine_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, T_0=t_steps, eta_min=lrs2["min_lr"]
-        )
-    elif lrs2["name"] == "CosineAnnealingLR":
-        t_steps = train_batches_per_epoch * lrs2["T_max"]
-        cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=t_steps, eta_min=lrs2["min_lr"]
+    num_schedulers = len(config["schedulers"])
+    if num_schedulers == 1:
+        lrs = config["schedulers"]["LinearLR"]
+        scheduler = optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=lrs["start_factor"],
+            end_factor=lrs["end_factor"],
+            total_iters=train_batches_per_epoch * lrs["epochs"],
         )
 
-    scheduler = optim.lr_scheduler.SequentialLR(
-        optimizer,
-        schedulers=[warmup_scheduler, cosine_scheduler],
-        milestones=[total_iters],
-    )
+    elif num_schedulers == 2:
+        lrs1 = config["schedulers"]["LinearLR"]
+        t_steps = train_batches_per_epoch * lrs1["epochs"]
+
+        lrs1_scheduler = optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=lrs1["start_factor"],
+            end_factor=lrs1["end_factor"],
+            total_iters=t_steps,
+        )
+
+        lrs2_name = list(config["schedulers"].keys())[1]
+        lrs2 = config["schedulers"][lrs2_name]
+
+        if lrs2_name == "CosineAnnealingWarmRestarts":
+            T_0 = train_batches_per_epoch * lrs2["T_0"]
+            cosine_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                optimizer, T_0=T_0, T_mult=lrs2["T_mult"], eta_min=lrs2["min_lr"]
+            )
+        elif lrs2_name == "CosineAnnealingLR":
+            T_max = train_batches_per_epoch * lrs2["T_max"]
+            cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=T_max, eta_min=lrs2["min_lr"]
+            )
+
+        scheduler = optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[lrs1_scheduler, cosine_scheduler],
+            milestones=[t_steps],
+        )
 
     return scheduler
 
