@@ -16,7 +16,7 @@ def visualize_predictions(
     inputs: torch.Tensor,
     predictions: torch.Tensor,
     targets: torch.Tensor,
-    show: bool = False,
+    svg: bool = False,
 ) -> None:
     """
     Visualize the inputs, predictions and targets. (batch_size, time_steps, height, width, channels)
@@ -35,8 +35,8 @@ def visualize_predictions(
         The predictions.
     targets : torch.Tensor
         The targets.
-    show : bool
-        Whether to show the plots.
+    svg : bool
+        Whether to (additionally) save the plots as svg.
     """
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -84,11 +84,13 @@ def visualize_predictions(
 
     rows = T + 3  # time steps of input plus 3 rows for predictions, targets, diff
     cols = C
-    fig, axs = plt.subplots(rows, cols, figsize=(5 * cols, 3 * rows))
+    fig, axs = plt.subplots(rows, cols, figsize=(6 * cols, 2 * rows))
 
     # Set column headers (channel names)
     for channel in range(C):
-        axs[0, channel].set_title(channel_names[channel], pad=20)
+        axs[0, channel].set_title(
+            channel_names[channel], pad=20, fontsize=14, fontweight="bold"
+        )
 
     for channel in range(C):
         # traget and pred only have one time step
@@ -135,12 +137,38 @@ def visualize_predictions(
 
         # Set row labels for the first column
         if channel == 0:
-            axs[0, channel].set_ylabel("Input", rotation=0, labelpad=40, va="center")
-            axs[-3, channel].set_ylabel(
-                "Prediction", rotation=0, labelpad=40, va="center"
+            axs[0, channel].set_ylabel(
+                "Input",
+                rotation=0,
+                labelpad=40,
+                va="center",
+                fontweight="bold",
+                fontsize=12,
             )
-            axs[-2, channel].set_ylabel("Target", rotation=0, labelpad=40, va="center")
-            axs[-1, channel].set_ylabel("Error", rotation=0, labelpad=40, va="center")
+            axs[-3, channel].set_ylabel(
+                "Prediction",
+                rotation=0,
+                labelpad=40,
+                va="center",
+                fontweight="bold",
+                fontsize=12,
+            )
+            axs[-2, channel].set_ylabel(
+                "Target",
+                rotation=0,
+                labelpad=40,
+                va="center",
+                fontweight="bold",
+                fontsize=12,
+            )
+            axs[-1, channel].set_ylabel(
+                "Error",
+                rotation=0,
+                labelpad=40,
+                va="center",
+                fontweight="bold",
+                fontsize=12,
+            )
 
         # Add two colorbars for each column
         # First colorbar for input/prediction/target (top)
@@ -160,6 +188,8 @@ def visualize_predictions(
     # Adjust the figure layout to make room for the colorbars
     fig.subplots_adjust(right=0.85)
     fig.savefig(save_path, dpi=300, bbox_inches="tight")
+    if svg:
+        fig.savefig(save_path.with_suffix(".svg"), bbox_inches="tight")
     plt.close(fig)
 
 

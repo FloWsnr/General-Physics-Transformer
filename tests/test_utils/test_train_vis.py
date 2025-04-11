@@ -18,17 +18,17 @@ def sample_data():
     -------
     tuple
         A tuple containing (inputs, predictions, targets) tensors with shape
-        (batch_size=4, time_steps=4, height=32, width=32, channels=5)
+        (batch_size=4, time_steps=4, height=256, width=128, channels=5)
     """
     # Create sample data with known values
-    inputs = torch.ones((4, 4, 32, 32, 5)) * 0.5
-    predictions = torch.ones((4, 1, 32, 32, 5)) * 0.7
-    targets = torch.ones((4, 1, 32, 32, 5)) * 0.6
+    inputs = torch.ones((4, 4, 256, 128, 5)) * 0.5
+    predictions = torch.ones((4, 1, 256, 128, 5)) * 0.7
+    targets = torch.ones((4, 1, 256, 128, 5)) * 0.6
 
     # add some noise to the targets
-    targets += torch.randn((4, 1, 32, 32, 5)) * 0.05
-    predictions += torch.randn((4, 1, 32, 32, 5)) * 0.05
-    inputs += torch.randn((4, 4, 32, 32, 5)) * 0.05
+    targets += torch.randn((4, 1, 256, 128, 5)) * 0.05
+    predictions += torch.randn((4, 1, 256, 128, 5)) * 0.05
+    inputs += torch.randn((4, 4, 256, 128, 5)) * 0.05
 
     return inputs, predictions, targets
 
@@ -48,7 +48,7 @@ def test_visualize_predictions_creates_files(tmp_path: Path, sample_data: tuple)
     save_path = tmp_path / "visualizations" / "test.png"
 
     # Call the function
-    visualize_predictions(save_path, inputs, predictions, targets, show=True)
+    visualize_predictions(save_path, inputs, predictions, targets, svg=True)
 
     # Check that files were created
     assert save_path.exists()
