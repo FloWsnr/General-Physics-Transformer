@@ -1,6 +1,6 @@
 import torch
 import pytest
-from metaparc.model.base_models.autoencoder import Encoder, Decoder
+from metaparc.model.autoencoder.autoencoder import Encoder, Decoder
 
 
 class TestAutoencoder:
