@@ -115,6 +115,34 @@ class TestLinearTokenizer:
             dim_embed,
         )
 
+    @pytest.mark.parametrize("overlap", [0, 2, 4, 6])
+    def test_linear_tokenizer_overlap(self, overlap):
+        """
+        Test that the LinearTokenizer class initializes correctly.
+        """
+        batch_size = 2
+        img_size = (4, 256, 128)
+        patch_size = (2, 16, 16)
+        in_channels = 5
+        dim_embed = 256
+        overlap = 4
+
+        tokenizer = LinearTokenizer(patch_size, in_channels, dim_embed, overlap)
+        x = torch.randn(batch_size, *img_size, in_channels)
+        output = tokenizer(x)
+
+        num_t_patches = img_size[0] // patch_size[0]
+        num_h_patches = img_size[1] // patch_size[1]
+        num_w_patches = img_size[2] // patch_size[2]
+
+        assert output.shape == (
+            batch_size,
+            num_t_patches,
+            num_h_patches,
+            num_w_patches,
+            dim_embed,
+        )
+
 
 class TestLinearDetokenizer:
     """
@@ -139,6 +167,35 @@ class TestLinearDetokenizer:
         )
 
         detokenizer = LinearDetokenizer(patch_size, out_channels, dim_embed)
+        output = detokenizer(x)
+
+        assert output.shape == (batch_size, *img_size, out_channels)
+
+    @pytest.mark.parametrize("overlap", [2, 4, 6])
+    def test_linear_detokenizer_overlap(self, overlap):
+        """
+        Test that the LinearDetokenizer class works correctly with overlap.
+        """
+        batch_size = 2
+        img_size = (4, 256, 128)
+        patch_size = (2, 16, 16)
+        out_channels = 5
+        dim_embed = 256
+
+        num_t_patches = img_size[0] // patch_size[0]
+        num_h_patches = img_size[1] // patch_size[1]
+        num_w_patches = img_size[2] // patch_size[2]
+
+        x = torch.randn(
+            batch_size, num_t_patches, num_h_patches, num_w_patches, dim_embed
+        )
+
+        detokenizer = LinearDetokenizer(
+            patch_size=patch_size,
+            out_channels=out_channels,
+            dim_embed=dim_embed,
+            overlap=overlap,
+        )
         output = detokenizer(x)
 
         assert output.shape == (batch_size, *img_size, out_channels)

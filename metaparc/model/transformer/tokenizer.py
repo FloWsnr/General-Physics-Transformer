@@ -116,37 +116,52 @@ class Detokenizer(nn.Module):
 
 class LinearTokenizer(nn.Module):
     """
-    Use a linear layer to project the input tensor into patches.
+    Use a linear layer to project the input tensor into patches with overlap.
 
     Parameters
     ----------
     patch_size : tuple
         The size of the patches to split the image into (time, height, width).
-
     in_channels : int
         The number of channels in the input image.
-
     dim_embed : int
         The dimension of the embedding.
+    overlap : int, optional
+        Number of pixels to overlap between patches.
+        Must be even number.
     """
 
-    def __init__(self, patch_size: tuple, in_channels: int, dim_embed: int):
+    def __init__(
+        self,
+        patch_size: tuple,
+        in_channels: int,
+        dim_embed: int,
+        overlap: int = 0,
+    ):
         super().__init__()
+
+        # Calculate kernel sizes for each dimension
+        kernel_size = tuple(int(ps + overlap) for ps in patch_size)
+
+        # Calculate padding to maintain output size
+        padding = tuple(overlap // 2 for _ in patch_size)
+
         self.to_patch_embedding = nn.Sequential(
             Rearrange("b t h w c -> b c t h w"),
             nn.Conv3d(
                 in_channels=in_channels,
                 out_channels=dim_embed,
-                kernel_size=patch_size,
+                kernel_size=kernel_size,
                 stride=patch_size,
-                padding="valid",
+                padding=padding,
+                padding_mode="zeros",
             ),
             Rearrange("b c t h w -> b t h w c"),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Project the input tensor into patches.
+        Project the input tensor into overlapping patches.
         """
         x = self.to_patch_embedding(x)
         return x
@@ -168,20 +183,37 @@ class LinearDetokenizer(nn.Module):
 
     dim_embed : int
         The dimension of the embedding.
+
+    overlap : int, optional
+        Number of pixels to overlap between patches.
+        Must be even number.
     """
 
-    def __init__(self, patch_size: tuple, out_channels: int, dim_embed: int):
+    def __init__(
+        self,
+        patch_size: tuple,
+        out_channels: int,
+        dim_embed: int,
+        overlap: int = 0,
+    ):
         super().__init__()
+
+        # Calculate kernel sizes for each dimension
+        kernel_size = tuple(int(ps + overlap) for ps in patch_size)
+
+        # Calculate padding to maintain output size
+        padding = tuple(overlap // 2 for _ in patch_size)
 
         self.from_patch_embedding = nn.Sequential(
             Rearrange("b t h w c -> b c t h w"),
             nn.ConvTranspose3d(
                 in_channels=dim_embed,
                 out_channels=out_channels,
-                kernel_size=patch_size,
+                kernel_size=kernel_size,
                 stride=patch_size,
-                padding=0,
-                bias=False,
+                padding=padding,
+                padding_mode="zeros",
+                bias=True,
             ),
             Rearrange("b c t h w -> b t h w c"),
         )
