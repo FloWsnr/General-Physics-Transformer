@@ -38,9 +38,6 @@ class RevLN(nn.Module):
         self.affine_weight = nn.Parameter(torch.ones(self.height, self.width))
         self.affine_bias = nn.Parameter(torch.zeros(self.height, self.width))
 
-        self.register_buffer("mean", torch.zeros(self.height, self.width))
-        self.register_buffer("stdev", torch.ones(self.height, self.width))
-
     def forward(self, x, mode: str):
         """
         Forward pass for RevLN.
@@ -117,9 +114,6 @@ class RevIN(nn.Module):
         self.affine_weight = nn.Parameter(torch.ones(self.num_channels))
         self.affine_bias = nn.Parameter(torch.zeros(self.num_channels))
 
-        self.register_buffer("mean", torch.zeros(self.num_channels))
-        self.register_buffer("stdev", torch.ones(self.num_channels))
-
     def forward(self, x, mode: str):
         """
         Forward pass for RevIN.
@@ -146,7 +140,7 @@ class RevIN(nn.Module):
         return x
 
     def _get_statistics(self, x):
-        # For (B, T, H, W, C), reduce over time, height, width dimensions (1, 3, 4)
+        # For (B, T, H, W, C), reduce over time, height, width dimensions (1, 2, 3)
         dim2reduce = (1, 2, 3)
         self.mean = torch.mean(x, dim=dim2reduce, keepdim=True)
         self.stdev = torch.sqrt(
