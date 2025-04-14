@@ -28,6 +28,9 @@ class Tokenizer(nn.Module):
         Non-linear uses two 3D convolutions with GELU and instance normalization.
     conv_net_channels : list, optional
         The hidden channels of the conv net.
+    overlap : int, optional
+        The number of pixels to overlap between patches for the linear tokenizer.
+        Must be even number.
     """
 
     def __init__(
@@ -37,6 +40,7 @@ class Tokenizer(nn.Module):
         dim_embed: int,
         mode: str,
         conv_net_channels: Optional[list] = None,
+        overlap: int = 0,
     ):
         super().__init__()
 
@@ -51,6 +55,7 @@ class Tokenizer(nn.Module):
                 patch_size=patch_size,
                 in_channels=in_channels,
                 dim_embed=dim_embed,
+                overlap=overlap,
             )
         elif self.mode == "conv_net":
             self.tokenizer = ConvNetTokenizer(
@@ -80,6 +85,9 @@ class Detokenizer(nn.Module):
         The mode of the detokenizer. Can be "linear" or "conv_net".
     conv_net_channels : list, optional
         The hidden channels of the conv net.
+    overlap : int, optional
+        The number of pixels to overlap between patches for the linear detokenizer.
+        Must be even number.
     """
 
     def __init__(
@@ -89,6 +97,7 @@ class Detokenizer(nn.Module):
         out_channels: int,
         mode: str,
         conv_net_channels: Optional[list] = None,
+        overlap: int = 0,
     ):
         super().__init__()
         self.patch_size = patch_size
@@ -101,6 +110,7 @@ class Detokenizer(nn.Module):
                 patch_size=patch_size,
                 out_channels=out_channels,
                 dim_embed=dim_embed,
+                overlap=overlap,
             )
         elif self.mode == "conv_net":
             self.detokenizer = ConvNetDetokenizer(
@@ -139,6 +149,9 @@ class LinearTokenizer(nn.Module):
         overlap: int = 0,
     ):
         super().__init__()
+
+        if overlap % 2 != 0:
+            raise ValueError(f"Overlap must be an even number, got {overlap}")
 
         # Calculate kernel sizes for each dimension
         kernel_size = tuple(int(ps + overlap) for ps in patch_size)
@@ -197,6 +210,9 @@ class LinearDetokenizer(nn.Module):
         overlap: int = 0,
     ):
         super().__init__()
+
+        if overlap % 2 != 0:
+            raise ValueError(f"Overlap must be an even number, got {overlap}")
 
         # Calculate kernel sizes for each dimension
         kernel_size = tuple(int(ps + overlap) for ps in patch_size)

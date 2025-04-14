@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
 
@@ -27,6 +29,8 @@ def get_model(model_config: dict):
         patch_size=transformer_config["patch_size"],
         tokenizer_mode=tokenizer_config["tokenizer_mode"],
         detokenizer_mode=tokenizer_config["detokenizer_mode"],
+        tokenizer_overlap=tokenizer_config["tokenizer_overlap"],
+        detokenizer_overlap=tokenizer_config["detokenizer_overlap"],
         tokenizer_net_channels=tokenizer_config["tokenizer_net_channels"],
         detokenizer_net_channels=tokenizer_config["detokenizer_net_channels"],
         dropout=transformer_config["dropout"],
@@ -74,6 +78,10 @@ class PhysicsTransformer(nn.Module):
         Number of channels in the tokenizer conv_net.
     detokenizer_net_channels: list[int]
         Number of channels in the detokenizer conv_net.
+    tokenizer_overlap: int, optional
+        Number of pixels to overlap between patches for the tokenizer.
+    detokenizer_overlap: int, optional
+        Number of pixels to overlap between patches for the detokenizer.
 
     ################################################################
     ########### Training parameters ################################
@@ -97,8 +105,10 @@ class PhysicsTransformer(nn.Module):
         img_size: tuple[int, int, int],
         tokenizer_mode: str,
         detokenizer_mode: str,
-        tokenizer_net_channels: list[int] | None = None,
-        detokenizer_net_channels: list[int] | None = None,
+        tokenizer_overlap: int = 0,
+        detokenizer_overlap: int = 0,
+        tokenizer_net_channels: Optional[list[int]] = None,
+        detokenizer_net_channels: Optional[list[int]] = None,
         dropout: float = 0.0,
         stochastic_depth_rate: float = 0.0,
     ):
@@ -139,6 +149,7 @@ class PhysicsTransformer(nn.Module):
             dim_embed=hidden_dim,
             mode=tokenizer_mode,
             conv_net_channels=tokenizer_net_channels,
+            overlap=tokenizer_overlap,
         )
         self.detokenizer = Detokenizer(
             patch_size=patch_size,
@@ -146,6 +157,7 @@ class PhysicsTransformer(nn.Module):
             out_channels=input_channels,
             mode=detokenizer_mode,
             conv_net_channels=detokenizer_net_channels,
+            overlap=detokenizer_overlap,
         )
 
         self.revin = RevIN(num_channels=input_channels)

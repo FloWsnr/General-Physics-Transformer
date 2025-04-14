@@ -35,6 +35,8 @@ model:
   tokenizer:
     tokenizer_mode: linear # tokenizer mode (usually linear or conv_net)
     detokenizer_mode: linear # detokenizer mode (usually linear or conv_net)
+    tokenizer_overlap: 4 # pixels overlap between patches, only used for linear tokenizer
+    detokenizer_overlap: 4 # pixels overlap between patches, only used for linear detokenizer
     tokenizer_net_channels: null # number of channels in the tokenizer conv_net
     detokenizer_net_channels: null # number of channels in the detokenizer conv_net
 
