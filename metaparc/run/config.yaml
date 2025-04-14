@@ -1,12 +1,12 @@
 wandb:
   project: General Physics Model
   entity: wsnr-florian
-  id: huge_model
+  id: tokenizer_overlap
   tags:
     - TestRun
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
-  notes: "Huge model (86M params)"
+  notes: "Small model - overlapping tokenizer and detokenizer"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/MetaPARC/logs
@@ -23,14 +23,14 @@ model:
   transformer:
     input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
     # number of hidden channels across all layers (must be divisible by 6 and by num_heads)
-    hidden_channels: 768
+    hidden_channels: 126
     
-    mlp_dim: 3072 # number of hidden channels in the MLP
-    num_heads: 12 # number of attention heads
+    mlp_dim: 378 # number of hidden channels in the MLP
+    num_heads: 2 # number of attention heads
     dropout: 0.0 # dropout rate
     pos_enc_mode: absolute # positional encoding mode (usually rope or absolute)
     patch_size: [2, 16, 16] # patch size (usually 4x16x16)
-    num_layers: 12 # number of attention layers
+    num_layers: 2 # number of attention layers
     stochastic_depth_rate: 0.0 # stochastic depth rate
   tokenizer:
     tokenizer_mode: linear # tokenizer mode (usually linear or conv_net)
