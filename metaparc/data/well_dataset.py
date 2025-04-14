@@ -215,6 +215,8 @@ class WellDataset(Dataset):
             Exclude any files whose name contains at least one of these strings
         use_normalization:
             Whether to normalize data in the dataset
+        max_rollout_steps:
+            Maximum number of steps to rollout
         n_steps_input:
             Number of steps to include in each sample
         n_steps_output:
@@ -264,7 +266,7 @@ class WellDataset(Dataset):
         include_filters: List[str] = [],
         exclude_filters: List[str] = [],
         use_normalization: bool = False,
-        max_rollout_steps=100,
+        max_rollout_steps: int = 10000,
         n_steps_input: int = 1,
         n_steps_output: int = 1,
         min_dt_stride: int = 1,

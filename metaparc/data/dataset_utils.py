@@ -99,6 +99,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
     data_dir = Path(data_config["data_dir"])
     if data_config["full_trajectory_mode"]:
         full_traj = data_config["full_trajectory_mode"]
+        max_rollout_steps = data_config["max_rollout_steps"]
 
     n_steps_input = data_config["n_steps_input"]
     n_steps_output = data_config["n_steps_output"]
@@ -115,6 +116,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             dt_stride=dt_stride,
             length_limit=length_limit,
             full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
         )
         datasets.append(shearflow_dataset)
 
@@ -127,6 +129,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             dt_stride=dt_stride,
             length_limit=length_limit,
             full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
         )
         datasets.append(rayleigh_benard_dataset)
 
@@ -139,6 +142,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             dt_stride=dt_stride,
             length_limit=length_limit,
             full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
         )
         datasets.append(turbulent_radiative_dataset)
 
@@ -151,6 +155,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             dt_stride=dt_stride,
             length_limit=length_limit,
             full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
         )
         datasets.append(euler_dataset)
 
@@ -163,6 +168,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             dt_stride=dt_stride,
             length_limit=length_limit,
             full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
         )
         datasets.append(cylinder_pipe_flow_dataset)
 
@@ -175,6 +181,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             dt_stride=dt_stride,
             length_limit=length_limit,
             full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
         )
         datasets.append(cylinder_symmetry_flow_dataset)
 
@@ -187,6 +194,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             dt_stride=dt_stride,
             length_limit=length_limit,
             full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
         )
         datasets.append(object_periodic_flow_dataset)
 
@@ -211,6 +219,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             dt_stride=dt_stride,
             length_limit=length_limit,
             full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
         )
         datasets.append(object_symmetry_flow_dataset)
 
@@ -223,6 +232,7 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             dt_stride=dt_stride,
             length_limit=length_limit,
             full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
         )
         datasets.append(heated_flow_dataset)
     return datasets

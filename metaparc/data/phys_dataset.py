@@ -68,6 +68,7 @@ class PhysicsDataset(WellDataset):
         include_field_names: dict[str, list[str]] = {},
         length_limit: Optional[int] = None,
         full_trajectory_mode: bool = False,
+        max_rollout_steps: int = 10000,
     ):
         super().__init__(
             path=str(data_dir),
@@ -81,6 +82,7 @@ class PhysicsDataset(WellDataset):
             transform=transform,
             include_field_names=include_field_names,
             full_trajectory_mode=full_trajectory_mode,
+            max_rollout_steps=max_rollout_steps,
         )
         self.channels_first = channels_first
         self.length_limit = length_limit
