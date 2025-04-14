@@ -43,7 +43,7 @@ def create_field_video(
             # Create figure and plot
             fig, ax = plt.subplots(1, 2, figsize=(10, 5))
             im_gt = ax[0].imshow(gt[t, :, :], norm=norm_gt)
-            im_pred = ax[1].imshow(pred[t, :, :], norm=norm_pred)
+            im_pred = ax[1].imshow(pred[t, :, :], norm=norm_gt)
 
             ax[0].set_title(f"Ground Truth - {name} (t={t})")
             ax[1].set_title(f"Prediction - {name} (t={t})")

@@ -94,20 +94,60 @@ def rollout_prediction(
     return outputs, full_traj
 
 
-# def next_step_prediction(
-#     model: torch.nn.Module, dataset: PhysicsDataset
-# ) -> torch.Tensor:
-#     """Next step prediction for a given dataset.
+def next_step_prediction(
+    model: torch.nn.Module,
+    dataset: SuperDataset,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Next step prediction for a given dataset.
 
-#     The model gets the current timestep and needs to predict the next timestep.
-#     """
-#     full_traj = dataset[0]
-#     input = full_traj[0]
+    Parameters
+    ----------
+    model : torch.nn.Module
+        The model to use for prediction
+    dataset : SuperDataset
+        Dataset containing the trajectories
+    device : torch.device
+        Device to run the model on
 
-#     outputs = []
-#     with torch.no_grad():
-#         for i in range(len(input)):
-#             output = model(input)
+    Returns
+    -------
+    tuple[torch.Tensor, torch.Tensor]
+        Tuple containing the predicted outputs and the ground truth
+    """
+    # get first trajectory
+    traj_idx = 0
+    input, full_traj = dataset[traj_idx]
+
+    input = input.to(device)
+    full_traj = full_traj.to(device)
+
+    # add batch dimension
+    input = input.unsqueeze(0)
+    full_traj = full_traj.unsqueeze(0)
+
+    B, T, H, W, C = full_traj.shape
+
+    outputs = []
+    with torch.no_grad():
+        for i in range(T):  # T-1 because we predict the next step
+            # Predict next timestep
+            output = model(input)
+            outputs.append(output)
+
+            # Update input
+            input = torch.cat(
+                [input[:, 1:, ...], full_traj[:, i, ...].unsqueeze(1)], dim=1
+            )
+
+    outputs = torch.cat(outputs, dim=1)
+
+    # remove batch dimension
+    outputs = outputs.squeeze(0)
+    full_traj = full_traj.squeeze(0)
+
+    # Return predictions and ground truth (excluding first timestep)
+    return outputs, full_traj
 
 
 def load_config(model_path: Path) -> dict:
@@ -137,18 +177,24 @@ def main():
     )
 
     for dataset in datasets:
+        dataset = SuperDataset([dataset], out_shape=data_config["out_shape"])
         logger.info(
             f"Rolling out prediction for {dataset.datasets[0].metadata.dataset_name}"
         )
-
-        dataset = SuperDataset([dataset], out_shape=data_config["out_shape"])
         rollout_predictions, full_traj = rollout_prediction(model, dataset, device)
         logger.info("Finished rolling out prediction")
+
+        logger.info("Rolling out next step prediction")
+        next_step_predictions, _ = next_step_prediction(model, dataset, device)
+        logger.info("Finished rolling out next step prediction")
 
         # rotate x and y axis
         rollout_predictions = rollout_predictions.permute(0, 2, 1, 3)
         full_traj = full_traj.permute(0, 2, 1, 3)
+        next_step_predictions = next_step_predictions.permute(0, 2, 1, 3)
+
         rollout_predictions = rollout_predictions.cpu().numpy()
+        next_step_predictions = next_step_predictions.cpu().numpy()
         full_traj = full_traj.cpu().numpy()
 
         # Create videos for both actual and predicted trajectories
@@ -156,12 +202,21 @@ def main():
         output_dir.mkdir(exist_ok=True)
 
         # Create video of the ground truth and the predicted trajectory
-        logger.info("Creating video of ground truth and predicted trajectory")
+        logger.info("Creating video of rollout prediction")
         create_field_video(
             full_traj,
             rollout_predictions,
             output_dir,
-            f"{dataset.datasets[0].metadata.dataset_name}",
+            f"{dataset.datasets[0].metadata.dataset_name}_rollout",
+        )
+
+        # Create video of the ground truth and the next step prediction
+        logger.info("Creating video of next step prediction")
+        create_field_video(
+            full_traj,
+            next_step_predictions,
+            output_dir,
+            f"{dataset.datasets[0].metadata.dataset_name}_next_step",
         )
 
 
