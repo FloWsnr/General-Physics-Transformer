@@ -1,7 +1,7 @@
 wandb:
   project: General Physics Model
   entity: wsnr-florian
-  id: tokenizer_overlap
+  id: med-high-batch-cosine-annealing
   tags:
     - TestRun
     - GPM-Medium
@@ -45,7 +45,7 @@ model:
 training:
   batch_size: 128
   epochs: 10
-  num_workers: 6
+  num_workers: 4
   grad_clip: 1.0 # gradient clipping
   optimizer:
     # name: Adam

@@ -371,12 +371,12 @@ def get_lr_scheduler(
         if lrs2_name == "CosineAnnealingWarmRestarts":
             T_0 = train_batches_per_epoch * lrs2["T_0"]
             cosine_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                optimizer, T_0=T_0, T_mult=lrs2["T_mult"], eta_min=lrs2["min_lr"]
+                optimizer, T_0=T_0, T_mult=lrs2["T_mult"], eta_min=float(lrs2["min_lr"])
             )
         elif lrs2_name == "CosineAnnealingLR":
             T_max = train_batches_per_epoch * lrs2["T_max"]
             cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, T_max=T_max, eta_min=lrs2["min_lr"]
+                optimizer, T_max=T_max, eta_min=float(lrs2["min_lr"])
             )
 
         scheduler = optim.lr_scheduler.SequentialLR(
@@ -408,7 +408,7 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
         weight_decay = config["weight_decay"]
         optimizer = optim.Adam(
             model.parameters(),
-            lr=config["learning_rate"],
+            lr=float(config["learning_rate"]),
             betas=betas,
             weight_decay=weight_decay,
         )
@@ -417,7 +417,7 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
         betas = config["betas"]
         optimizer = optim.AdamW(
             model.parameters(),
-            lr=config["learning_rate"],
+            lr=float(config["learning_rate"]),
             weight_decay=weight_decay,
             betas=betas,
         )
