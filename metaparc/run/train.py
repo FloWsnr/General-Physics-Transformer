@@ -377,6 +377,7 @@ class Trainer:
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "train_loss": train_loss,
                 "val_loss": val_loss,
+                "config": self.config,
             }
             if self.scheduler is not None:
                 checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
@@ -520,6 +521,16 @@ def login_wandb(config: dict) -> wandb.wandb_run.Run:
         notes=config["wandb"]["notes"],
     )
     return run
+
+
+def load_checkpoint(checkpoint_path: Path):
+    """Load a checkpoint."""
+    checkpoint = torch.load(checkpoint_path)
+    model_config = checkpoint["model_config"]
+    model = get_model(model_config)
+    model.load_state_dict(checkpoint["model_state_dict"])
+
+    optimizer
 
 
 def main(config_path: Path):
