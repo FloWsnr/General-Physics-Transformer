@@ -24,6 +24,57 @@ from metaparc.utils.train_vis import log_predictions_wandb, visualize_prediction
 from metaparc.utils.logger import get_logger
 
 
+class NMSELoss(nn.Module):
+    """Normalized Mean Squared Error loss function.
+
+    Parameters
+    ----------
+    dims : tuple, optional
+        Dimensions to reduce over, by default (1, 2, 3)
+        which is time, height, width
+
+    Attributes
+    ----------
+    dims : tuple
+        Dimensions to reduce over
+    """
+
+    def __init__(self, dims=(1, 2, 3)):
+        """Initialize NMSE loss.
+
+        Parameters
+        ----------
+        dims : tuple, optional
+            Dimensions to reduce over, by default (1, 2, 3)
+        """
+        super().__init__()
+        self.dims = dims
+
+    def forward(self, pred, target):
+        """Calculate the normalized mean square error.
+
+        Parameters
+        ----------
+        pred : torch.Tensor
+            Predicted values
+        target : torch.Tensor
+            Target values
+
+        Returns
+        -------
+        torch.Tensor
+            Normalized MSE loss
+        """
+        # Calculate residuals
+        residuals = pred - target
+        # Normalize by mean squared target values (with small epsilon)
+        target_norm = target.pow(2).mean(self.dims, keepdim=True) + 1e-8
+        # Calculate normalized MSE
+        nmse = residuals.pow(2).mean(self.dims, keepdim=True) / target_norm
+        # Return mean over batch dimensions
+        return nmse.mean()
+
+
 class Trainer:
     def __init__(self, config: Path | dict):
         if isinstance(config, dict):
@@ -111,7 +162,16 @@ class Trainer:
         ########### Initialize loss function and optimizer ###########
         ################################################################
         opt_config = self.config["training"]["optimizer"]
-        self.criterion = nn.MSELoss()
+        if self.config["training"]["criterion"] == "MSE":
+            self.criterion = nn.MSELoss()
+        elif self.config["training"]["criterion"] == "NMSE":
+            self.criterion = NMSELoss()
+        elif self.config["training"]["criterion"] == "MAE":
+            self.criterion = nn.L1Loss()
+        else:
+            raise ValueError(
+                f"Criterion {self.config['training']['criterion']} not supported"
+            )
         self.optimizer = get_optimizer(self.model, opt_config)
 
         ################################################################
@@ -471,5 +531,20 @@ def main(config_path: Path):
 
 
 if __name__ == "__main__":
-    config_path = Path("/Users/zsa8rk/Coding/MetaPARC/metaparc/run/config.yaml")
+    import argparse
+
+    # Set up argument parser
+    parser = argparse.ArgumentParser(
+        description="Train a transformer model for physics simulations"
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="/Users/zsa8rk/Coding/MetaPARC/metaparc/run/config.yaml",
+        help="Path to the configuration file",
+    )
+
+    # Parse arguments
+    args = parser.parse_args()
+    config_path = Path(args.config)
     main(config_path)
