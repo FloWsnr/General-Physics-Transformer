@@ -33,7 +33,11 @@ def main():
     for dataset in datasets:
         config["data"]["datasets"] = [dataset]
         config["wandb"]["id"] = f"sweep_{dataset}"
-        run_sweep(config)
+        config["wandb"]["notes"] = f"DatasetSweep - {dataset}"
+        try:
+            run_sweep(config)
+        except Exception as e:
+            print(f"Error running sweep for {dataset}: {e}")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ wandb:
     - GPM-Medium
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
-  notes: "Medium model - test run with NMSE loss"
+  notes: "Medium model - dataset sweep"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/MetaPARC/logs
@@ -43,9 +43,9 @@ model:
     detokenizer_net_channels: null # number of channels in the detokenizer conv_net
 
 training:
-  batch_size: 128
+  batch_size: 384
   epochs: 10
-  num_workers: 6
+  num_workers: 8
   grad_clip: 1.0 # gradient clipping
   optimizer:
     # name: Adam
@@ -88,7 +88,7 @@ data:
   data_dir: /Users/zsa8rk/Coding/MetaPARC/data/datasets
   datasets:
     # - cylinder_sym_flow_water
-    - cylinder_pipe_flow_water
+    # - cylinder_pipe_flow_water
     # - object_periodic_flow_water
     # - object_sym_flow_water
     # - object_sym_flow_air

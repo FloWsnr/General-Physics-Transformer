@@ -530,8 +530,6 @@ def load_checkpoint(checkpoint_path: Path):
     model = get_model(model_config)
     model.load_state_dict(checkpoint["model_state_dict"])
 
-    optimizer
-
 
 def main(config_path: Path):
     """Main training function."""
