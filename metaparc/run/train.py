@@ -44,6 +44,11 @@ class Trainer:
         ################################################################
         ########### Initialize logging #################################
         ################################################################
+        # Add date and time to wandb id
+        self.config["wandb"]["id"] = (
+            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}-{self.config['wandb']['id']}"
+        )
+
         self.log_dir = (
             Path(self.config["logging"]["log_dir"]) / self.config["wandb"]["id"]
         )
@@ -445,8 +450,6 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
 def login_wandb(config: dict) -> wandb.wandb_run.Run:
     """Log into wandb."""
     wandb_id = config["wandb"]["id"]
-    # Add date and time to wandb id
-    wandb_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}-{wandb_id}"
     wandb.login()
     run = wandb.init(
         project=config["wandb"]["project"],
