@@ -70,18 +70,10 @@ def test_visualize_predictions_handles_single_timestep(
     inputs = inputs[:, 0, :, :, :].unsqueeze(1)
     predictions = predictions[:, 0, :, :, :].unsqueeze(1)
     targets = targets[:, 0, :, :, :].unsqueeze(1)
-    save_path = tmp_path / "visualizations"
+    save_path = tmp_path / "visualizations.png"
 
     # Call the function
-    visualize_predictions(save_path, inputs, predictions, targets, show=True)
+    visualize_predictions(save_path, inputs, predictions, targets, svg=True)
 
     # Check that files were created
     assert save_path.exists()
-    assert len(list(save_path.glob("*.png"))) == 5  # One file per channel
-
-    # Check file names
-    assert (save_path / "channel_0.png").exists()
-    assert (save_path / "channel_1.png").exists()
-    assert (save_path / "channel_2.png").exists()
-    assert (save_path / "channel_3.png").exists()
-    assert (save_path / "channel_4.png").exists()
