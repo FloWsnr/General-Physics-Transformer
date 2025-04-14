@@ -327,6 +327,7 @@ def get_lr_scheduler(
     optimizer: torch.optim.Optimizer, config: dict, train_batches_per_epoch: int
 ) -> optim.lr_scheduler.SequentialLR:
     """Create a learning rate scheduler.
+    Options are only linear warmup or linear warmup followed by cosine annealing.
 
     Parameters
     ----------
@@ -345,22 +346,22 @@ def get_lr_scheduler(
 
     num_schedulers = len(config["schedulers"])
     if num_schedulers == 1:
-        lrs = config["schedulers"]["LinearLR"]
+        lrs_lin = config["schedulers"]["LinearLR"]
         scheduler = optim.lr_scheduler.LinearLR(
             optimizer,
-            start_factor=lrs["start_factor"],
-            end_factor=lrs["end_factor"],
-            total_iters=train_batches_per_epoch * lrs["epochs"],
+            start_factor=lrs_lin["start_factor"],
+            end_factor=lrs_lin["end_factor"],
+            total_iters=train_batches_per_epoch * lrs_lin["epochs"],
         )
 
     elif num_schedulers == 2:
-        lrs1 = config["schedulers"]["LinearLR"]
-        t_steps = train_batches_per_epoch * lrs1["epochs"]
+        lrs_lin = config["schedulers"]["LinearLR"]
+        t_steps = train_batches_per_epoch * lrs_lin["epochs"]
 
         lrs1_scheduler = optim.lr_scheduler.LinearLR(
             optimizer,
-            start_factor=lrs1["start_factor"],
-            end_factor=lrs1["end_factor"],
+            start_factor=lrs_lin["start_factor"],
+            end_factor=lrs_lin["end_factor"],
             total_iters=t_steps,
         )
 
