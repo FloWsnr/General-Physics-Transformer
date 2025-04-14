@@ -48,6 +48,10 @@ class PhysicsDataset(WellDataset):
     length_limit: Optional[int]
         Limit the number of samples in the dataset
         By default None
+    full_trajectory_mode: bool
+        Whether to use the full trajectory mode of the well dataset.
+        This returns full trajectories instead of individual timesteps.
+        By default False
     """
 
     def __init__(
@@ -63,6 +67,7 @@ class PhysicsDataset(WellDataset):
         channels_first: bool = False,
         include_field_names: dict[str, list[str]] = {},
         length_limit: Optional[int] = None,
+        full_trajectory_mode: bool = False,
     ):
         super().__init__(
             path=str(data_dir),
@@ -75,6 +80,7 @@ class PhysicsDataset(WellDataset):
             max_dt_stride=dt_stride,
             transform=transform,
             include_field_names=include_field_names,
+            full_trajectory_mode=full_trajectory_mode,
         )
         self.channels_first = channels_first
         self.length_limit = length_limit
@@ -92,6 +98,19 @@ class PhysicsDataset(WellDataset):
         data = super().__getitem__(index)  # returns (time, h, w, c)
         x = data["input_fields"]
         y = data["output_fields"]
+
+        # Replace NaNs with 0
+        x = torch.where(
+            torch.isnan(x),
+            torch.zeros_like(x),
+            x,
+        )
+        y = torch.where(
+            torch.isnan(y),
+            torch.zeros_like(y),
+            y,
+        )
+
         if self.channels_first:
             x = einops.rearrange(x, "time h w c -> time c h w")
             y = einops.rearrange(y, "time h w c -> time c h w")

@@ -163,6 +163,7 @@ class PhysicsTransformer(nn.Module):
         self.revin = RevIN(num_channels=input_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        assert not torch.isnan(x).any(), "Input contains NaNs"
         # x = [B, T, H, W, C]
         x = self.revin(x, mode="norm")
         # Split into patches
