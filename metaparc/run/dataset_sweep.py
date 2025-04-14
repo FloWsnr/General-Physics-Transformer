@@ -32,7 +32,7 @@ def main():
 
     for dataset in datasets:
         config["data"]["datasets"] = [dataset]
-        config["wandb"]["id"] = f"sweep0_{dataset}"
+        config["wandb"]["id"] = f"sweep_{dataset}"
         run_sweep(config)
 
 
