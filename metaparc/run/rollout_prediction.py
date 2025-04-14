@@ -13,7 +13,11 @@ except ImportError:
 
 from metaparc.model.transformer.model import get_model
 from metaparc.data.dataset_utils import get_datasets
-from metaparc.data.phys_dataset import PhysicsDataset, SuperDataset
+from metaparc.data.phys_dataset import SuperDataset
+from metaparc.utils.logger import get_logger
+from metaparc.utils.rollout_video import create_field_video
+
+logger = get_logger(__name__, log_level="INFO")
 
 
 def load_model(
@@ -63,6 +67,7 @@ def rollout_prediction(
     """
     traj_idx = 0
     input, full_traj = dataset[traj_idx]
+
     input = input.to(device)
     full_traj = full_traj.to(device)
 
@@ -82,6 +87,10 @@ def rollout_prediction(
             input = torch.cat([input[:, 1:, ...], output], dim=1)
 
     outputs = torch.cat(outputs, dim=1)
+
+    # remove batch dimension
+    outputs = outputs.squeeze(0)
+    full_traj = full_traj.squeeze(0)
     return outputs, full_traj
 
 
@@ -118,6 +127,9 @@ def main():
 
     data_config = config["data"]
     data_config["full_trajectory_mode"] = True
+    data_config["max_rollout_steps"] = 100
+
+    # data_config["datasets"] = ["rayleigh_benard"]
 
     datasets = get_datasets(
         data_config,
@@ -125,8 +137,32 @@ def main():
     )
 
     for dataset in datasets:
+        logger.info(
+            f"Rolling out prediction for {dataset.datasets[0].metadata.dataset_name}"
+        )
+
         dataset = SuperDataset([dataset], out_shape=data_config["out_shape"])
         rollout_predictions, full_traj = rollout_prediction(model, dataset, device)
+        logger.info("Finished rolling out prediction")
+
+        # rotate x and y axis
+        rollout_predictions = rollout_predictions.permute(0, 2, 1, 3)
+        full_traj = full_traj.permute(0, 2, 1, 3)
+        rollout_predictions = rollout_predictions.cpu().numpy()
+        full_traj = full_traj.cpu().numpy()
+
+        # Create videos for both actual and predicted trajectories
+        output_dir = model_path / "videos"
+        output_dir.mkdir(exist_ok=True)
+
+        # Create video of the ground truth and the predicted trajectory
+        logger.info("Creating video of ground truth and predicted trajectory")
+        create_field_video(
+            full_traj,
+            rollout_predictions,
+            output_dir,
+            f"{dataset.datasets[0].metadata.dataset_name}",
+        )
 
 
 if __name__ == "__main__":
