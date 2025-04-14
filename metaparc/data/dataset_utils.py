@@ -97,9 +97,12 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
         split_name = "valid"
 
     data_dir = Path(data_config["data_dir"])
-    if data_config["full_trajectory_mode"]:
+    if "full_trajectory_mode" in data_config and data_config["full_trajectory_mode"]:
         full_traj = data_config["full_trajectory_mode"]
         max_rollout_steps = data_config["max_rollout_steps"]
+    else:
+        max_rollout_steps = 10000
+        full_traj = False
 
     n_steps_input = data_config["n_steps_input"]
     n_steps_output = data_config["n_steps_output"]
