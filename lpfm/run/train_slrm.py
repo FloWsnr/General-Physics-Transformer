@@ -1,5 +1,11 @@
 from pathlib import Path
 import argparse
+import yaml
+
+try:
+    from yaml import CLoader as Loader
+except ImportError:
+    from yaml import Loader
 
 from dotenv import load_dotenv
 
@@ -8,12 +14,12 @@ from lpfm.run.train import Trainer
 
 def find_last_checkpoint(sim_dir: Path) -> Path:
     """Find the last epoch directory in the simulation directory.
-    
+
     Parameters
     ----------
     sim_dir : Path
         Path to the simulation directory
-        
+
     Returns
     -------
     Path or None
@@ -45,7 +51,13 @@ def find_last_checkpoint(sim_dir: Path) -> Path:
     return checkpoint_path
 
 
-def main(config_path: Path, sim_dir: Path, restart: bool):
+def main(
+    config_path: Path,
+    sim_dir: Path,
+    restart: bool,
+    sim_name: str,
+    data_dir: Path,
+):
     """Main training function."""
     load_dotenv()
 
@@ -55,7 +67,26 @@ def main(config_path: Path, sim_dir: Path, restart: bool):
     else:
         checkpoint_path = None
 
-    trainer = Trainer(config_path, checkpoint_path)
+    # Load config
+    with open(config_path, "r") as f:
+        config = yaml.load(f, Loader=Loader)
+
+    ####################################################################
+    ########### Augment config #########################################
+    ####################################################################
+    config["logging"]["log_dir"] = (
+        sim_dir.parent
+    )  # the actual dir is set in the trainer
+    config["logging"]["log_file"] = sim_dir / "logs" / f"{sim_name}.log"
+    config["wandb"]["id"] = sim_name
+    config["data"]["data_dir"] = data_dir
+
+    ####################################################################
+    ########### Initialize trainer #####################################
+    ####################################################################
+    trainer = Trainer(config)
+    if restart:
+        trainer.load_checkpoint(checkpoint_path=checkpoint_path)
     trainer.save_config()
     trainer.train()
 
@@ -65,10 +96,20 @@ if __name__ == "__main__":
     parser.add_argument("config_file", type=str)
     parser.add_argument("sim_dir", type=str)
     parser.add_argument("restart", type=bool)
+    parser.add_argument("sim_name", type=str)
+    parser.add_argument("data_dir", type=str)
     args = parser.parse_args()
 
     config_path = Path(args.config_file)
     sim_dir = Path(args.sim_dir)
+    data_dir = Path(args.data_dir)
     restart = args.restart
-    
-    main(config_path=config_path, sim_dir=sim_dir, restart=restart)
+    sim_name = args.sim_name
+
+    main(
+        config_path=config_path,
+        sim_dir=sim_dir,
+        restart=restart,
+        sim_name=sim_name,
+        data_dir=data_dir,
+    )

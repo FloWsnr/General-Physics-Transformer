@@ -6,7 +6,6 @@ Date: 2025-04-07
 """
 
 from pathlib import Path
-from datetime import datetime
 
 import wandb
 import wandb.wandb_run
@@ -98,11 +97,6 @@ class Trainer:
         ################################################################
         ########### Initialize logging #################################
         ################################################################
-        # Add date and time to wandb id
-        self.config["wandb"]["id"] = (
-            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}-{self.config['wandb']['id']}"
-        )
-
         self.log_dir = (
             Path(self.config["logging"]["log_dir"]) / self.config["wandb"]["id"]
         )
@@ -208,7 +202,7 @@ class Trainer:
             log_freq=log_interval,
         )
 
-    def restart_training(self, checkpoint_path: Path):
+    def load_checkpoint(self, checkpoint_path: Path):
         """Restart training from a checkpoint."""
         checkpoint = torch.load(checkpoint_path)
         self.model.load_state_dict(checkpoint["model_state_dict"])
@@ -546,6 +540,7 @@ def login_wandb(config: dict) -> wandb.wandb_run.Run:
         id=wandb_id,
         tags=config["wandb"]["tags"],
         notes=config["wandb"]["notes"],
+        resume="allow",
     )
     return run
 

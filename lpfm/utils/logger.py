@@ -1,5 +1,5 @@
 import logging
-
+from pathlib import Path
 import sys
 from typing import Optional, TextIO
 
@@ -7,7 +7,7 @@ from typing import Optional, TextIO
 def setup_logger(
     name: str = "metaparc",
     log_level: int = logging.INFO,
-    log_file: Optional[str] = None,
+    log_file: Optional[Path] = None,
     stream: Optional[TextIO] = sys.stdout,
     format_string: Optional[str] = None,
 ) -> logging.Logger:
@@ -19,7 +19,7 @@ def setup_logger(
         Name of the logger, by default "metaparc"
     log_level : int, optional
         Logging level, by default logging.INFO
-    log_file : Optional[str], optional
+    log_file : Optional[Path], optional
         Path to log file, by default None
     stream : Optional[TextIO], optional
         Stream to log to, by default sys.stdout
@@ -52,6 +52,8 @@ def setup_logger(
 
     # Add file handler if specified
     if log_file:
+        log_file = Path(log_file)
+        log_file.parent.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -61,7 +63,7 @@ def setup_logger(
 
 def get_logger(
     name: str = "metaparc",
-    log_file: Optional[str] = None,
+    log_file: Optional[Path] = None,
     log_level: int = logging.INFO,
 ) -> logging.Logger:
     """Get a logger with a pretty format.

@@ -35,10 +35,10 @@
 ############################# Setup #################################################
 #####################################################################################
 # Set up paths
-python_exec="/hpcwork/rwth1802/coding/MetaPARC/metaparc/run/train_slrm.py"
-# log directory
-log_dir="/hpcwork/rwth1802/coding/MetaPARC/logs/"
-# sim_name
+python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/train_slrm.py"
+log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs/"
+data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
+# sim_name (same as wandb id)
 sim_name="gpm_run_1"
 # sim directory
 sim_dir="${log_dir}/${sim_name}"
@@ -52,7 +52,7 @@ if [ -f "$config_file" ]; then
     restart=true
 else
     echo "No config file found in $sim_dir, starting new training..."
-    config_file="/hpcwork/rwth1802/coding/MetaPARC/metaparc/run/config.yaml"
+    config_file="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/config.yaml"
     restart=false
 fi
 
@@ -78,6 +78,11 @@ echo "restart: $restart"
 echo "--------------------------------"
 
 # Capture Python output and errors in a variable and run the script
-python_output=$(python $python_exec --config_file $config_file --sim_dir $sim_dir --restart $restart 2>&1)
+python_output=$(python $python_exec \
+    --config_file $config_file \
+    --sim_name $sim_name \
+    --sim_dir $sim_dir \
+    --restart $restart \
+    --data_dir $data_dir 2>&1)
 # Write both the Python output/errors
 echo "$python_output" >> $SLURM_OUTPUT
