@@ -10,8 +10,8 @@ from the_well.data.augmentation import (
     # NOTE: Image Resize should come here as well
 )
 
-from metaparc.data.phys_dataset import SuperDataset, PhysicsDataset
-from metaparc.data.ind_datasets import (
+from lpfm.data.phys_dataset import SuperDataset, PhysicsDataset
+from lpfm.data.ind_datasets import (
     RayleighBenardDataset,
     ShearFlowDataset,
     TurbulentRadiativeDataset,

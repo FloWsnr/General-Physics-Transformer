@@ -7,7 +7,7 @@ import pytest
 import torch
 from pathlib import Path
 from torch.utils.data import DataLoader
-from metaparc.data.ind_datasets import (
+from lpfm.data.ind_datasets import (
     RayleighBenardDataset,
     ShearFlowDataset,
     TurbulentRadiativeDataset,

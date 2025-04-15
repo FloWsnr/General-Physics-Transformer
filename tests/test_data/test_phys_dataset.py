@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader
-from metaparc.data.phys_dataset import PhysicsDataset, SuperDataset
+from lpfm.data.phys_dataset import PhysicsDataset, SuperDataset
 
 
 def test_physics_dataset(dummy_datapath: Path):

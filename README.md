@@ -1,5 +1,8 @@
-# MetaPARC
-Meta-Learning Model for Physics-based Neural Nets
+# Large Physics Foundation Model for Computational Fluid Dynamics
+
+This repository contains the code for the Large Physics Foundation Model (LPFM) for Computational Fluid Dynamics.
+The LPFM is a transformer-based foundation model capable of learning many different systems of CFD equations at once.
+
 
 ## Introduction
 
@@ -10,15 +13,9 @@ Meta-Learning Model for Physics-based Neural Nets
 We are using conda and pip to manage the dependencies.
 
 ```bash
-conda create -n metaparc python=3.12
-conda activate metaparc
+conda create -n lpfm python=3.12
+conda activate lpfm
 pip install -e .
-```
-
-You can also use uv, but for some systems, torch does not install correctly.
-
-```bash
-uv sync
 ```
 
 
@@ -28,7 +25,7 @@ This study uses both self-made datasets and datasets from [The Well](https://pol
 The well-datasets can be downloaded like this:
 
 ```bash
-the-well-download --base-path /home/flwi01/Coding/MetaPARC/data/tasks --dataset turbulent_radiative_layer_2D
+the-well-download --base-path /home/lpfm --dataset turbulent_radiative_layer_2D
 ```
 
 All datasets are formatted according to the-well [format](https://polymathic-ai.org/the_well/data_format/).

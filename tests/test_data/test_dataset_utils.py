@@ -1,8 +1,8 @@
 import torch
 from pathlib import Path
 
-from metaparc.data.dataset_utils import collate_fn, get_rng_transforms
-from metaparc.data.phys_dataset import PhysicsDataset
+from lpfm.data.dataset_utils import collate_fn, get_rng_transforms
+from lpfm.data.phys_dataset import PhysicsDataset
 
 
 def test_physics_dataset_collate_fn(dummy_datapath: Path):

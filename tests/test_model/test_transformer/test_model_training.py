@@ -4,14 +4,14 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
 from einops import rearrange
-from metaparc.model.transformer.model import get_model as get_transformer_model
-from metaparc.model.base_models.resnet import get_model as get_resnet_model
-from metaparc.data.mock_data import (
+from lpfm.model.transformer.model import get_model as get_transformer_model
+from lpfm.model.base_models.resnet import get_model as get_resnet_model
+from lpfm.data.mock_data import (
     MockMovingCircleData,
     MockCircleData,
     MockShrinkingCircleData,
 )
-from metaparc.model.ax_vit.avit import build_avit, AViTParams
+from lpfm.model.ax_vit.avit import build_avit, AViTParams
 
 from dadaptation import DAdaptAdam
 

@@ -4,12 +4,12 @@ import torch.nn.functional as F
 import numpy as np
 from einops import rearrange
 from functools import partial
-from metaparc.model.ax_vit.spatial_modules import (
+from lpfm.model.ax_vit.spatial_modules import (
     hMLP_stem,
     hMLP_output,
     SubsampledLinear,
 )
-from metaparc.model.ax_vit.mixed_modules import build_spacetime_block, SpaceTimeBlock
+from lpfm.model.ax_vit.mixed_modules import build_spacetime_block, SpaceTimeBlock
 from dataclasses import dataclass
 
 

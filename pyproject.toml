@@ -1,7 +1,7 @@
 [project]
-name = "metaparc"
+name = "lpfm"
 version = "0.1.0"
-description = "Add your description here"
+description = "Large Physics Foundation Model for Computational Fluid Dynamics"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -22,23 +22,4 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["metaparc"]
-
-[[tool.uv.index]]
-name = "pytorch-cu126"
-url = "https://download.pytorch.org/whl/cu126"
-explicit = true
-
-
-[tool.uv.sources]
-torch = [
-  { index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]
-torchvision = [
-  { index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]
-
-[dependency-groups]
-dev = [
-    "pytest>=8.3.5",
-]
+packages = ["lpfm"]

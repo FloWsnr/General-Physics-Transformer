@@ -11,11 +11,11 @@ try:
 except ImportError:
     from yaml import Loader, Dumper
 
-from metaparc.model.transformer.model import get_model
-from metaparc.data.dataset_utils import get_datasets
-from metaparc.data.phys_dataset import SuperDataset
-from metaparc.utils.logger import get_logger
-from metaparc.utils.rollout_video import create_field_video
+from lpfm.model.transformer.model import get_model
+from lpfm.data.dataset_utils import get_datasets
+from lpfm.data.phys_dataset import SuperDataset
+from lpfm.utils.logger import get_logger
+from lpfm.utils.rollout_video import create_field_video
 
 logger = get_logger(__name__, log_level="INFO")
 

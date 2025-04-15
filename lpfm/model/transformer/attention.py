@@ -10,7 +10,7 @@ from typing import Optional
 
 from einops import rearrange
 
-from metaparc.model.transformer.pos_encodings import RotaryPositionalEmbedding
+from lpfm.model.transformer.pos_encodings import RotaryPositionalEmbedding
 
 
 class AbstractAttention(nn.Module):

@@ -1,4 +1,4 @@
-from metaparc.model.transformer.model import PhysicsTransformer
+from lpfm.model.transformer.model import PhysicsTransformer
 
 import torch
 

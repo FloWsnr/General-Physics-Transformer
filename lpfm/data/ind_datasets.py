@@ -14,7 +14,7 @@ Date: 2025-04-03
 """
 
 import torch
-from metaparc.data.phys_dataset import PhysicsDataset
+from lpfm.data.phys_dataset import PhysicsDataset
 
 
 class ComsolIncompressibleFlowDataset(PhysicsDataset):

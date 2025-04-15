@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from metaparc.data.well_dataset import WellDataset
+from lpfm.data.well_dataset import WellDataset
 
 
 def test_well_dataset(dummy_datapath: Path):

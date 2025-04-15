@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import yaml
-import metaparc.run.train as train
+import lpfm.run.train as train
 
 
 def run_sweep(config: dict):

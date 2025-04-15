@@ -6,14 +6,14 @@ import pytest
 import torch
 import torch.nn as nn
 
-from metaparc.model.transformer.attention import (
+from lpfm.model.transformer.attention import (
     SpatioTemporalAttention,
     MLP,
     AttentionBlock,
     SpatialAttention,
     TemporalAttention,
 )
-from metaparc.model.transformer.pos_encodings import RotaryPositionalEmbedding
+from lpfm.model.transformer.pos_encodings import RotaryPositionalEmbedding
 
 
 class TestSpatioTemporalAttention:

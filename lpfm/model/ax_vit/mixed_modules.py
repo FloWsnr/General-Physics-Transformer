@@ -4,8 +4,8 @@ from einops import rearrange
 from functools import partial
 from torch.utils.checkpoint import checkpoint
 
-from metaparc.model.ax_vit.spatial_modules import build_space_block
-from metaparc.model.ax_vit.time_modules import build_time_block, AttentionBlock
+from lpfm.model.ax_vit.spatial_modules import build_space_block
+from lpfm.model.ax_vit.time_modules import build_time_block, AttentionBlock
 
 
 def build_spacetime_block(params):

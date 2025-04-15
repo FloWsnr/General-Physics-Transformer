@@ -5,7 +5,7 @@ import torch
 import einops
 from the_well.data.augmentation import Compose
 
-from metaparc.data.well_dataset import WellDataset
+from lpfm.data.well_dataset import WellDataset
 
 
 class PhysicsDataset(WellDataset):

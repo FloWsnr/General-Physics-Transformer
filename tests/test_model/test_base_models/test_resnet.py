@@ -1,7 +1,7 @@
 import pytest
 import torch
 import torch.nn as nn
-from metaparc.model.base_models.resnet import ResNet, ResNetBlock
+from lpfm.model.base_models.resnet import ResNet, ResNetBlock
 
 
 def test_resnet_block_shape():

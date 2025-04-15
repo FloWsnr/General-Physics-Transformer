@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 
 # Import custom utilities
-from metaparc.model.base_models.parc.differentiator.spade import SPADEGeneratorUnit
-from metaparc.model.base_models.resnet import ResNet
+from lpfm.model.base_models.parc.differentiator.spade import SPADEGeneratorUnit
+from lpfm.model.base_models.resnet import ResNet
 
 
 class TransformNet(nn.Module):

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from metaparc.model.base_models.parc.differentiator.num_differentiation import (
+from lpfm.model.base_models.parc.differentiator.num_differentiation import (
     FiniteDifference,
 )
 

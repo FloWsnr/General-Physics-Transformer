@@ -5,11 +5,11 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 from einops import rearrange
-from metaparc.model.transformer.model import get_model as get_transformer_model
-from metaparc.model.base_models.resnet import get_model as get_resnet_model
+from lpfm.model.transformer.model import get_model as get_transformer_model
+from lpfm.model.base_models.resnet import get_model as get_resnet_model
 
-from metaparc.data.ind_datasets import TurbulentRadiativeDataset
-from metaparc.model.ax_vit.avit import build_avit, AViTParams
+from lpfm.data.ind_datasets import TurbulentRadiativeDataset
+from lpfm.model.ax_vit.avit import build_avit, AViTParams
 
 from dadaptation import DAdaptAdam
 

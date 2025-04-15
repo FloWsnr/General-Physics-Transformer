@@ -1,7 +1,7 @@
 import pytest
 import torch
 import torch.nn as nn
-from metaparc.model.base_models.unet import UNetDownBlock, UNetUpBlock, Unet
+from lpfm.model.base_models.unet import UNetDownBlock, UNetUpBlock, Unet
 
 
 def test_unet_down_block():

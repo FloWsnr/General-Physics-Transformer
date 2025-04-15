@@ -5,13 +5,13 @@ import torch.nn as nn
 
 from torchvision.ops import stochastic_depth
 
-from metaparc.model.transformer.attention import AttentionBlock
-from metaparc.model.transformer.pos_encodings import (
+from lpfm.model.transformer.attention import AttentionBlock
+from lpfm.model.transformer.pos_encodings import (
     RotaryPositionalEmbedding,
     AbsPositionalEmbedding,
 )
-from metaparc.model.transformer.tokenizer import Tokenizer, Detokenizer
-from metaparc.model.transformer.norms import RevIN
+from lpfm.model.transformer.tokenizer import Tokenizer, Detokenizer
+from lpfm.model.transformer.norms import RevIN
 
 
 def get_model(model_config: dict):

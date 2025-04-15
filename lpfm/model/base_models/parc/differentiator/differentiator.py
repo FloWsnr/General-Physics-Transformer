@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
 
-from metaparc.model.base_models.parc.differentiator.advection import Advection
-from metaparc.model.base_models.parc.differentiator.diffusion import Diffusion
-from metaparc.model.base_models.parc.differentiator.num_differentiation import (
+from lpfm.model.base_models.parc.differentiator.advection import Advection
+from lpfm.model.base_models.parc.differentiator.diffusion import Diffusion
+from lpfm.model.base_models.parc.differentiator.num_differentiation import (
     FiniteDifference,
 )
-from metaparc.model.base_models.unet import Unet
-from metaparc.model.base_models.parc.differentiator.transform_net import (
+from lpfm.model.base_models.unet import Unet
+from lpfm.model.base_models.parc.differentiator.transform_net import (
     TransformNet,
 )
 

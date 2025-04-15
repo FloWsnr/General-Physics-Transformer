@@ -7,7 +7,7 @@ from functools import partial
 
 from torchvision.ops import stochastic_depth
 
-from metaparc.model.ax_vit.shared_modules import (
+from lpfm.model.ax_vit.shared_modules import (
     RelativePositionBias,
     ContinuousPositionBias1D,
     MLP,

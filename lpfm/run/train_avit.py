@@ -6,7 +6,6 @@ Date: 2025-04-07
 """
 
 from pathlib import Path
-from datetime import datetime
 
 import wandb
 import wandb.wandb_run
@@ -18,61 +17,24 @@ import torch.nn as nn
 import torch.optim as optim
 from dadaptation import DAdaptAdam
 
-from metaparc.data.dataset_utils import get_dataloader
-from metaparc.model.transformer.model import get_model
-from metaparc.utils.train_vis import log_predictions_wandb, visualize_predictions
-from metaparc.utils.logger import get_logger
+from lpfm.data.dataset_utils import get_dataloader
 
+from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
+from lpfm.utils.logger import get_logger
 
-class NMSELoss(nn.Module):
-    """Normalized Mean Squared Error loss function.
+from lpfm.model.ax_vit.avit import build_avit, AViTParams
 
-    Parameters
-    ----------
-    dims : tuple, optional
-        Dimensions to reduce over, by default (1, 2, 3)
-        which is time, height, width
-
-    Attributes
-    ----------
-    dims : tuple
-        Dimensions to reduce over
-    """
-
-    def __init__(self, dims=(1, 2, 3)):
-        """Initialize NMSE loss.
-
-        Parameters
-        ----------
-        dims : tuple, optional
-            Dimensions to reduce over, by default (1, 2, 3)
-        """
-        super().__init__()
-        self.dims = dims
-
-    def forward(self, pred, target):
-        """Calculate the normalized mean square error.
-
-        Parameters
-        ----------
-        pred : torch.Tensor
-            Predicted values
-        target : torch.Tensor
-            Target values
-
-        Returns
-        -------
-        torch.Tensor
-            Normalized MSE loss
-        """
-        # Calculate residuals
-        residuals = pred - target
-        # Normalize by mean squared target values (with small epsilon)
-        target_norm = target.pow(2).mean(self.dims, keepdim=True) + 1e-8
-        # Calculate normalized MSE
-        nmse = residuals.pow(2).mean(self.dims, keepdim=True) / target_norm
-        # Return mean over batch dimensions
-        return nmse.mean()
+params = AViTParams(
+    patch_size=(16, 16),
+    embed_dim=384,
+    processor_blocks=4,
+    n_states=5,
+    block_type="axial",
+    time_type="attention",
+    num_heads=4,
+    bias_type="rel",
+    gradient_checkpointing=False,
+)
 
 
 class Trainer:
@@ -95,11 +57,6 @@ class Trainer:
         ################################################################
         ########### Initialize logging #################################
         ################################################################
-        # Add date and time to wandb id
-        self.config["wandb"]["id"] = (
-            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}-{self.config['wandb']['id']}"
-        )
-
         self.log_dir = (
             Path(self.config["logging"]["log_dir"]) / self.config["wandb"]["id"]
         )
@@ -113,7 +70,7 @@ class Trainer:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.logger.info(f"Using device: {self.device}")
 
-        self.model = get_model(model_config=self.config["model"])
+        self.model = build_avit(model_config=self.config["model"])
 
         total_params = sum(p.numel() for p in self.model.parameters())
         self.logger.info(f"Model size: {total_params / 1e6:.2f}M parameters")
@@ -136,8 +93,6 @@ class Trainer:
         ################################################################
         ########### Initialize training parameters ##################
         ################################################################
-        self.samples_trained = 0
-        self.epoch = 1
 
         self.batch_size = self.config["training"]["batch_size"]
         self.total_epochs = self.config["training"]["epochs"]
@@ -164,16 +119,7 @@ class Trainer:
         ########### Initialize loss function and optimizer ###########
         ################################################################
         opt_config = self.config["training"]["optimizer"]
-        if self.config["training"]["criterion"] == "MSE":
-            self.criterion = nn.MSELoss()
-        elif self.config["training"]["criterion"] == "NMSE":
-            self.criterion = NMSELoss()
-        elif self.config["training"]["criterion"] == "MAE":
-            self.criterion = nn.L1Loss()
-        else:
-            raise ValueError(
-                f"Criterion {self.config['training']['criterion']} not supported"
-            )
+        self.criterion = nn.MSELoss()
         self.optimizer = get_optimizer(self.model, opt_config)
 
         ################################################################
@@ -198,22 +144,6 @@ class Trainer:
             log_freq=log_interval,
         )
 
-    def restart_training(self, checkpoint_path: Path):
-        """Restart training from a checkpoint."""
-        checkpoint = torch.load(checkpoint_path)
-        self.model.load_state_dict(checkpoint["model_state_dict"])
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        if self.scheduler is not None:
-            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-        
-        self.epoch = checkpoint["epoch"]
-        self.samples_trained = checkpoint["samples_trained"]
-        self.logger.info(f"Restarting training from epoch {self.epoch} with {self.samples_trained} samples trained")
-
-        
-
-
-
     def save_config(self):
         """Save the config to the log directory."""
         with open(self.log_dir / "config.yaml", "w") as f:
@@ -230,16 +160,26 @@ class Trainer:
             Average training loss for the epoch
         """
         self.model.train()
-        acc_train_loss = 0
+        train_loss = 0
 
         total_batches = self.train_batches_per_epoch
         for batch_idx, batch in enumerate(self.train_loader):
-            x, target = batch
+            x, y = batch
+            b, t, h, w, c = x.shape
             x = x.to(self.device)
-            target = target.to(self.device)
+            y = y.to(self.device)
+
+            # rearrange the input and target to the correct shape for avit
+            x = rearrange(x, "b t h w c -> t b c h w")
+            y = rearrange(y, "b t h w c -> t b c h w")
+
+            target = y.squeeze(0)
+            labels = [[0, 1, 2, 3, 4] for _ in range(b)]
+            labels = torch.tensor(labels).to(self.device)
+            bcs = torch.tensor([[0, 0]]).to(self.device)
 
             self.optimizer.zero_grad()
-            output = self.model(x)
+            output = self.model(x, labels, bcs)
             loss = self.criterion(output, target)
             loss.backward()
 
@@ -249,7 +189,7 @@ class Trainer:
             )
             self.optimizer.step()
 
-            acc_train_loss += loss.item()
+            train_loss += loss.item()
 
             ############################################################
             # Step learning rate scheduler #############################
@@ -275,7 +215,7 @@ class Trainer:
 
             self.logger.info(
                 f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
-                f"Loss: {loss.item():.8f}, Acc. Loss: {acc_train_loss / (batch_idx + 1):.8f}, LR: {lr:.8f}, "
+                f"Loss: {loss.item():.6f}, Acc. Loss: {train_loss / (batch_idx + 1):.6f}, LR: {lr:.6f}, "
                 f"Samples: {self.samples_trained}/{self.total_samples}"
             )
 
@@ -289,10 +229,9 @@ class Trainer:
 
                 self.wandb_run.log(
                     {
-                        "training/num_batches": total_b_idx,
-                        "training/num_samples": self.samples_trained,
-                        "training/acc_batch_loss": acc_train_loss / (batch_idx + 1),
-                        "training/batch_loss": loss.item(),
+                        "training/samples_trained": self.samples_trained,
+                        "training/batch_idx": total_b_idx,
+                        "training/acc_batch_loss": train_loss / (batch_idx + 1),
                         "training/learning_rate": lr,
                     }
                 )
@@ -300,15 +239,20 @@ class Trainer:
         ############################################################
         # Visualize predictions ####################################
         ############################################################
-        vis_path = self.epoch_dir / "train.png"
-        visualize_predictions(vis_path, x, output, target, svg=True)
+        vis_path = self.log_dir / f"epoch_{self.epoch}" / "train"
+
+        # rearrange the input and target to the correct shape for visualization
+        x = rearrange(x, "t b c h w -> b t h w c")
+        y = rearrange(y, "t b c h w -> b t h w c")
+
+        visualize_predictions(vis_path, x, output, target)
         log_predictions_wandb(
             run=self.wandb_run,
-            image_path=vis_path.parent,
-            name_prefix=f"epoch_{self.epoch}",
+            image_path=vis_path,
+            name_prefix=f"epoch_{self.epoch}_train",
         )
 
-        return acc_train_loss / total_batches
+        return train_loss / total_batches
 
     def validate(self) -> float:
         """Validate the model."""
@@ -319,9 +263,12 @@ class Trainer:
         num_batches = 0
         with torch.no_grad():
             for batch_idx, batch in enumerate(self.val_loader):
-                x, target = batch
+                x, y = batch
                 x = x.to(self.device)
-                target = target.to(self.device)
+                y = y.to(self.device)
+
+                target = x
+                # target = torch.cat((x[:, 1:, :, :, :], y), dim=1)
 
                 output = self.model(x)
                 loss = self.criterion(output, target)
@@ -331,16 +278,16 @@ class Trainer:
 
                 self.logger.info(
                     f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
-                    f"Loss: {loss.item():.8f}, Acc. Loss: {val_loss / num_batches:.8f}"
+                    f"Loss: {loss.item():.6f}, Acc. Loss: {val_loss / num_batches:.6f}"
                 )
 
         # Visualize predictions
-        vis_path = self.epoch_dir / "val.png"
-        visualize_predictions(vis_path, x, output, target, svg=True)
+        vis_path = self.log_dir / f"epoch_{self.epoch}" / "val"
+        visualize_predictions(vis_path, x, output, target)
         log_predictions_wandb(
             run=self.wandb_run,
-            image_path=vis_path.parent,
-            name_prefix=f"epoch_{self.epoch}",
+            image_path=vis_path,
+            name_prefix=f"epoch_{self.epoch}_val",
         )
 
         return val_loss / total_batches
@@ -348,24 +295,22 @@ class Trainer:
     def train(self):
         """Train the model."""
         best_loss = float("inf")
-        epochs = range(self.epoch, self.total_epochs + 1)
-        for epoch in epochs:
+        self.samples_trained = 0
+        for epoch in range(1, self.total_epochs + 1):
             self.epoch = epoch
-            self.epoch_dir = self.log_dir / f"epoch_{epoch:04d}"
-            self.epoch_dir.mkdir(parents=True, exist_ok=True)
             ######################################################################
             ########### Training ###############################################
             ######################################################################
             self.logger.info(f"Training epoch {epoch}")
             train_loss = self.train_epoch()
-            self.logger.info(f"Epoch {epoch}, Training loss: {train_loss:.8f}")
+            self.logger.info(f"Epoch {epoch}, Training loss: {train_loss:.4f}")
 
             ######################################################################
             ########### Validation ###############################################
             ######################################################################
             self.logger.info(f"Validating epoch {epoch}")
             val_loss = self.validate()
-            self.logger.info(f"Epoch {epoch}, Validation loss: {val_loss:.8f}")
+            self.logger.info(f"Epoch {epoch}, Validation loss: {val_loss:.4f}")
 
             ######################################################################
             ########### Wandb logging ###########################################
@@ -384,26 +329,21 @@ class Trainer:
             if val_loss < best_loss:
                 best_loss = val_loss
                 torch.save(self.model.state_dict(), self.log_dir / "best_model.pth")
-                self.logger.info(f"Model saved with loss: {best_loss:.8f}")
+                self.logger.info(f"Model saved with loss: {best_loss:.4f}")
 
             ######################################################################
             ########### Save checkpoint ########################################
             ######################################################################
             checkpoint = {
                 "epoch": epoch,
-                "samples_trained": self.samples_trained,
                 "model_state_dict": self.model.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "train_loss": train_loss,
                 "val_loss": val_loss,
-                "config": self.config,
             }
             if self.scheduler is not None:
                 checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
-            torch.save(
-                checkpoint,
-                self.epoch_dir / "checkpoint.pth",
-            )
+            torch.save(checkpoint, self.log_dir / f"checkpoint_epoch_{epoch}.pth")
 
         self.wandb_run.finish()
 
@@ -412,7 +352,6 @@ def get_lr_scheduler(
     optimizer: torch.optim.Optimizer, config: dict, train_batches_per_epoch: int
 ) -> optim.lr_scheduler.SequentialLR:
     """Create a learning rate scheduler.
-    Options are only linear warmup or linear warmup followed by cosine annealing.
 
     Parameters
     ----------
@@ -429,46 +368,33 @@ def get_lr_scheduler(
         Learning rate scheduler
     """
 
-    num_schedulers = len(config["schedulers"])
-    if num_schedulers == 1:
-        lrs_lin = config["schedulers"]["LinearLR"]
-        scheduler = optim.lr_scheduler.LinearLR(
-            optimizer,
-            start_factor=lrs_lin["start_factor"],
-            end_factor=lrs_lin["end_factor"],
-            total_iters=train_batches_per_epoch * lrs_lin["epochs"],
+    lrs1 = config["schedulers"][0]
+    lrs2 = config["schedulers"][1]
+
+    total_iters = train_batches_per_epoch * lrs1["epochs"]
+    warmup_scheduler = optim.lr_scheduler.LinearLR(
+        optimizer,
+        start_factor=lrs1["start_factor"],
+        end_factor=lrs1["end_factor"],
+        total_iters=total_iters,
+    )
+
+    if lrs2["name"] == "CosineAnnealingWarmRestarts":
+        t_steps = train_batches_per_epoch * lrs2["T_0"]
+        cosine_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer, T_0=t_steps, eta_min=lrs2["min_lr"]
+        )
+    elif lrs2["name"] == "CosineAnnealingLR":
+        t_steps = train_batches_per_epoch * lrs2["T_max"]
+        cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=t_steps, eta_min=lrs2["min_lr"]
         )
 
-    elif num_schedulers == 2:
-        lrs_lin = config["schedulers"]["LinearLR"]
-        t_steps = train_batches_per_epoch * lrs_lin["epochs"]
-
-        lrs1_scheduler = optim.lr_scheduler.LinearLR(
-            optimizer,
-            start_factor=lrs_lin["start_factor"],
-            end_factor=lrs_lin["end_factor"],
-            total_iters=t_steps,
-        )
-
-        lrs2_name = list(config["schedulers"].keys())[1]
-        lrs2 = config["schedulers"][lrs2_name]
-
-        if lrs2_name == "CosineAnnealingWarmRestarts":
-            T_0 = train_batches_per_epoch * lrs2["T_0"]
-            cosine_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                optimizer, T_0=T_0, T_mult=lrs2["T_mult"], eta_min=float(lrs2["min_lr"])
-            )
-        elif lrs2_name == "CosineAnnealingLR":
-            T_max = train_batches_per_epoch * lrs2["T_max"]
-            cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, T_max=T_max, eta_min=float(lrs2["min_lr"])
-            )
-
-        scheduler = optim.lr_scheduler.SequentialLR(
-            optimizer,
-            schedulers=[lrs1_scheduler, cosine_scheduler],
-            milestones=[t_steps],
-        )
+    scheduler = optim.lr_scheduler.SequentialLR(
+        optimizer,
+        schedulers=[warmup_scheduler, cosine_scheduler],
+        milestones=[total_iters],
+    )
 
     return scheduler
 
@@ -490,19 +416,15 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
     """
     if config["name"] == "Adam":
         betas = config["betas"]
-        weight_decay = config["weight_decay"]
         optimizer = optim.Adam(
-            model.parameters(),
-            lr=float(config["learning_rate"]),
-            betas=betas,
-            weight_decay=weight_decay,
+            model.parameters(), lr=config["learning_rate"], betas=betas
         )
     elif config["name"] == "AdamW":
         weight_decay = config["weight_decay"]
         betas = config["betas"]
         optimizer = optim.AdamW(
             model.parameters(),
-            lr=float(config["learning_rate"]),
+            lr=config["learning_rate"],
             weight_decay=weight_decay,
             betas=betas,
         )
@@ -529,13 +451,12 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
 
 def login_wandb(config: dict) -> wandb.wandb_run.Run:
     """Log into wandb."""
-    wandb_id = config["wandb"]["id"]
     wandb.login()
     run = wandb.init(
         project=config["wandb"]["project"],
         entity=config["wandb"]["entity"],
         config=config,
-        id=wandb_id,
+        id=config["wandb"]["id"],
         tags=config["wandb"]["tags"],
         notes=config["wandb"]["notes"],
     )
@@ -551,20 +472,5 @@ def main(config_path: Path):
 
 
 if __name__ == "__main__":
-    import argparse
-
-    # Set up argument parser
-    parser = argparse.ArgumentParser(
-        description="Train a transformer model for physics simulations"
-    )
-    parser.add_argument(
-        "--config",
-        type=str,
-        default="/Users/zsa8rk/Coding/MetaPARC/metaparc/run/config.yaml",
-        help="Path to the configuration file",
-    )
-
-    # Parse arguments
-    args = parser.parse_args()
-    config_path = Path(args.config)
+    config_path = Path("/Users/zsa8rk/Coding/MetaPARC/metaparc/run/config.yaml")
     main(config_path)

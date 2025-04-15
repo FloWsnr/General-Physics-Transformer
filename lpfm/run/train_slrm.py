@@ -3,7 +3,7 @@ import argparse
 
 from dotenv import load_dotenv
 
-from metaparc.run.train import Trainer
+from lpfm.run.train import Trainer
 
 
 def find_last_checkpoint(sim_dir: Path) -> Path:
