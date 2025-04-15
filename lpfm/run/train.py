@@ -83,6 +83,9 @@ class Trainer:
             with open(config, "r") as f:
                 self.config = yaml.safe_load(f)
 
+        ################################################################
+        ########### Initialize config #################################
+        ################################################################
         img_size = self.config["data"]["out_shape"]
         time_steps = self.config["data"]["n_steps_input"]
         self.config["model"]["img_size"] = (time_steps, img_size[0], img_size[1])
@@ -106,6 +109,13 @@ class Trainer:
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
         self.wandb_run = login_wandb(self.config)
+
+        ################################################################
+        ########### Set random seeds ##################################
+        ################################################################
+        torch.manual_seed(self.config["training"]["seed"])
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.config["training"]["seed"])
 
         ################################################################
         ########### Initialize model ##################################

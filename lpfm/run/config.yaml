@@ -1,16 +1,16 @@
 wandb:
-  project: General Physics Model
+  project: Large-Physics-Foundation-Model
   entity: wsnr-florian
   id: med-NMSE
   tags:
     - TestRun
-    - GPM-Medium
+    - LPFM-M
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
   notes: "Medium model - dataset sweep"
 
 logging:
-  log_dir: /Users/zsa8rk/Coding/MetaPARC/logs
+  log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
   log_file: null #log.txt
   log_level: INFO
 
