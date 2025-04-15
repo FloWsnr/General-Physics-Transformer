@@ -136,6 +136,8 @@ class Trainer:
         ################################################################
         ########### Initialize training parameters ##################
         ################################################################
+        self.samples_trained = 0
+        self.epoch = 1
 
         self.batch_size = self.config["training"]["batch_size"]
         self.total_epochs = self.config["training"]["epochs"]
@@ -195,6 +197,22 @@ class Trainer:
             log=self.config["wandb"]["log_model"],
             log_freq=log_interval,
         )
+
+    def restart_training(self, checkpoint_path: Path):
+        """Restart training from a checkpoint."""
+        checkpoint = torch.load(checkpoint_path)
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        if self.scheduler is not None:
+            self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        
+        self.epoch = checkpoint["epoch"]
+        self.samples_trained = checkpoint["samples_trained"]
+        self.logger.info(f"Restarting training from epoch {self.epoch} with {self.samples_trained} samples trained")
+
+        
+
+
 
     def save_config(self):
         """Save the config to the log directory."""
@@ -330,10 +348,10 @@ class Trainer:
     def train(self):
         """Train the model."""
         best_loss = float("inf")
-        self.samples_trained = 0
-        for epoch in range(1, self.total_epochs + 1):
+        epochs = range(self.epoch, self.total_epochs + 1)
+        for epoch in epochs:
             self.epoch = epoch
-            self.epoch_dir = self.log_dir / f"epoch_{epoch}"
+            self.epoch_dir = self.log_dir / f"epoch_{epoch:04d}"
             self.epoch_dir.mkdir(parents=True, exist_ok=True)
             ######################################################################
             ########### Training ###############################################
@@ -373,6 +391,7 @@ class Trainer:
             ######################################################################
             checkpoint = {
                 "epoch": epoch,
+                "samples_trained": self.samples_trained,
                 "model_state_dict": self.model.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "train_loss": train_loss,
@@ -521,14 +540,6 @@ def login_wandb(config: dict) -> wandb.wandb_run.Run:
         notes=config["wandb"]["notes"],
     )
     return run
-
-
-def load_checkpoint(checkpoint_path: Path):
-    """Load a checkpoint."""
-    checkpoint = torch.load(checkpoint_path)
-    model_config = checkpoint["model_config"]
-    model = get_model(model_config)
-    model.load_state_dict(checkpoint["model_state_dict"])
 
 
 def main(config_path: Path):

@@ -1,4 +1,4 @@
-#!/usr/bin/zsh
+#!/usr/bin/bash
 
 ### Task name
 #SBATCH --account=rwth1802
@@ -17,12 +17,9 @@
 ### Number of tasks (MPI ranks)
 #SBATCH --ntasks=24
 
-### Partition
-#SBATCH --partition=c23ms
-
 ### Mail notification configuration
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=zsh8rk@uva.virginia.edu
+#SBATCH --mail-user=zsa8rk@uva.virginia.edu
 
 ### Maximum runtime per task
 #SBATCH --time=1-00:00:00
@@ -34,83 +31,53 @@
 #SBATCH --array=1-10%1
 
 
+#####################################################################################
+############################# Setup #################################################
+#####################################################################################
+# Set up paths
+python_exec="/hpcwork/rwth1802/coding/MetaPARC/metaparc/run/train_slrm.py"
+# log directory
+log_dir="/hpcwork/rwth1802/coding/MetaPARC/logs/"
+# sim_name
+sim_name="gpm_run_1"
+# sim directory
+sim_dir="${log_dir}/${sim_name}"
 # Get the actual SLURM output file path
-SLURM_OUTPUT="/hpcwork/fw641779/lbm/output_logs/two-phase_lbm_${SLURM_JOB_ID}.out"
+SLURM_OUTPUT="${sim_dir}/logs/${SLURM_JOB_ID}.out"
+
+# Try to find config file in sim_dir
+config_file="${sim_dir}/config.yaml"
+if [ -f "$config_file" ]; then
+    echo "Config file found in $sim_dir, attempting restart..."
+    restart=true
+else
+    echo "No config file found in $sim_dir, starting new training..."
+    config_file="/hpcwork/rwth1802/coding/MetaPARC/metaparc/run/config.yaml"
+    restart=false
+fi
 
 # Load modules
 module purge
-module load CUDA/12.7.0
-# Set up paths
-palabos_exec="/home/fw641779/Coding/lattice-boltzmann-wetting/mplbm-ut-mirror/src/2-phase_LBM/ShanChen"
-config_file="/home/fw641779/Coding/lattice-boltzmann-wetting/lbm_wetting/twophase.yml"
-# sim_dir="/hpcwork/fw641779/lbm/Test_Cones"
-sim_dir="/hpcwork/fw641779/lbm/Toray-120C/100cov/structure0"
-sim_name="sim_run_1"
+module load CUDA/12.6.0
 
+# activate conda environment
 export CONDA_ROOT=$HOME/miniforge3
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/home/fw641779/miniforge3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/home/fw641779/miniforge3/etc/profile.d/conda.sh" ]; then
-        . "/home/fw641779/miniforge3/etc/profile.d/conda.sh"
-    else
-        export PATH="/home/fw641779/miniforge3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
+source $CONDA_ROOT/etc/profile.d/conda.sh
+export PATH="$CONDA_ROOT/bin:$PATH"
+conda activate gpm
 
-if [ -f "/home/fw641779/miniforge3/etc/profile.d/mamba.sh" ]; then
-    . "/home/fw641779/miniforge3/etc/profile.d/mamba.sh"
-fi
-# <<< conda initialize <<<
 
 #####################################################################################
-############################# 2-phase prep ##########################################
+############################# Training GPM ##########################################
 #####################################################################################
 echo "--------------------------------"
-echo "Starting 2-phase prep..."
+echo "Starting GPM training..."
 echo "config_file: $config_file"
 echo "sim_dir: $sim_dir"
-echo "sim_name: $sim_name"
+echo "restart: $restart"
 echo "--------------------------------"
 
-# Activate environment (will work whether conda was just initialized or was already available)
-mamba activate lbm
 # Capture Python output and errors in a variable and run the script
-python_output=$(python /home/fw641779/Coding/lattice-boltzmann-wetting/lbm_wetting/2_phase_prep.py $config_file $sim_dir $sim_name 2>&1)
+python_output=$(python $python_exec --config_file $config_file --sim_dir $sim_dir --restart $restart 2>&1)
 # Write both the Python output/errors
 echo "$python_output" >> $SLURM_OUTPUT
-
-# Get the return code of the python script and abort if it failed
-return_code=$?
-if [ $return_code -ne 0 ]; then
-    echo "Python script failed with code $return_code. Error messages above." >> $SLURM_OUTPUT
-    exit $return_code
-else
-    # Else continue with running the simulation
-    input_file=$sim_dir/$sim_name/input/2_phase_sim_input.xml
-
-    # Start time measurement
-    start_time=$(date +%s)
-
-    $MPIEXEC $FLAGS_MPI_BATCH $palabos_exec $input_file
-
-    # Calculate and output elapsed time
-    end_time=$(date +%s)
-    elapsed_time=$((end_time - start_time))
-    echo "--------------------------------"
-    echo "Simulation completed in $(($elapsed_time / 60)) minutes"
-    echo "--------------------------------"
-fi
-
-# # Process VTI files
-python /home/fw641779/Coding/lattice-boltzmann-wetting/lbm_wetting/utils/postprocessing/vti_processing.py $sim_dir $sim_name
-
-# Calculate saturation
-python /home/fw641779/Coding/lattice-boltzmann-wetting/lbm_wetting/utils/postprocessing/post_calc.py -s $sim_dir -n $sim_name
-
-## Append the output file to the simulation directory log
-cat /hpcwork/fw641779/lbm/output_logs/two-phase_lbm_$SLURM_JOB_ID.out >> $sim_dir/$sim_name/output/log.out
