@@ -45,16 +45,6 @@ def test_physics_dataset_custom_field_selection2(dummy_datapath: Path):
     assert y.shape == (2, 32, 32, 3)
 
 
-def test_physics_dataset_length_limit(dummy_datapath: Path):
-    dataset = PhysicsDataset(dummy_datapath.parent, length_limit=10)
-    assert len(dataset) == 10
-    x, y = dataset[0]
-    assert x.shape == (1, 32, 32, 6)
-    assert y.shape == (1, 32, 32, 6)
-
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-    assert len(dataloader) == 10
-
 
 class TestSuperDataset:
     """Tests for the SuperDataset class."""

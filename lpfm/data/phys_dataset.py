@@ -45,9 +45,6 @@ class PhysicsDataset(WellDataset):
         Dictionary of field names to include in the dataset.
         The keys are the order of the field (t0, t1, t2) and the values are lists of field names.
         By default {}
-    length_limit: Optional[int]
-        Limit the number of samples in the dataset
-        By default None
     full_trajectory_mode: bool
         Whether to use the full trajectory mode of the well dataset.
         This returns full trajectories instead of individual timesteps.
@@ -66,7 +63,6 @@ class PhysicsDataset(WellDataset):
         transform: Optional[Compose] = None,
         channels_first: bool = False,
         include_field_names: dict[str, list[str]] = {},
-        length_limit: Optional[int] = None,
         full_trajectory_mode: bool = False,
         max_rollout_steps: int = 10000,
     ):
@@ -85,13 +81,6 @@ class PhysicsDataset(WellDataset):
             max_rollout_steps=max_rollout_steps,
         )
         self.channels_first = channels_first
-        self.length_limit = length_limit
-
-        # Agument the length of the dataset to the length limit
-        # That way, a dataloader will only sample the specified number of samples
-        if self.length_limit is not None:
-            if self.length_limit < len(self):
-                self.len = self.length_limit
 
     def __len__(self):
         return super().__len__()

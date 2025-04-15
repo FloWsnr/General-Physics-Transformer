@@ -75,7 +75,11 @@ def get_dataloader(data_config: dict, train_config: dict, split: str) -> DataLoa
         Split to load ("train", "val", "test")
     """
     datasets = get_datasets(data_config, split)
-    train_super_dataset = SuperDataset(datasets, out_shape=data_config["out_shape"])
+    train_super_dataset = SuperDataset(
+        datasets,
+        out_shape=data_config["out_shape"],
+        max_samples_per_ds=data_config["max_samples_per_ds"],
+    )
 
     dataloader = DataLoader(
         dataset=train_super_dataset,
@@ -107,7 +111,6 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
     n_steps_input = data_config["n_steps_input"]
     n_steps_output = data_config["n_steps_output"]
     dt_stride = data_config["dt_stride"]
-    length_limit = data_config["length_limit"]
 
     datasets = []
     if "shear_flow" in data_config["datasets"]:
@@ -117,7 +120,6 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
-            length_limit=length_limit,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
         )
@@ -130,7 +132,6 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
-            length_limit=length_limit,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
         )
@@ -143,7 +144,6 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
-            length_limit=length_limit,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
         )
@@ -156,7 +156,6 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
-            length_limit=length_limit,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
         )
@@ -169,7 +168,6 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
-            length_limit=length_limit,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
         )
@@ -182,7 +180,6 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
-            length_limit=length_limit,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
         )
@@ -195,7 +192,6 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
-            length_limit=length_limit,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
         )
@@ -208,8 +204,8 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
-            length_limit=length_limit,
             full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
         )
         datasets.append(object_symmetry_flow_dataset)
 
@@ -220,7 +216,6 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
-            length_limit=length_limit,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
         )
@@ -233,7 +228,6 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
-            length_limit=length_limit,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
         )
