@@ -4,22 +4,7 @@ version = "0.1.0"
 description = "Large Physics Foundation Model for Computational Fluid Dynamics"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-    "einops>=0.8.1",
-    "h5py>=3.13.0",
-    "imageio>=2.37.0",
-    "ipykernel>=6.29.5",
-    "matplotlib>=3.10.1",
-    "neuraloperator>=1.0.2",
-    "pandas>=2.2.3",
-    "the-well>=1.0.1",
-    "torch>=2.6.0",
-    "torchvision>=0.21.0",
-    "tqdm>=4.67.1",
-    "dadaptation>=3.2.0",
-    "wandb>=0.19.8",
-    "dotenv>=1.1.0",
-]
+dependencies = []
 
 [tool.setuptools]
 packages = ["lpfm"]
