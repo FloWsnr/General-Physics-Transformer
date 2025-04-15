@@ -59,13 +59,20 @@ class PhysicsDataset(WellDataset):
         split: str = "train",
         normalization_path: Path = Path("stats.yaml"),
         use_normalization: bool = False,
-        dt_stride: int = 1,
+        dt_stride: int | list[int] = 1,
         transform: Optional[Compose] = None,
         channels_first: bool = False,
         include_field_names: dict[str, list[str]] = {},
         full_trajectory_mode: bool = False,
         max_rollout_steps: int = 10000,
     ):
+        if isinstance(dt_stride, list):
+            min_dt_stride = dt_stride[0]
+            max_dt_stride = dt_stride[1]
+        else:
+            min_dt_stride = dt_stride
+            max_dt_stride = dt_stride
+
         super().__init__(
             path=str(data_dir),
             well_split_name=split,
@@ -73,8 +80,8 @@ class PhysicsDataset(WellDataset):
             n_steps_output=n_steps_output,
             normalization_path=str(normalization_path),
             use_normalization=use_normalization,
-            min_dt_stride=dt_stride,
-            max_dt_stride=dt_stride,
+            min_dt_stride=min_dt_stride,
+            max_dt_stride=max_dt_stride,
             transform=transform,
             include_field_names=include_field_names,
             full_trajectory_mode=full_trajectory_mode,
