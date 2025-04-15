@@ -81,7 +81,7 @@ training:
 
 data:
   max_samples_per_ds: null # limit the number of samples per epoch, set to null for no limit
-  dt_stride: 1 # take every dt_stride-th timestep
+  dt_stride: 1 # take every dt_stride-th timestep, if list, randomize between the values
   n_steps_input: 16 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
   out_shape: [128, 64] # output shape (usually)
@@ -91,11 +91,11 @@ data:
     # - cylinder_sym_flow_water
     # - cylinder_pipe_flow_water
     # - object_periodic_flow_water
-    - object_sym_flow_water
+    # - object_sym_flow_water
     # - object_sym_flow_air
 
     # - heated_object_pipe_flow_air
-    # - cooled_object_pipe_flow_air
+    - cooled_object_pipe_flow_air
 
     # - turbulent_radiative_layer_2D
     # - rayleigh_benard

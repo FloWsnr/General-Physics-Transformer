@@ -2,48 +2,50 @@
 
 ### Task name
 #SBATCH --account=rwth1802
-#SBATCH --job-name=train_gpm
+#SBATCH --job-name=train_lpfm
 
 ### Output file
-#SBATCH --output=/hpcwork/rwth1802/Coding/MetaPARC/logs/train_gpm_%j.out
+#SBATCH --output=/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs/slrm_logs/train_lpfm_%j.out
 
-### Default is 2540 MiB memory per (CPU) task = MPI rank
-## Can be increased if larger partitions are used
-##SBATCH --mem-per-cpu=2540
 
 ### Start a parallel job for a distributed-memory system on several nodes
 #SBATCH --nodes=1
 
-### Number of tasks (MPI ranks)
-#SBATCH --ntasks=24
-
 ### Mail notification configuration
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=zsa8rk@uva.virginia.edu
+#SBATCH --mail-user=zsa8rk@virginia.edu
 
 ### Maximum runtime per task
-#SBATCH --time=1-00:00:00
+## SBATCH --time=1-00:00:00
+#SBATCH --time=00:05:00
 
 ### set number of GPUs per task
 #SBATCH --gres=gpu:1
 
 ### create time series, i.e. 100 jobs one after another. Each runs for 24 hours
-#SBATCH --array=1-10%1
+##SBATCH --array=1-10%1
 
+### Set the time limit for the job, allows for graceful shutdown
+### Should be lower than the time limit of the partition
+### Format: HH:MM:SS
+time_limit="00:05:00"
 
 #####################################################################################
 ############################# Setup #################################################
 #####################################################################################
 # Set up paths
 python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/train_slrm.py"
-log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs/"
+log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
-sim_name="gpm_run_1"
+sim_name="slrm-test-run-0001"
 # sim directory
 sim_dir="${log_dir}/${sim_name}"
-# Get the actual SLURM output file path
-SLURM_OUTPUT="${sim_dir}/logs/${SLURM_JOB_ID}.out"
+# create the sim_dir if it doesn't exist
+mkdir -p $sim_dir
+
+# Get the actual SLURM output file path inside the sim_dir
+SLURM_OUTPUT="${sim_dir}/${SLURM_JOB_ID}.out"
 
 # Try to find config file in sim_dir
 config_file="${sim_dir}/config.yaml"
@@ -64,7 +66,7 @@ module load CUDA/12.6.0
 export CONDA_ROOT=$HOME/miniforge3
 source $CONDA_ROOT/etc/profile.d/conda.sh
 export PATH="$CONDA_ROOT/bin:$PATH"
-conda activate gpm
+conda activate lpfm
 
 
 #####################################################################################
@@ -77,12 +79,16 @@ echo "sim_dir: $sim_dir"
 echo "restart: $restart"
 echo "--------------------------------"
 
-# Capture Python output and errors in a variable and run the script
-python_output=$(python $python_exec \
-    --config_file $config_file \
+exec_args="--config_file $config_file \
     --sim_name $sim_name \
     --sim_dir $sim_dir \
-    --restart $restart \
-    --data_dir $data_dir 2>&1)
-# Write both the Python output/errors
-echo "$python_output" >> $SLURM_OUTPUT
+    --data_dir $data_dir \
+    --time_limit $time_limit"
+
+# Add --restart if the restart flag is true
+if [ "$restart" = true ]; then
+    exec_args="$exec_args --restart"
+fi
+
+# Capture Python output and errors in a variable and run the script
+python $python_exec $exec_args
