@@ -34,7 +34,7 @@ def find_last_checkpoint(sim_dir: Path) -> Path:
     ]
 
     if len(epoch_dirs) == 0:
-        raise FileNotFoundError(f"No epoch directories found in {sim_dir}")
+        return None
 
     # Sort the directories by their epoch number
     # The format is "epoch_XXXX" where XXXX is a number
@@ -46,7 +46,7 @@ def find_last_checkpoint(sim_dir: Path) -> Path:
     if not checkpoint_path.exists():
         checkpoint_path = sorted_epoch_dirs[-2] / "checkpoint.pth"
         if not checkpoint_path.exists():
-            raise FileNotFoundError(f"Checkpoint file {checkpoint_path} does not exist")
+            return None
 
     return checkpoint_path
 
@@ -64,7 +64,10 @@ def main(
 
     if restart:
         checkpoint_path = find_last_checkpoint(sim_dir)
-        print(f"Restarting from checkpoint {checkpoint_path}")
+        if checkpoint_path is None:
+            print("No checkpoint found, starting from scratch")
+        else:
+            print(f"Restarting from checkpoint {checkpoint_path}")
     else:
         checkpoint_path = None
 
@@ -86,7 +89,7 @@ def main(
     ########### Initialize trainer #####################################
     ####################################################################
     trainer = Trainer(config)
-    if restart:
+    if restart and checkpoint_path is not None:
         trainer.load_checkpoint(checkpoint_path=checkpoint_path)
     trainer.save_config()
     trainer.train()
