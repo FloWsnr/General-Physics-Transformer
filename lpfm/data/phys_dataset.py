@@ -131,12 +131,49 @@ class SuperDataset:
     out_shape : tuple[int, int]
         Output shape (h, w) of the concatenated dataset.
         This is needed to account for the different shapes of the datasets.
+    max_samples_per_ds : Optional[int]
+        Maximum number of samples to sample from each dataset.
+        If None, uses all samples from each dataset.
+        By default None.
+    seed : Optional[int]
+        Random seed for reproducibility.
+        By default None.
     """
 
-    def __init__(self, datasets: list[PhysicsDataset], out_shape: tuple[int, int]):
+    def __init__(
+        self,
+        datasets: list[PhysicsDataset],
+        out_shape: tuple[int, int],
+        max_samples_per_ds: Optional[int] = None,
+        seed: Optional[int] = None,
+    ):
         self.datasets = datasets
-        self.lengths = [len(dataset) for dataset in self.datasets]
         self.out_shape = out_shape
+        self.max_samples_per_ds = max_samples_per_ds
+
+        # Initialize random number generator
+        self.rng = torch.Generator()
+        if seed is not None:
+            self.rng.manual_seed(seed)
+
+        # Generate random indices for each dataset if max_samples_per_ds is specified
+        self.dataset_indices = []
+        for dataset in self.datasets:
+            if max_samples_per_ds is not None and len(dataset) > max_samples_per_ds:
+                indices = torch.randperm(len(dataset), generator=self.rng)[
+                    :max_samples_per_ds
+                ]
+                self.dataset_indices.append(indices)
+            else:
+                self.dataset_indices.append(None)
+
+        # Calculate lengths based on either max_samples_per_ds or full dataset length
+        self.lengths = [
+            min(max_samples_per_ds, len(dataset))
+            if max_samples_per_ds is not None
+            else len(dataset)
+            for dataset in self.datasets
+        ]
 
     def __len__(self):
         return sum(self.lengths)
@@ -144,7 +181,12 @@ class SuperDataset:
     def __getitem__(self, index):
         for i, length in enumerate(self.lengths):
             if index < length:
-                x, y = self.datasets[i][index]  # (time, h, w, n_channels)
+                if self.dataset_indices[i] is not None:
+                    # Use random index if available
+                    actual_index = self.dataset_indices[i][index]
+                else:
+                    actual_index = index
+                x, y = self.datasets[i][actual_index]  # (time, h, w, n_channels)
                 break
             index -= length
 

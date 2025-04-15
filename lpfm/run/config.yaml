@@ -43,6 +43,7 @@ model:
     detokenizer_net_channels: null # number of channels in the detokenizer conv_net
 
 training:
+  seed: 42
   batch_size: 384
   epochs: 10
   num_workers: 8
