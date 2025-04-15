@@ -57,6 +57,7 @@ def main(
     restart: bool,
     sim_name: str,
     data_dir: Path,
+    time_limit: int,
 ):
     """Main training function."""
     load_dotenv()
@@ -77,10 +78,10 @@ def main(
     config["logging"]["log_dir"] = (
         sim_dir.parent
     )  # the actual dir is set in the trainer
-    config["logging"]["log_file"] = sim_dir / "logs" / f"{sim_name}.log"
+    config["logging"]["log_file"] = None  # sim_dir / "logs" / f"{sim_name}.log"
     config["wandb"]["id"] = sim_name
     config["data"]["data_dir"] = data_dir
-
+    config["training"]["time_limit"] = time_limit
     ####################################################################
     ########### Initialize trainer #####################################
     ####################################################################
@@ -93,11 +94,12 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("config_file", type=str)
-    parser.add_argument("sim_dir", type=str)
-    parser.add_argument("restart", type=bool)
-    parser.add_argument("sim_name", type=str)
-    parser.add_argument("data_dir", type=str)
+    parser.add_argument("--config_file", type=str)
+    parser.add_argument("--sim_dir", type=str)
+    parser.add_argument("--restart", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--sim_name", type=str)
+    parser.add_argument("--data_dir", type=str)
+    parser.add_argument("--time_limit", type=str)
     args = parser.parse_args()
 
     config_path = Path(args.config_file)
@@ -105,6 +107,12 @@ if __name__ == "__main__":
     data_dir = Path(args.data_dir)
     restart = args.restart
     sim_name = args.sim_name
+    time_limit = args.time_limit
+
+    # convert time_limit to seconds
+    time_limit_seconds = sum(
+        x * int(t) for x, t in zip([3600, 60, 1], time_limit.split(":"))
+    )
 
     main(
         config_path=config_path,
@@ -112,4 +120,5 @@ if __name__ == "__main__":
         restart=restart,
         sim_name=sim_name,
         data_dir=data_dir,
+        time_limit=time_limit_seconds,
     )

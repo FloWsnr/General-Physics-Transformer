@@ -6,6 +6,7 @@ Date: 2025-04-07
 """
 
 from pathlib import Path
+import time
 
 import wandb
 import wandb.wandb_run
@@ -81,6 +82,17 @@ class Trainer:
         else:
             with open(config, "r") as f:
                 self.config = yaml.safe_load(f)
+
+        ################################################################
+        ############ Initialize time limit #############################
+        ################################################################
+        self.avg_sec_per_epoch = 0
+        self.start_time = time.time()
+        self.start_epoch_time = 0
+        if "time_limit" in self.config["training"]:
+            self.time_limit = self.config["training"]["time_limit"]
+        else:
+            self.time_limit = None
 
         ################################################################
         ########### Initialize config #################################
@@ -231,6 +243,7 @@ class Trainer:
         float
             Average training loss for the epoch
         """
+        self.start_epoch_time = time.time()
         self.model.train()
         acc_train_loss = 0
 
@@ -298,6 +311,14 @@ class Trainer:
                         "training/learning_rate": lr,
                     }
                 )
+
+            ############################################################
+            # Check time limit #########################################
+            ############################################################
+            if self.time_limit is not None:
+                if time.time() - self.start_time > self.time_limit:
+                    self.logger.info("Time limit reached, stopping training")
+                    return acc_train_loss / total_batches
 
         ############################################################
         # Visualize predictions ####################################
@@ -369,6 +390,27 @@ class Trainer:
             val_loss = self.validate()
             self.logger.info(f"Epoch {epoch}, Validation loss: {val_loss:.8f}")
 
+            ############################################################
+            # Calculate average time per epoch #########################
+            ############################################################
+            duration = time.time() - self.start_epoch_time
+            self.logger.info(f"Epoch {epoch} took {duration / 60:.2f} minutes")
+            self.avg_sec_per_epoch = (
+                self.avg_sec_per_epoch * (self.epoch - 1) + duration
+            ) / self.epoch
+            self.logger.info(
+                f"Average time per epoch: {self.avg_sec_per_epoch:.2f} seconds"
+            )
+            ############################################################
+            # Calculate time remaining #################################
+            ############################################################
+            proj_time_remaining = self.avg_sec_per_epoch * (
+                self.total_epochs - self.epoch
+            )
+            self.logger.info(
+                f"Projected time remaining: {proj_time_remaining / 60:.2f} minutes"
+            )
+
             ######################################################################
             ########### Wandb logging ###########################################
             ######################################################################
@@ -377,6 +419,9 @@ class Trainer:
                     "epoch": epoch,
                     "training/epoch_loss": train_loss,
                     "validation/epoch_loss": val_loss,
+                    "sec_per_epoch": duration,
+                    "avg_sec_per_epoch": self.avg_sec_per_epoch,
+                    "proj_time_remaining": proj_time_remaining,
                 }
             )
 
@@ -406,6 +451,18 @@ class Trainer:
                 checkpoint,
                 self.epoch_dir / "checkpoint.pth",
             )
+
+            ############################################################
+            # Shut down if time limit is set and next epoch would exceed it
+            ############################################################
+            if self.time_limit is not None:
+                time_passed = time.time() - self.start_time
+                time_remaining = self.time_limit - time_passed
+                if time_remaining < self.avg_sec_per_epoch:
+                    self.logger.info(
+                        "Next epoch would exceed time limit, shutting down"
+                    )
+                    break
 
         self.wandb_run.finish()
 
