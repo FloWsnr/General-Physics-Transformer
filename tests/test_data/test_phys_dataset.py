@@ -45,6 +45,17 @@ def test_physics_dataset_custom_field_selection2(dummy_datapath: Path):
     assert y.shape == (2, 32, 32, 3)
 
 
+def test_physics_dataset_variable_dT_stride(dummy_datapath: Path):
+    dataset = PhysicsDataset(
+        dummy_datapath.parent,
+        n_steps_input=2,
+        n_steps_output=2,
+        dt_stride=[1, 4],
+    )
+    x, y = dataset[0]
+    assert x.shape == (2, 32, 32, 3)
+    assert y.shape == (2, 32, 32, 3)
+
 
 class TestSuperDataset:
     """Tests for the SuperDataset class."""
