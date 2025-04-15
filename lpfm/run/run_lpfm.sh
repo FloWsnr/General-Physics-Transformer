@@ -23,7 +23,7 @@
 
 ### Maximum runtime per task
 ## SBATCH --time=1-00:00:00
-#SBATCH --time=02:00:00
+#SBATCH --time=24:00:00
 
 ### set number of GPUs per task
 #SBATCH --gres=gpu:1
@@ -34,7 +34,7 @@
 ### Set the time limit for the job, allows for graceful shutdown
 ### Should be lower than the time limit of the partition
 ### Format: HH:MM:SS
-time_limit="02:00:00"
+time_limit="24:00:00"
 
 #####################################################################################
 ############################# Setup #################################################
@@ -44,14 +44,11 @@ python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/tr
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
-sim_name="slrm-test-run-0001-large-batch"
+sim_name="all-datasets-0001"
 # sim directory
 sim_dir="${log_dir}/${sim_name}"
 # create the sim_dir if it doesn't exist
 mkdir -p $sim_dir
-
-# Get the actual SLURM output file path inside the sim_dir
-SLURM_OUTPUT="${sim_dir}/${SLURM_JOB_ID}.out"
 
 # Try to find config file in sim_dir
 config_file="${sim_dir}/config.yaml"
@@ -98,3 +95,6 @@ fi
 
 # Capture Python output and errors in a variable and run the script
 python $python_exec $exec_args
+
+# move the output file to the sim_dir
+mv /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs/slrm_logs/train_lpfm_${SLURM_JOB_ID}.out $sim_dir

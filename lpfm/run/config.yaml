@@ -1,13 +1,14 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: med-more-timesteps
+  id: med-all-datasets
   tags:
     - TestRun
     - LPFM-M
+    - All-Datasets
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
-  notes: "Medium model - test slurm with large batch size"
+  notes: "Medium model - all datasets, first try"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -44,8 +45,8 @@ model:
 
 training:
   seed: 42
-  batch_size: 512
-  epochs: 10
+  batch_size: 392
+  epochs: 100
   num_workers: 12
   grad_clip: 1.0 # gradient clipping
   optimizer:
@@ -76,7 +77,7 @@ training:
       #   T_mult: 2 # multiplicative factor for the number of epochs in each cycle
       #   min_lr: 0.0001
       CosineAnnealingLR: # cosine annealing scheduler
-        T_max: 9 # Number of epochs for one cosine annealing cycle
+        T_max: 99 # Number of epochs for one cosine annealing cycle
         min_lr: 1e-6
 
 data:
@@ -88,16 +89,16 @@ data:
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
-    # - cylinder_sym_flow_water
-    # - cylinder_pipe_flow_water
-    # - object_periodic_flow_water
+    - cylinder_sym_flow_water
+    - cylinder_pipe_flow_water
+    - object_periodic_flow_water
     - object_sym_flow_water
-    # - object_sym_flow_air
+    - object_sym_flow_air
 
-    # - heated_object_pipe_flow_air
-    # - cooled_object_pipe_flow_air
+    - heated_object_pipe_flow_air
+    - cooled_object_pipe_flow_air
 
-    # - turbulent_radiative_layer_2D
-    # - rayleigh_benard
-    # - shear_flow
+    - turbulent_radiative_layer_2D
+    - rayleigh_benard
+    - shear_flow
     # - euler
