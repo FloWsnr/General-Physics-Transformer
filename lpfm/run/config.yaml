@@ -85,7 +85,7 @@ data:
   n_steps_output: 1 # number of target timesteps
   out_shape: [128, 64] # output shape (usually)
 
-  data_dir: /Users/zsa8rk/Coding/MetaPARC/data/datasets
+  data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
     # - cylinder_sym_flow_water
     # - cylinder_pipe_flow_water

@@ -158,7 +158,9 @@ def load_config(model_path: Path) -> dict:
 
 
 def main():
-    model_path = Path("C:/Users/zsa8rk/Coding/MetaPARC/logs/tokenizer_overlap")
+    model_path = Path(
+        "C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs/tokenizer_overlap"
+    )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     config = load_config(model_path)

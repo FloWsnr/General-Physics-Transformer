@@ -11,7 +11,9 @@ def run_sweep(config: dict):
 
 
 def main():
-    config_path = Path("C:/Users/zsa8rk/Coding/MetaPARC/metaparc/run/config.yaml")
+    config_path = Path(
+        "C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/lpfm/run/config.yaml"
+    )
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 

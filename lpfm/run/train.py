@@ -205,14 +205,12 @@ class Trainer:
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         if self.scheduler is not None:
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-        
+
         self.epoch = checkpoint["epoch"]
         self.samples_trained = checkpoint["samples_trained"]
-        self.logger.info(f"Restarting training from epoch {self.epoch} with {self.samples_trained} samples trained")
-
-        
-
-
+        self.logger.info(
+            f"Restarting training from epoch {self.epoch} with {self.samples_trained} samples trained"
+        )
 
     def save_config(self):
         """Save the config to the log directory."""
@@ -560,7 +558,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="/Users/zsa8rk/Coding/MetaPARC/metaparc/run/config.yaml",
+        default="/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/lpfm/run/config.yaml",
         help="Path to the configuration file",
     )
 
