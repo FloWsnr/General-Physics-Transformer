@@ -82,7 +82,11 @@ def visualize_predictions(
         "Velocity-Y",
     ]
 
-    rows = T + 3  # time steps of input plus 3 rows for predictions, targets, diff
+    # Only visualize the last 4 time steps if there are more than 4
+    time_steps = min(T, 4)
+    # start_idx = max(0, T - time_steps)
+    # time steps of input plus 3 rows for predictions, targets, diff
+    rows = time_steps + 3
     cols = C
     fig, axs = plt.subplots(rows, cols, figsize=(6 * cols, 2 * rows))
 
@@ -111,9 +115,9 @@ def visualize_predictions(
 
         # Get the colormap for this channel
         cmap = colormaps[channel % len(colormaps)]
-
-        for j in range(T):
-            input = inputs[j, ..., channel]
+        for j in range(time_steps):
+            index = T - time_steps + j
+            input = inputs[index, ..., channel]
             img_input = axs[j, channel].imshow(input, vmin=vmin, vmax=vmax, cmap=cmap)
             # Remove axis ticks
             axs[j, channel].set_xticks([])
