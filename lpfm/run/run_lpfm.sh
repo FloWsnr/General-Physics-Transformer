@@ -17,7 +17,7 @@
 
 ### Maximum runtime per task
 ## SBATCH --time=1-00:00:00
-#SBATCH --time=00:05:00
+#SBATCH --time=02:00:00
 
 ### set number of GPUs per task
 #SBATCH --gres=gpu:1
@@ -28,7 +28,7 @@
 ### Set the time limit for the job, allows for graceful shutdown
 ### Should be lower than the time limit of the partition
 ### Format: HH:MM:SS
-time_limit="00:05:00"
+time_limit="02:00:00"
 
 #####################################################################################
 ############################# Setup #################################################
@@ -38,7 +38,7 @@ python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/tr
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
-sim_name="slrm-test-run-0001"
+sim_name="slrm-test-run-0001-large-batch"
 # sim directory
 sim_dir="${log_dir}/${sim_name}"
 # create the sim_dir if it doesn't exist
@@ -73,7 +73,7 @@ conda activate lpfm
 ############################# Training GPM ##########################################
 #####################################################################################
 echo "--------------------------------"
-echo "Starting GPM training..."
+echo "Starting LPFM training..."
 echo "config_file: $config_file"
 echo "sim_dir: $sim_dir"
 echo "restart: $restart"

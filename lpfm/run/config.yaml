@@ -7,7 +7,7 @@ wandb:
     - LPFM-M
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
-  notes: "Medium model - test run with more timesteps"
+  notes: "Medium model - test slurm with large batch size"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -44,9 +44,9 @@ model:
 
 training:
   seed: 42
-  batch_size: 192
+  batch_size: 512
   epochs: 10
-  num_workers: 8
+  num_workers: 12
   grad_clip: 1.0 # gradient clipping
   optimizer:
     # name: Adam

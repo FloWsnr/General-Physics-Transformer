@@ -78,7 +78,7 @@ def main(
     config["logging"]["log_dir"] = (
         sim_dir.parent
     )  # the actual dir is set in the trainer
-    config["logging"]["log_file"] = None  # sim_dir / "logs" / f"{sim_name}.log"
+    config["logging"]["log_file"] = sim_dir / f"{sim_name}.log"
     config["wandb"]["id"] = sim_name
     config["data"]["data_dir"] = data_dir
     config["training"]["time_limit"] = time_limit
