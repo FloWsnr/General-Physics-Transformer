@@ -5,9 +5,6 @@ from torch.utils.data import default_collate, DataLoader
 from the_well.data.augmentation import (
     Compose,
     RandomAxisFlip,
-    RandomAxisRoll,
-    RandomAxisPermute,
-    # NOTE: Image Resize should come here as well
 )
 
 from lpfm.data.phys_dataset import SuperDataset, PhysicsDataset
@@ -26,8 +23,6 @@ def get_rng_transforms(p_flip: float) -> Compose:
     return Compose(
         *[
             RandomAxisFlip(p=p_flip),
-            RandomAxisRoll(p=p_flip),
-            RandomAxisPermute(p=p_flip),
         ]
     )
 
