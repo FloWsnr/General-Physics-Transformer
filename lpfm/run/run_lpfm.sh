@@ -12,7 +12,10 @@
 #SBATCH --nodes=1
 
 ### How many CPU cores to use
-#SBATCH --cpus-per-task=12
+#SBATCH --cpus-per-task=24
+
+### How much memory per core
+#SBATCH --mem-per-cpu=5200
 
 ### Mail notification configuration
 #SBATCH --mail-type=ALL
