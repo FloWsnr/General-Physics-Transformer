@@ -232,4 +232,16 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
             max_rollout_steps=max_rollout_steps,
         )
         datasets.append(heated_flow_dataset)
+    if "cooled_object_pipe_flow_air" in data_config["datasets"]:
+        cooled_flow_dataset = ComsolHeatedFlowDataset(
+            data_dir=data_dir / f"cooled_object_pipe_flow_air/data/{split_name}",
+            split=split,
+            n_steps_input=n_steps_input,
+            n_steps_output=n_steps_output,
+            dt_stride=dt_stride,
+            full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
+        )
+        datasets.append(cooled_flow_dataset)
+
     return datasets
