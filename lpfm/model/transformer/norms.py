@@ -99,6 +99,7 @@ class RevIN(nn.Module):
         Normalizes each channel independently over the Time, Height, and Width dimensions.
         Affine transformation is done over the channel dimension, one parameter for all
         timesteps.
+        The class can handle different input and output channels.
 
         Parameters
         ----------
@@ -148,23 +149,36 @@ class RevIN(nn.Module):
         )
 
     def _normalize(self, x):
-        x = x - self.mean
-        x = x / self.stdev
+        B, T, H, W, C = x.shape
+
+        weight = self.affine_weight[:C]
+        bias = self.affine_bias[:C]
+
+        x = x - self.mean[..., :C]
+        x = x / self.stdev[..., :C]
         # Reshape affine parameters to match the channel dimension
-        weight = self.affine_weight.view(1, 1, 1, 1, -1)
-        bias = self.affine_bias.view(1, 1, 1, 1, -1)
+        weight = weight.view(1, 1, 1, 1, -1)
+        bias = bias.view(1, 1, 1, 1, -1)
         x = x * weight
         x = x + bias
         return x
 
     def _denormalize(self, x):
+        B, T, H, W, C = x.shape
+        # if derivatives are used, there are more input than output channels
+        # so we need to clip the affine parameters and the mean/stdto the number of input channels
+
         # Reshape affine parameters to match the channel dimension
-        weight = self.affine_weight.view(1, 1, 1, 1, -1)
-        bias = self.affine_bias.view(1, 1, 1, 1, -1)
+        weight = self.affine_weight[:C]
+        bias = self.affine_bias[:C]
+
+        weight = weight.view(1, 1, 1, 1, -1)
+        bias = bias.view(1, 1, 1, 1, -1)
         x = x - bias
         x = x / (weight + self.eps * self.eps)
-        x = x * self.stdev
-        x = x + self.mean
+
+        x = x * self.stdev[..., :C]
+        x = x + self.mean[..., :C]
         return x
 
 

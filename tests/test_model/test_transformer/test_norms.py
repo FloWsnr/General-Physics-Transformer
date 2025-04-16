@@ -147,6 +147,28 @@ class Test_RevIN:
         assert torch.allclose(mean, torch.zeros_like(mean), atol=1e-2)
         assert torch.allclose(var, torch.ones_like(var), atol=1e-2)
 
+    def test_revin_different_input_output_channels(self):
+        """
+        Test RevIN layer with different input vs output channels.
+        """
+        batch_size = 10
+        time_steps = 100
+        num_channels = 128
+        height = 32
+        width = 32
+
+        revin = RevIN(num_channels)
+
+        # Create input with known statistics
+        x = torch.randn(batch_size, time_steps, height, width, num_channels)
+        x = x * 2.0 + 1.0  # Scale and shift
+
+        # Apply normalization
+        x_norm = revin(x, mode="norm")
+        output = x_norm[..., :64]
+        x_denorm = revin(output, mode="denorm")
+        assert torch.allclose(x[..., :64], x_denorm, atol=1e-1)
+
 
 class Test_RevSpade_3D:
     def test_revspade_initialization(self):
