@@ -85,7 +85,9 @@ class Trainer:
         self.logger.info(f"Model size: {total_params / 1e6:.2f}M parameters")
         self.logger.info(f"Model architecture: {self.model}")
 
-        self.wandb_run.config.update({"model/model_size [M]": total_params / 1e6})
+        self.wandb_run.config.update(
+            {"model/model_size [M]": total_params / 1e6}, allow_val_change=True
+        )
 
         # print the model architecture
         self.model.to(self.device)
@@ -131,7 +133,8 @@ class Trainer:
                 "training/total_samples": self.total_samples,
                 "training/train_samples_per_epoch": self.train_samples_per_epoch,
                 "training/train_batches_per_epoch": self.train_batches_per_epoch,
-            }
+            },
+            allow_val_change=True,
         )
 
         ################################################################
