@@ -198,7 +198,10 @@ class Trainer:
         if "lr_scheduler" in self.config["training"]:
             lrs_config = self.config["training"]["lr_scheduler"]
             self.scheduler = get_lr_scheduler(
-                self.optimizer, lrs_config, self.train_batches_per_epoch
+                optimizer=self.optimizer,
+                lrs_config=lrs_config,
+                total_epochs=self.total_epochs,
+                train_batches_per_epoch=self.train_batches_per_epoch,
             )
         else:
             self.scheduler = None
@@ -468,7 +471,10 @@ class Trainer:
 
 
 def get_lr_scheduler(
-    optimizer: torch.optim.Optimizer, config: dict, train_batches_per_epoch: int
+    optimizer: torch.optim.Optimizer,
+    lrs_config: dict,
+    total_epochs: int,
+    train_batches_per_epoch: int,
 ) -> optim.lr_scheduler.SequentialLR:
     """Create a learning rate scheduler.
     Options are only linear warmup or linear warmup followed by cosine annealing.
@@ -477,8 +483,10 @@ def get_lr_scheduler(
     ----------
     optimizer : torch.optim.Optimizer
         Optimizer for training
-    config : dict
+    lrs_config : dict
         Configuration dictionary for the learning rate scheduler
+    total_epochs : int
+        Total number of training epochs
     train_batches_per_epoch : int
         Number of training batches per epoch
 
@@ -487,10 +495,9 @@ def get_lr_scheduler(
     optim.lr_scheduler.SequentialLR
         Learning rate scheduler
     """
-
-    num_schedulers = len(config["schedulers"])
+    num_schedulers = len(lrs_config["schedulers"])
     if num_schedulers == 1:
-        lrs_lin = config["schedulers"]["LinearLR"]
+        lrs_lin = lrs_config["schedulers"]["LinearLR"]
         scheduler = optim.lr_scheduler.LinearLR(
             optimizer,
             start_factor=lrs_lin["start_factor"],
@@ -499,7 +506,7 @@ def get_lr_scheduler(
         )
 
     elif num_schedulers == 2:
-        lrs_lin = config["schedulers"]["LinearLR"]
+        lrs_lin = lrs_config["schedulers"]["LinearLR"]
         t_steps = train_batches_per_epoch * lrs_lin["epochs"]
 
         lrs1_scheduler = optim.lr_scheduler.LinearLR(
@@ -509,16 +516,27 @@ def get_lr_scheduler(
             total_iters=t_steps,
         )
 
-        lrs2_name = list(config["schedulers"].keys())[1]
-        lrs2 = config["schedulers"][lrs2_name]
+        lrs2_name = list(lrs_config["schedulers"].keys())[1]
+        lrs2 = lrs_config["schedulers"][lrs2_name]
 
         if lrs2_name == "CosineAnnealingWarmRestarts":
             T_0 = train_batches_per_epoch * lrs2["T_0"]
+            # if T_max is -1, use all remaining epochs
+            if lrs2["T_max"] == -1:
+                T_max = (total_epochs - lrs_lin["epochs"]) * train_batches_per_epoch
+            else:
+                T_max = train_batches_per_epoch * lrs2["T_max"]
+
             cosine_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
                 optimizer, T_0=T_0, T_mult=lrs2["T_mult"], eta_min=float(lrs2["min_lr"])
             )
         elif lrs2_name == "CosineAnnealingLR":
-            T_max = train_batches_per_epoch * lrs2["T_max"]
+            # if T_max is -1, use all remaining epochs
+            if lrs2["T_max"] == -1:
+                T_max = (total_epochs - lrs_lin["epochs"]) * train_batches_per_epoch
+            else:
+                T_max = train_batches_per_epoch * lrs2["T_max"]
+
             cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, T_max=T_max, eta_min=float(lrs2["min_lr"])
             )

@@ -1,13 +1,13 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: med-long-run
+  id: med-full-res
   tags:
     - TestRun
     - LPFM-M
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
-  notes: "Medium model - one dataset, long run"
+  notes: "Medium model - test run with full resolution images"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -34,6 +34,7 @@ model:
     patch_size: [2, 16, 16] # patch size (usually 4x16x16)
     num_layers: 12 # number of attention layers
     stochastic_depth_rate: 0.0 # stochastic depth rate
+    use_derivatives: false # whether to use derivatives in the model
   tokenizer:
     tokenizer_mode: linear # tokenizer mode (usually linear or conv_net)
     detokenizer_mode: linear # detokenizer mode (usually linear or conv_net)
@@ -44,9 +45,9 @@ model:
 
 training:
   seed: 42
-  batch_size: 128
-  epochs: 100
-  num_workers: 8
+  batch_size: 64
+  epochs: 10
+  num_workers: 6
   grad_clip: 1.0 # gradient clipping
   optimizer:
     # name: Adam
@@ -76,7 +77,7 @@ training:
       #   T_mult: 2 # multiplicative factor for the number of epochs in each cycle
       #   min_lr: 0.0001
       CosineAnnealingLR: # cosine annealing scheduler
-        T_max: 99 # Number of epochs for one cosine annealing cycle
+        T_max: -1 # Number of epochs for one cosine annealing cycle, if -1, use all remaining epochs
         min_lr: 1e-6
 
 data:
@@ -84,7 +85,7 @@ data:
   dt_stride: 1 # take every dt_stride-th timestep, if list, randomize between the values
   n_steps_input: 4 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
-  out_shape: [128, 64] # output shape (usually)
+  out_shape: [256, 128] # output shape (usually)
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
@@ -97,7 +98,6 @@ data:
     # - heated_object_pipe_flow_air
     # - cooled_object_pipe_flow_air
 
-    # - turbulent_radiative_layer_2D
     # - rayleigh_benard
     # - shear_flow
     # - euler
