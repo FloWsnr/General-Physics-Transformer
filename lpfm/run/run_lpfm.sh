@@ -39,6 +39,7 @@ time_limit="24:00:00"
 #####################################################################################
 ############################# Setup #################################################
 #####################################################################################
+
 # Set up paths
 python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/train_slrm.py"
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
@@ -49,6 +50,9 @@ sim_name="all-datasets-0001"
 sim_dir="${log_dir}/${sim_name}"
 # create the sim_dir if it doesn't exist
 mkdir -p $sim_dir
+
+# copy the slurm script to the sim_dir
+cp /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/run_lpfm.sh $sim_dir
 
 # Try to find config file in sim_dir
 config_file="${sim_dir}/config.yaml"

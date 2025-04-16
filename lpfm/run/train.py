@@ -177,7 +177,7 @@ class Trainer:
 
     def load_checkpoint(self, checkpoint_path: Path):
         """Restart training from a checkpoint."""
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, weights_only=False)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         if self.scheduler is not None:
@@ -454,8 +454,8 @@ def get_lr_scheduler(
     optim.lr_scheduler.SequentialLR
         Learning rate scheduler
     """
-    num_schedulers = len(lrs_config["schedulers"])
-    if num_schedulers == 1:
+    scheduler_names = list(lrs_config["schedulers"].keys())
+    if len(scheduler_names) == 1:
         lrs_lin = lrs_config["schedulers"]["LinearLR"]
         scheduler = optim.lr_scheduler.LinearLR(
             optimizer,
@@ -464,7 +464,9 @@ def get_lr_scheduler(
             total_iters=train_batches_per_epoch * lrs_lin["epochs"],
         )
 
-    elif num_schedulers == 2:
+    elif len(scheduler_names) == 2:
+        # remove LinearLR from scheduler_names
+        scheduler_names.remove("LinearLR")
         lrs_lin = lrs_config["schedulers"]["LinearLR"]
         t_steps = train_batches_per_epoch * lrs_lin["epochs"]
 
@@ -475,7 +477,7 @@ def get_lr_scheduler(
             total_iters=t_steps,
         )
 
-        lrs2_name = list(lrs_config["schedulers"].keys())[1]
+        lrs2_name = scheduler_names[0]
         lrs2 = lrs_config["schedulers"][lrs2_name]
 
         if lrs2_name == "CosineAnnealingWarmRestarts":
@@ -499,6 +501,8 @@ def get_lr_scheduler(
             cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
                 optimizer, T_max=T_max, eta_min=float(lrs2["min_lr"])
             )
+        else:
+            raise ValueError(f"Scheduler {lrs2_name} not supported")
 
         scheduler = optim.lr_scheduler.SequentialLR(
             optimizer,

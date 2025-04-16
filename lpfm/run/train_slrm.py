@@ -74,6 +74,7 @@ def main(
     # Load config
     with open(config_path, "r") as f:
         config = yaml.load(f, Loader=Loader)
+        print(config)
 
     ####################################################################
     ########### Augment config #########################################
