@@ -33,6 +33,7 @@ def get_model(model_config: dict):
         detokenizer_mode=tokenizer_config["detokenizer_mode"],
         tokenizer_overlap=tokenizer_config["tokenizer_overlap"],
         detokenizer_overlap=tokenizer_config["detokenizer_overlap"],
+        detokenizer_squash_time=tokenizer_config["detokenizer_squash_time"],
         tokenizer_net_channels=tokenizer_config["tokenizer_net_channels"],
         detokenizer_net_channels=tokenizer_config["detokenizer_net_channels"],
         dropout=transformer_config["dropout"],
@@ -78,6 +79,8 @@ class PhysicsTransformer(nn.Module):
         Tokenizer mode. Can be "linear" or "non_linear".
     detokenizer_mode: str = "linear"
         Detokenizer mode. Can be "linear" or "non_linear".
+    detokenizer_squash_time: bool = False
+        If True, the time dimension will be squashed into a single time step for the detokenizer.
     tokenizer_net_channels: list[int] = None
         Number of channels in the tokenizer conv_net.
     detokenizer_net_channels: list[int] = None
@@ -112,6 +115,7 @@ class PhysicsTransformer(nn.Module):
         detokenizer_mode: str = "linear",
         tokenizer_overlap: int = 0,
         detokenizer_overlap: int = 0,
+        detokenizer_squash_time: bool = False,
         tokenizer_net_channels: Optional[list[int]] = None,
         detokenizer_net_channels: Optional[list[int]] = None,
         dropout: float = 0.0,
@@ -121,6 +125,7 @@ class PhysicsTransformer(nn.Module):
 
         self.input_channels = input_channels
         self.output_channels = input_channels
+        self.squash_time = detokenizer_squash_time
 
         # Initialize derivatives module
         self.use_derivatives = use_derivatives
@@ -183,6 +188,8 @@ class PhysicsTransformer(nn.Module):
             mode=detokenizer_mode,
             conv_net_channels=detokenizer_net_channels,
             overlap=detokenizer_overlap,
+            squash_time=detokenizer_squash_time,
+            img_size=img_size,
         )
 
         self.stochastic_depth_rate = stochastic_depth_rate
@@ -213,4 +220,7 @@ class PhysicsTransformer(nn.Module):
         x = self.revin(x, mode="denorm")
 
         # return last time step
-        return x[:, -1, ...].unsqueeze(1)
+        if not self.squash_time:
+            return x[:, -1, ...].unsqueeze(1)
+        else:
+            return x

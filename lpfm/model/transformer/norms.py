@@ -168,14 +168,14 @@ class RevIN(nn.Module):
         # if derivatives are used, there are more input than output channels
         # so we need to clip the affine parameters and the mean/stdto the number of input channels
 
-        # Reshape affine parameters to match the channel dimension
         weight = self.affine_weight[:C]
         bias = self.affine_bias[:C]
 
+        # Reshape affine parameters to match the channel dimension
         weight = weight.view(1, 1, 1, 1, -1)
         bias = bias.view(1, 1, 1, 1, -1)
         x = x - bias
-        x = x / (weight + self.eps * self.eps)
+        x = x / weight
 
         x = x * self.stdev[..., :C]
         x = x + self.mean[..., :C]
