@@ -84,15 +84,18 @@ class FiniteDifference(nn.Module):
         B, T, H, W, C = x.shape
 
         x = rearrange(x, "B T H W C -> B C T H W")
-        # Pad input tensor to maintain output size
-        x = F.pad(
-            x,
-            (self.pad_w, self.pad_w, self.pad_h, self.pad_h, self.pad_t, self.pad_t),
-            mode="replicate",
-        )
-        dh = F.conv3d(x, self.dh_filter, padding=0, stride=1, groups=C)
-        dw = F.conv3d(x, self.dw_filter, padding=0, stride=1, groups=C)
-        dt = F.conv3d(x, self.dt_filter, padding=0, stride=1, groups=C)
+
+        # Pad input tensor for temporal derivative
+        x_t = F.pad(x, (0, 0, 0, 0, self.pad_t, self.pad_t), mode="replicate")
+        dt = F.conv3d(x_t, self.dt_filter, padding=0, stride=1, groups=C)
+
+        # Pad input tensor for height derivative
+        x_h = F.pad(x, (0, 0, self.pad_h, self.pad_h, 0, 0), mode="replicate")
+        dh = F.conv3d(x_h, self.dh_filter, padding=0, stride=1, groups=C)
+
+        # Pad input tensor for width derivative
+        x_w = F.pad(x, (self.pad_w, self.pad_w, 0, 0, 0, 0), mode="replicate")
+        dw = F.conv3d(x_w, self.dw_filter, padding=0, stride=1, groups=C)
 
         dt = rearrange(dt, "B C T H W -> B T H W C")
         dh = rearrange(dh, "B C T H W -> B T H W C")

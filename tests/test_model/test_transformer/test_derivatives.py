@@ -34,3 +34,16 @@ def test_finite_difference_2nd_order():
     # In H and W direction, the derivative should be non-zero
     assert not torch.allclose(dh, torch.zeros_like(dh))
     assert not torch.allclose(dw, torch.zeros_like(dw))
+
+def test_finite_difference_2nd_order_shape():
+    """
+    Test the shape of the derivatives.
+    """
+    B, T, H, W, C = 1, 3, 3, 3, 1
+    x = torch.zeros(B, T, H, W, C)
+    fd = FiniteDifference(num_channels=C, filter_1d="2nd")  
+    dt, dh, dw = fd(x)
+    assert dt.shape == (B, T, H, W, C)
+    assert dh.shape == (B, T, H, W, C)
+    assert dw.shape == (B, T, H, W, C)
+
