@@ -176,6 +176,14 @@ class Trainer:
         )
         self.logger.info(f"Training for {self.total_samples} total samples")
 
+        self.wandb_run.config.update(
+            {
+                "training/total_samples": self.total_samples,
+                "training/train_samples_per_epoch": self.train_samples_per_epoch,
+                "training/train_batches_per_epoch": self.train_batches_per_epoch,
+            }
+        )
+
         ################################################################
         ########### Initialize loss function and optimizer ###########
         ################################################################
@@ -300,7 +308,8 @@ class Trainer:
             ############################################################
             # Log to wandb #############################################
             ############################################################
-            if batch_idx % self.config["wandb"]["log_interval"] == 0:
+            log_interval = self.config["wandb"]["log_interval"]
+            if batch_idx % log_interval == 0:
                 total_b_idx = (
                     batch_idx + (self.epoch - 1) * self.train_batches_per_epoch
                 )
@@ -310,7 +319,7 @@ class Trainer:
                         "training/num_batches": total_b_idx,
                         "training/num_samples": self.samples_trained,
                         "training/acc_batch_loss": acc_train_loss / (batch_idx + 1),
-                        "training/batch_loss": loss.item(),
+                        "training/batch_loss_per_log": loss.item() / log_interval,
                         "training/learning_rate": lr,
                     }
                 )
@@ -422,9 +431,9 @@ class Trainer:
                     "epoch": epoch,
                     "training/epoch_loss": train_loss,
                     "validation/epoch_loss": val_loss,
-                    "sec_per_epoch": duration,
-                    "avg_sec_per_epoch": self.avg_sec_per_epoch,
-                    "proj_time_remaining": proj_time_remaining,
+                    "training/minutes_per_epoch": duration / 60,
+                    "training/avg_minutes_per_epoch": self.avg_sec_per_epoch / 60,
+                    "training/projected_minutes_remaining": proj_time_remaining / 60,
                 }
             )
 

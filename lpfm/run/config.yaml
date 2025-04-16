@@ -5,22 +5,14 @@ wandb:
   tags:
     - TestRun
     - LPFM-M
-  log_model: gradients # log :all", "parameters" or "gradients"
-  log_interval: 100
+  log_model: gradients # log :all", "parameters" or "gradients" or null
+  log_interval: 10
   notes: "Medium model - test run with full resolution images"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
   log_file: null #log.txt
   log_level: INFO
-
-model:
-  architecture:
-    name: "Spatial-Temporal Transformer"
-    backbone: "spatial temporal attention"
-    normalization: "RevIN (T,H,W)"
-    activation: GELU
-    patches: linear
 
   transformer:
     input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
