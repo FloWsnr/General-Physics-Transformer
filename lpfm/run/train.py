@@ -177,6 +177,7 @@ class Trainer:
 
     def load_checkpoint(self, checkpoint_path: Path):
         """Restart training from a checkpoint."""
+        self.logger.info(f"Loading checkpoint from {checkpoint_path}")
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
