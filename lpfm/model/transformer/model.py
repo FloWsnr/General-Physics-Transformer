@@ -12,6 +12,7 @@ from lpfm.model.transformer.pos_encodings import (
 )
 from lpfm.model.transformer.tokenizer import Tokenizer, Detokenizer
 from lpfm.model.transformer.norms import RevIN
+from lpfm.model.transformer.derivatives import FiniteDifference
 
 
 def get_model(model_config: dict):
@@ -27,6 +28,7 @@ def get_model(model_config: dict):
         pos_enc_mode=transformer_config["pos_enc_mode"],
         img_size=model_config["img_size"],
         patch_size=transformer_config["patch_size"],
+        use_derivatives=transformer_config["use_derivatives"],
         tokenizer_mode=tokenizer_config["tokenizer_mode"],
         detokenizer_mode=tokenizer_config["detokenizer_mode"],
         tokenizer_overlap=tokenizer_config["tokenizer_overlap"],
@@ -65,31 +67,33 @@ class PhysicsTransformer(nn.Module):
         Patch size for spatial-temporal embeddings. (time, height, width)
     img_size: tuple[int, int, int]
         Incoming image size (time, height, width)
+    use_derivatives: bool, optional
+        Whether to use derivatives in the model.
 
     ################################################################
     ########### Tokenizer parameters ###############################
     ################################################################
 
-    tokenizer_mode: str
+    tokenizer_mode: str = "linear"
         Tokenizer mode. Can be "linear" or "non_linear".
-    detokenizer_mode: str
+    detokenizer_mode: str = "linear"
         Detokenizer mode. Can be "linear" or "non_linear".
-    tokenizer_net_channels: list[int]
+    tokenizer_net_channels: list[int] = None
         Number of channels in the tokenizer conv_net.
-    detokenizer_net_channels: list[int]
+    detokenizer_net_channels: list[int] = None
         Number of channels in the detokenizer conv_net.
-    tokenizer_overlap: int, optional
+    tokenizer_overlap: int = 0
         Number of pixels to overlap between patches for the tokenizer.
-    detokenizer_overlap: int, optional
+    detokenizer_overlap: int = 0
         Number of pixels to overlap between patches for the detokenizer.
 
     ################################################################
     ########### Training parameters ################################
     ################################################################
 
-    dropout: float
+    dropout: float = 0.0
         Dropout rate.
-    stochastic_depth_rate: float
+    stochastic_depth_rate: float = 0.0
         Stochastic depth rate.
     """
 
@@ -103,8 +107,9 @@ class PhysicsTransformer(nn.Module):
         pos_enc_mode: str,
         patch_size: tuple[int, int, int],
         img_size: tuple[int, int, int],
-        tokenizer_mode: str,
-        detokenizer_mode: str,
+        use_derivatives: bool = False,
+        tokenizer_mode: str = "linear",
+        detokenizer_mode: str = "linear",
         tokenizer_overlap: int = 0,
         detokenizer_overlap: int = 0,
         tokenizer_net_channels: Optional[list[int]] = None,
@@ -113,8 +118,33 @@ class PhysicsTransformer(nn.Module):
         stochastic_depth_rate: float = 0.0,
     ):
         super().__init__()
-        self.stochastic_depth_rate = stochastic_depth_rate
 
+        self.input_channels = input_channels
+        self.output_channels = input_channels
+
+        # Initialize derivatives module
+        self.use_derivatives = use_derivatives
+        if self.use_derivatives:
+            self.derivatives = FiniteDifference(
+                num_channels=input_channels, filter_1d="2nd"
+            )
+            # if derivatives are used, the input channels are multiplied by 4 (original, dt, dh, dw)
+            # however, the output channels of the tokenizer are still the original input channels
+            self.input_channels *= 4
+
+        # Initialize revin
+        self.revin = RevIN(num_channels=self.input_channels)
+
+        self.tokenizer = Tokenizer(
+            patch_size=patch_size,
+            in_channels=self.input_channels,
+            dim_embed=hidden_dim,
+            mode=tokenizer_mode,
+            conv_net_channels=tokenizer_net_channels,
+            overlap=tokenizer_overlap,
+        )
+
+        # Initialize positional encodings
         if pos_enc_mode == "rope":
             att_pos_encodings = RotaryPositionalEmbedding(dim=hidden_dim, base=10000)
             self.init_pos_encodings = None
@@ -129,6 +159,7 @@ class PhysicsTransformer(nn.Module):
         else:
             raise ValueError(f"Invalid positional encoding mode: {pos_enc_mode}")
 
+        # Initialize attention blocks
         self.attention_blocks = nn.ModuleList(
             [
                 AttentionBlock(
@@ -143,14 +174,8 @@ class PhysicsTransformer(nn.Module):
             ]
         )
 
-        self.tokenizer = Tokenizer(
-            patch_size=patch_size,
-            in_channels=input_channels,
-            dim_embed=hidden_dim,
-            mode=tokenizer_mode,
-            conv_net_channels=tokenizer_net_channels,
-            overlap=tokenizer_overlap,
-        )
+        # Initialize tokenizer and detokenizer
+
         self.detokenizer = Detokenizer(
             patch_size=patch_size,
             dim_embed=hidden_dim,
@@ -160,11 +185,16 @@ class PhysicsTransformer(nn.Module):
             overlap=detokenizer_overlap,
         )
 
-        self.revin = RevIN(num_channels=input_channels)
+        self.stochastic_depth_rate = stochastic_depth_rate
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        assert not torch.isnan(x).any(), "Input contains NaNs"
         # x = [B, T, H, W, C]
+        assert not torch.isnan(x).any(), "Input contains NaNs"
+
+        if self.use_derivatives:
+            dt, dh, dw = self.derivatives(x)
+            x = torch.cat([x, dt, dh, dw], dim=-1)
+
         x = self.revin(x, mode="norm")
         # Split into patches
         x = self.tokenizer(x)
