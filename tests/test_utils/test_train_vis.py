@@ -50,8 +50,10 @@ def test_visualize_predictions_creates_files(tmp_path: Path, sample_data: tuple)
     # Call the function
     visualize_predictions(save_path, inputs, predictions, targets, svg=True)
 
-    # Check that files were created
-    assert save_path.exists()
+    # find all files in the save_path.parent
+    files = list(save_path.parent.glob("*.png"))
+    files += list(save_path.parent.glob("*.svg"))
+    assert len(files) == 2
 
 
 def test_visualize_predictions_with_less_than_4_time_steps(
@@ -74,8 +76,10 @@ def test_visualize_predictions_with_less_than_4_time_steps(
     # Call the function
     visualize_predictions(save_path, inputs, predictions, targets, svg=True)
 
-    # Check that files were created
-    assert save_path.exists()
+    # find all files in the save_path.parent
+    files = list(save_path.parent.glob("*.png"))
+    files += list(save_path.parent.glob("*.svg"))
+    assert len(files) == 2
 
 
 def test_visualize_predictions_handles_single_timestep(
@@ -99,5 +103,34 @@ def test_visualize_predictions_handles_single_timestep(
     # Call the function
     visualize_predictions(save_path, inputs, predictions, targets, svg=True)
 
-    # Check that files were created
-    assert save_path.exists()
+    # find all files in the save_path.parent
+    files = list(save_path.parent.glob("*.png"))
+    files += list(save_path.parent.glob("*.svg"))
+    assert len(files) == 2
+
+
+def test_visualize_predictions_handles_multiple_samples(
+    tmp_path: Path, sample_data: tuple
+):
+    """Test that visualize_predictions handles multiple samples correctly.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Temporary directory provided by pytest
+    sample_data : tuple
+        Sample input data provided by fixture
+    """
+    # swap the first two dimensions
+    inputs, predictions, targets = sample_data
+    save_path = tmp_path / "visualizations" / "test.png"
+
+    # Call the function
+    visualize_predictions(
+        save_path, inputs, predictions, targets, num_samples=2, svg=True
+    )
+
+    # find all files in the save_path.parent
+    files = list(save_path.parent.glob("*.png"))
+    files += list(save_path.parent.glob("*.svg"))
+    assert len(files) == 4
