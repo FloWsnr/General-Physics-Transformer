@@ -1,14 +1,13 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: med-all-datasets
+  id: med-long-run
   tags:
     - TestRun
     - LPFM-M
-    - All-Datasets
   log_model: gradients # log :all", "parameters" or "gradients"
   log_interval: 100
-  notes: "Medium model - all datasets, first try"
+  notes: "Medium model - one dataset, long run"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -32,7 +31,7 @@ model:
     num_heads: 12 # number of attention heads
     dropout: 0.0 # dropout rate
     pos_enc_mode: absolute # positional encoding mode (usually rope or absolute)
-    patch_size: [4, 16, 16] # patch size (usually 4x16x16)
+    patch_size: [2, 16, 16] # patch size (usually 4x16x16)
     num_layers: 12 # number of attention layers
     stochastic_depth_rate: 0.0 # stochastic depth rate
   tokenizer:
@@ -45,9 +44,9 @@ model:
 
 training:
   seed: 42
-  batch_size: 392
+  batch_size: 128
   epochs: 100
-  num_workers: 12
+  num_workers: 8
   grad_clip: 1.0 # gradient clipping
   optimizer:
     # name: Adam
@@ -83,22 +82,22 @@ training:
 data:
   max_samples_per_ds: null # limit the number of samples per epoch, set to null for no limit
   dt_stride: 1 # take every dt_stride-th timestep, if list, randomize between the values
-  n_steps_input: 16 # number of input timesteps
+  n_steps_input: 4 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
   out_shape: [128, 64] # output shape (usually)
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
-    - cylinder_sym_flow_water
-    - cylinder_pipe_flow_water
-    - object_periodic_flow_water
+    # - cylinder_sym_flow_water
+    # - cylinder_pipe_flow_water
+    # - object_periodic_flow_water
     - object_sym_flow_water
-    - object_sym_flow_air
+    # - object_sym_flow_air
 
-    - heated_object_pipe_flow_air
-    - cooled_object_pipe_flow_air
+    # - heated_object_pipe_flow_air
+    # - cooled_object_pipe_flow_air
 
-    - turbulent_radiative_layer_2D
-    - rayleigh_benard
-    - shear_flow
+    # - turbulent_radiative_layer_2D
+    # - rayleigh_benard
+    # - shear_flow
     # - euler
