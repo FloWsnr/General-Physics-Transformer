@@ -47,7 +47,7 @@ model:
 
 training:
   seed: 42
-  batch_size: 256
+  batch_size: 128
   epochs: 100
   num_workers: 12
   grad_clip: 1.0 # gradient clipping

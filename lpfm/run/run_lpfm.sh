@@ -45,7 +45,7 @@ python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/tr
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
-sim_name="all-datasets-0001"
+sim_name="all-datasets-0002"
 # sim directory
 sim_dir="${log_dir}/${sim_name}"
 # create the sim_dir if it doesn't exist

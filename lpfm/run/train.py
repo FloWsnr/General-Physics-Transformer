@@ -290,12 +290,17 @@ class Trainer:
         # Visualize predictions ####################################
         ############################################################
         vis_path = self.epoch_dir / "train.png"
-        visualize_predictions(vis_path, x, output, target, num_samples=4, svg=True)
-        log_predictions_wandb(
-            run=self.wandb_run,
-            image_path=vis_path.parent,
-            name_prefix=f"epoch_{self.epoch}",
-        )
+        try:
+            visualize_predictions(vis_path, x, output, target, num_samples=4, svg=True)
+            log_predictions_wandb(
+                run=self.wandb_run,
+                image_path=vis_path.parent,
+                name_prefix=f"epoch_{self.epoch}",
+            )
+        except Exception as e:
+            self.logger.error(f"Error visualizing predictions: {e}")
+            self.logger.error(f"Error type: {type(e)}")
+            self.logger.error(f"Error args: {e.args}")
 
         return acc_train_loss / total_batches
 
@@ -325,12 +330,17 @@ class Trainer:
 
         # Visualize predictions
         vis_path = self.epoch_dir / "val.png"
-        visualize_predictions(vis_path, x, output, target, num_samples=4, svg=True)
-        log_predictions_wandb(
-            run=self.wandb_run,
-            image_path=vis_path.parent,
-            name_prefix=f"epoch_{self.epoch}",
-        )
+        try:
+            visualize_predictions(vis_path, x, output, target, num_samples=4, svg=True)
+            log_predictions_wandb(
+                run=self.wandb_run,
+                image_path=vis_path.parent,
+                name_prefix=f"epoch_{self.epoch}",
+            )
+        except Exception as e:
+            self.logger.error(f"Error visualizing predictions: {e}")
+            self.logger.error(f"Error type: {type(e)}")
+            self.logger.error(f"Error args: {e.args}")
 
         return val_loss / total_batches
 
