@@ -40,7 +40,7 @@ class FiniteDifference(nn.Module):
         else:
             raise ValueError(f"Invalid filter type: {filter_1d}")
         filter_size = len(filter_1d)
-        filter_1d = torch.tensor(filter_1d, dtype=torch.float32)
+        filter_1d = torch.tensor(filter_1d, dtype=torch.float32, requires_grad=False)
 
         # Filters should be of shape [C_in, 1, kT, kH, kW]
         # Initialize dt_conv weights
@@ -63,6 +63,7 @@ class FiniteDifference(nn.Module):
         self.pad_h = (self.dh_filter.shape[3] - 1) // 2
         self.pad_w = (self.dw_filter.shape[4] - 1) // 2
 
+    @torch.no_grad()
     def forward(self, x):
         """
         Forward pass to compute spatial derivatives.
