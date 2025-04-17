@@ -22,8 +22,8 @@
 #SBATCH --mail-user=zsa8rk@virginia.edu
 
 ### Maximum runtime per task
-## SBATCH --time=1-00:00:00
-#SBATCH --time=24:00:00
+##SBATCH --time=1-00:00:00
+#SBATCH --time=00:15:00
 
 ### set number of GPUs per task
 #SBATCH --gres=gpu:1
@@ -34,18 +34,32 @@
 ### Set the time limit for the job, allows for graceful shutdown
 ### Should be lower than the time limit of the partition
 ### Format: HH:MM:SS
-time_limit="24:00:00"
+time_limit="00:15:00"
 
 #####################################################################################
 ############################# Setup #################################################
 #####################################################################################
+
+# Load modules
+module purge
+module load CUDA/12.6.0
+
+# activate conda environment
+export CONDA_ROOT=$HOME/miniforge3
+source $CONDA_ROOT/etc/profile.d/conda.sh
+export PATH="$CONDA_ROOT/bin:$PATH"
+conda activate lpfm
+
+######################################################################################
+############################# Set paths ##############################################
+######################################################################################
 
 # Set up paths
 python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/train.py"
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
-sim_name="all-datasets-0002"
+sim_name="test-run_distributed-01"
 # sim directory
 sim_dir="${log_dir}/${sim_name}"
 # create the sim_dir if it doesn't exist
@@ -65,17 +79,6 @@ else
     restart=false
 fi
 
-# Load modules
-module purge
-module load CUDA/12.6.0
-
-# activate conda environment
-export CONDA_ROOT=$HOME/miniforge3
-source $CONDA_ROOT/etc/profile.d/conda.sh
-export PATH="$CONDA_ROOT/bin:$PATH"
-conda activate lpfm
-
-
 #####################################################################################
 ############################# Training GPM ##########################################
 #####################################################################################
@@ -88,7 +91,7 @@ echo "--------------------------------"
 
 exec_args="--config_file $config_file \
     --sim_name $sim_name \
-    --sim_dir $sim_dir \
+    --log_dir $log_dir \
     --data_dir $data_dir \
     --time_limit $time_limit"
 
