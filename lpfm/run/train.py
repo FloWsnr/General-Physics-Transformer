@@ -98,6 +98,14 @@ class Trainer:
             self.wandb_run = None
 
         ################################################################
+        ############# Log ddp info ####################################
+        ################################################################
+        self.logger.info(f"DDP enabled: {self.ddp_enabled}")
+        self.logger.info(f"World size: {self.world_size}")
+        self.logger.info(f"Local rank: {self.local_rank}")
+        self.logger.info(f"Global rank: {self.global_rank}")
+
+        ################################################################
         ########### Set random seeds ##################################
         ################################################################
         torch.manual_seed(self.config["training"]["seed"])
@@ -234,7 +242,7 @@ class Trainer:
         if self.scheduler is not None:
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
-        self.epoch = checkpoint["epoch"]
+        self.epoch = checkpoint["epoch"] + 1
         self.samples_trained = checkpoint["samples_trained"]
         self.logger.info(
             f"Restarting training from epoch {self.epoch} with {self.samples_trained} samples trained"
@@ -339,7 +347,6 @@ class Trainer:
                     self.logger.info("Time limit reached, stopping training")
                     return acc_train_loss / total_batches
 
-            break
         ############################################################
         # Visualize predictions ####################################
         ############################################################
@@ -386,7 +393,7 @@ class Trainer:
                     f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
                     f"Loss: {loss.item():.8f}, Acc. Loss: {val_loss / num_batches:.8f}"
                 )
-                break
+
         ############################################################
         # Visualize predictions ####################################
         ############################################################
@@ -543,6 +550,10 @@ def get_lr_scheduler(
     optim.lr_scheduler.SequentialLR
         Learning rate scheduler
     """
+    # If total_epochs is 1, don't use a scheduler (debugging)
+    if total_epochs == 1:
+        return None
+
     scheduler_names = list(lrs_config["schedulers"].keys())
     if len(scheduler_names) == 1:
         lrs_lin = lrs_config["schedulers"]["LinearLR"]
@@ -672,15 +683,15 @@ def login_wandb(config: dict) -> wandb.wandb_run.Run:
     return run
 
 
-def setup_ddp(rank: int, world_size: int):
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "12355"
-    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+# def setup_ddp(rank: int, world_size: int):
+#     os.environ["MASTER_ADDR"] = "localhost"
+#     os.environ["MASTER_PORT"] = "12355"
+#     dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
 
 def main(
     config_path: Path,
-    sim_dir: Path | None,
+    log_dir: Path | None,
     restart: bool,
     sim_name: str | None,
     data_dir: Path | None,
@@ -691,6 +702,9 @@ def main(
 ):
     """Main training function."""
     load_dotenv()
+    # Set cuda device
+    torch.cuda.set_device(local_rank)
+
     # Load config
     config_path = Path(config_path)
     with open(config_path, "r") as f:
@@ -700,11 +714,9 @@ def main(
     ########### Augment config #########################################
     ####################################################################
 
-    if sim_dir is not None:
-        sim_dir = Path(sim_dir)
-        config["logging"]["log_dir"] = (
-            sim_dir.parent
-        )  # the actual dir is set in the trainer
+    if log_dir is not None:
+        log_dir = Path(log_dir)
+        config["logging"]["log_dir"] = log_dir  # the actual dir is set in the trainer
 
     if data_dir is not None:
         data_dir = Path(data_dir)
@@ -718,7 +730,7 @@ def main(
 
     if sim_name is not None:
         config["wandb"]["id"] = sim_name
-        config["logging"]["log_file"] = sim_dir / f"{sim_name}.log"
+        # config["logging"]["log_file"] = log_dir / sim_name / f"{sim_name}.log"
 
     if restart:
         checkpoint_dir = config["logging"]["log_dir"] / config["wandb"]["id"]
@@ -733,8 +745,8 @@ def main(
     ####################################################################
     ########### Initialize trainer #####################################
     ####################################################################
-    if world_size > 1:
-        setup_ddp(global_rank, world_size)
+    # if world_size > 1:
+    #     setup_ddp(global_rank, world_size)
 
     trainer = Trainer(config, global_rank, local_rank, world_size)
     if restart and checkpoint_path is not None:
@@ -748,35 +760,42 @@ if __name__ == "__main__":
     ########### Default arguments ##############################
     ############################################################
 
-    config_path = Path("lpfm/run/config.yaml")
-    sim_dir = None
-    sim_name = None
-    data_dir = None
-    time_limit = None
-    restart = False
+    default_config_path = Path("lpfm/run/config.yaml")
+    default_log_dir = Path("logs")
+    default_sim_name = None
+    default_data_dir = Path("data/datasets")
+    default_time_limit = None
+    default_restart = False
 
     ############################################################
     ########### Parse arguments ################################
     ############################################################
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_file", type=str, default=config_path)
-    parser.add_argument("--sim_dir", type=str, default=sim_dir)
+    parser.add_argument("--config_file", type=str, default=default_config_path)
+    parser.add_argument("--log_dir", type=str, default=default_log_dir)
     parser.add_argument(
-        "--restart", action=argparse.BooleanOptionalAction, default=restart
+        "--restart", action=argparse.BooleanOptionalAction, default=default_restart
     )
-    parser.add_argument("--sim_name", type=str, default=sim_name)
-    parser.add_argument("--data_dir", type=str, default=data_dir)
-    parser.add_argument("--time_limit", type=str, default=time_limit)
+    parser.add_argument("--sim_name", type=str, default=default_sim_name)
+    parser.add_argument("--data_dir", type=str, default=default_data_dir)
+    parser.add_argument("--time_limit", type=str, default=default_time_limit)
     args = parser.parse_args()
 
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     global_rank = int(os.environ.get("RANK", 0))
 
+    config_path = args.config_file
+    log_dir = args.log_dir
+    sim_name = args.sim_name
+    data_dir = args.data_dir
+    time_limit = args.time_limit
+    restart = args.restart
+
     main(
         config_path=config_path,
-        sim_dir=sim_dir,
+        log_dir=log_dir,
         sim_name=sim_name,
         data_dir=data_dir,
         restart=restart,
