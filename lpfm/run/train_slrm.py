@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import argparse
 import yaml
@@ -9,46 +10,15 @@ except ImportError:
 
 from dotenv import load_dotenv
 
+import torch.distributed as dist
 from lpfm.run.train import Trainer
+from lpfm.run.run_utils import find_last_checkpoint
 
 
-def find_last_checkpoint(sim_dir: Path) -> Path:
-    """Find the last epoch directory in the simulation directory.
-
-    Parameters
-    ----------
-    sim_dir : Path
-        Path to the simulation directory
-
-    Returns
-    -------
-    Path or None
-        Path to the last epoch directory if found, None otherwise
-    """
-    if not sim_dir.exists():
-        raise FileNotFoundError(f"Simulation directory {sim_dir} does not exist")
-
-    # Find all directories that match the pattern "epoch_XXXX"
-    epoch_dirs = [
-        d for d in sim_dir.iterdir() if d.is_dir() and d.name.startswith("epoch_")
-    ]
-
-    if len(epoch_dirs) == 0:
-        return None
-
-    # Sort the directories by their epoch number
-    # The format is "epoch_XXXX" where XXXX is a number
-    sorted_epoch_dirs = sorted(epoch_dirs, key=lambda x: int(x.name.split("_")[1]))
-    last_epoch_dir = sorted_epoch_dirs[-1]
-
-    # the checkpoint could be in the last epoch directory or the previous one
-    checkpoint_path = last_epoch_dir / "checkpoint.pth"
-    if not checkpoint_path.exists():
-        checkpoint_path = sorted_epoch_dirs[-2] / "checkpoint.pth"
-        if not checkpoint_path.exists():
-            return None
-
-    return checkpoint_path
+def setup_ddp(rank: int, world_size: int):
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "12355"
+    dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
 
 
 def main(
@@ -58,9 +28,15 @@ def main(
     sim_name: str,
     data_dir: Path,
     time_limit: int,
+    global_rank: int,
+    local_rank: int,
+    world_size: int,
 ):
     """Main training function."""
     load_dotenv()
+
+    if world_size > 1:
+        setup_ddp(global_rank, world_size)
 
     if restart:
         checkpoint_path = find_last_checkpoint(sim_dir)
@@ -89,7 +65,7 @@ def main(
     ####################################################################
     ########### Initialize trainer #####################################
     ####################################################################
-    trainer = Trainer(config)
+    trainer = Trainer(config, global_rank, local_rank, world_size)
     if restart and checkpoint_path is not None:
         trainer.load_checkpoint(checkpoint_path=checkpoint_path)
     trainer.save_config()
@@ -118,11 +94,18 @@ if __name__ == "__main__":
         x * int(t) for x, t in zip([3600, 60, 1], time_limit.split(":"))
     )
 
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    global_rank = int(os.environ.get("RANK", 0))
+
     main(
         config_path=config_path,
         sim_dir=sim_dir,
-        restart=restart,
         sim_name=sim_name,
         data_dir=data_dir,
+        restart=restart,
         time_limit=time_limit_seconds,
+        global_rank=global_rank,
+        local_rank=local_rank,
+        world_size=world_size,
     )
