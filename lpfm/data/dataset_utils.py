@@ -144,9 +144,9 @@ def get_datasets(data_config: dict, split: str = "train") -> list[PhysicsDataset
         )
         datasets.append(turbulent_radiative_dataset)
 
-    if "euler" in data_config["datasets"]:
+    if "euler_multi_quadrants_periodicBC" in data_config["datasets"]:
         euler_dataset = EulerDataset(
-            data_dir=data_dir / f"euler/data/{split_name}",
+            data_dir=data_dir / f"euler_multi_quadrants_periodicBC/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
