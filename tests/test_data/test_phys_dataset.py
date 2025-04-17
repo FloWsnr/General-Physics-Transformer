@@ -52,8 +52,8 @@ def test_physics_dataset_variable_dT_stride(dummy_datapath: Path):
         dt_stride=[1, 4],
     )
     x, y = dataset[0]
-    assert x.shape == (2, 32, 32, 3)
-    assert y.shape == (2, 32, 32, 3)
+    assert x.shape == (2, 32, 32, 6)
+    assert y.shape == (2, 32, 32, 6)
 
 
 class TestSuperDataset:
