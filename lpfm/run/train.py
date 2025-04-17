@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 from dadaptation import DAdaptAdam
 
 from lpfm.data.dataset_utils import get_dataloader
@@ -26,7 +28,22 @@ from lpfm.model.transformer.nmse_loss import NMSELoss
 
 
 class Trainer:
-    def __init__(self, config: Path | dict):
+    def __init__(
+        self,
+        config: Path | dict,
+        global_rank: int = 0,
+        local_rank: int = 0,
+        world_size: int = 1,
+    ):
+        self.global_rank = global_rank
+        self.local_rank = local_rank
+        self.world_size = world_size
+        self.device = (
+            torch.device(f"cuda:{self.local_rank}")
+            if torch.cuda.is_available()
+            else torch.device("cpu")
+        )
+
         if isinstance(config, dict):
             self.config = config
         else:
@@ -64,7 +81,10 @@ class Trainer:
         )
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-        self.wandb_run = login_wandb(self.config)
+        if self.global_rank == 0:
+            self.wandb_run = login_wandb(self.config)
+        else:
+            self.wandb_run = None
 
         ################################################################
         ########### Set random seeds ##################################
@@ -76,7 +96,6 @@ class Trainer:
         ################################################################
         ########### Initialize model ##################################
         ################################################################
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.logger.info(f"Using device: {self.device}")
 
         self.model = get_model(model_config=self.config["model"])
@@ -85,21 +104,37 @@ class Trainer:
         self.logger.info(f"Model size: {total_params / 1e6:.2f}M parameters")
         self.logger.info(f"Model architecture: {self.model}")
 
-        self.wandb_run.config.update(
-            {"model/model_size [M]": total_params / 1e6}, allow_val_change=True
-        )
+        if self.global_rank == 0:
+            self.wandb_run.config.update(
+                {"model/model_size [M]": total_params / 1e6}, allow_val_change=True
+            )
 
         # print the model architecture
         self.model.to(self.device)
+        if self.config["training"]["compile"]:
+            self.model = torch.compile(self.model)
+        if dist.is_initialized():
+            self.model = DDP(
+                self.model,
+                device_ids=[self.local_rank],
+                output_device=self.device,
+            )
 
         ################################################################
         ########### Initialize data loaders ##########################
         ################################################################
+        is_distributed = dist.is_initialized()
         self.train_loader = get_dataloader(
-            self.config["data"], self.config["training"], split="train"
+            self.config["data"],
+            self.config["training"],
+            split="train",
+            is_distributed=is_distributed,
         )
         self.val_loader = get_dataloader(
-            self.config["data"], self.config["training"], split="val"
+            self.config["data"],
+            self.config["training"],
+            split="val",
+            is_distributed=is_distributed,
         )
         ################################################################
         ########### Initialize training parameters ##################
@@ -170,13 +205,14 @@ class Trainer:
         ################################################################
         ########### Watch model ########################################
         ################################################################
-        log_interval = self.config["wandb"]["log_interval"]
-        self.wandb_run.watch(
-            self.model,
-            criterion=self.criterion,
-            log=self.config["wandb"]["log_model"],
-            log_freq=log_interval,
-        )
+        if self.global_rank == 0:
+            log_interval = self.config["wandb"]["log_interval"]
+            self.wandb_run.watch(
+                self.model,
+                criterion=self.criterion,
+                log=self.config["wandb"]["log_model"],
+                log_freq=log_interval,
+            )
 
     def load_checkpoint(self, checkpoint_path: Path):
         """Restart training from a checkpoint."""
@@ -195,8 +231,9 @@ class Trainer:
 
     def save_config(self):
         """Save the config to the log directory."""
-        with open(self.log_dir / "config.yaml", "w") as f:
-            yaml.dump(self.config, f)
+        if self.global_rank == 0:
+            with open(self.log_dir / "config.yaml", "w") as f:
+                yaml.dump(self.config, f)
 
     def train_epoch(self) -> float:
         """Train the model for one epoch.
@@ -210,6 +247,10 @@ class Trainer:
         """
         self.start_epoch_time = time.time()
         self.model.train()
+
+        if dist.is_initialized():
+            self.train_loader.sampler.set_epoch(self.epoch)
+
         acc_train_loss = 0
 
         total_batches = self.train_batches_per_epoch
@@ -262,21 +303,22 @@ class Trainer:
             ############################################################
             # Log to wandb #############################################
             ############################################################
-            log_interval = self.config["wandb"]["log_interval"]
-            if batch_idx % log_interval == 0:
-                total_b_idx = (
-                    batch_idx + (self.epoch - 1) * self.train_batches_per_epoch
-                )
+            if self.global_rank == 0:
+                log_interval = self.config["wandb"]["log_interval"]
+                if batch_idx % log_interval == 0:
+                    total_b_idx = (
+                        batch_idx + (self.epoch - 1) * self.train_batches_per_epoch
+                    )
 
-                self.wandb_run.log(
-                    {
-                        "training/num_batches": total_b_idx,
-                        "training/num_samples": self.samples_trained,
-                        "training/acc_batch_loss": acc_train_loss / (batch_idx + 1),
-                        "training/batch_loss_per_log": loss.item() / log_interval,
-                        "training/learning_rate": lr,
-                    }
-                )
+                    self.wandb_run.log(
+                        {
+                            "training/num_batches": total_b_idx,
+                            "training/num_samples": self.samples_trained,
+                            "training/acc_batch_loss": acc_train_loss / (batch_idx + 1),
+                            "training/batch_loss_per_log": loss.item() / log_interval,
+                            "training/learning_rate": lr,
+                        }
+                    )
 
             ############################################################
             # Check time limit #########################################
@@ -286,21 +328,25 @@ class Trainer:
                     self.logger.info("Time limit reached, stopping training")
                     return acc_train_loss / total_batches
 
+            break
         ############################################################
         # Visualize predictions ####################################
         ############################################################
-        vis_path = self.epoch_dir / "train.png"
-        try:
-            visualize_predictions(vis_path, x, output, target, num_samples=4, svg=True)
-            log_predictions_wandb(
-                run=self.wandb_run,
-                image_path=vis_path.parent,
-                name_prefix=f"epoch_{self.epoch}",
-            )
-        except Exception as e:
-            self.logger.error(f"Error visualizing predictions: {e}")
-            self.logger.error(f"Error type: {type(e)}")
-            self.logger.error(f"Error args: {e.args}")
+        if self.global_rank == 0:
+            vis_path = self.epoch_dir / "train.png"
+            try:
+                visualize_predictions(
+                    vis_path, x, output, target, num_samples=4, svg=True
+                )
+                log_predictions_wandb(
+                    run=self.wandb_run,
+                    image_path=vis_path.parent,
+                    name_prefix=f"epoch_{self.epoch}",
+                )
+            except Exception as e:
+                self.logger.error(f"Error visualizing predictions: {e}")
+                self.logger.error(f"Error type: {type(e)}")
+                self.logger.error(f"Error args: {e.args}")
 
         return acc_train_loss / total_batches
 
@@ -309,9 +355,11 @@ class Trainer:
         self.model.eval()
         val_loss = 0
 
+        if dist.is_initialized():
+            self.val_loader.sampler.set_epoch(self.epoch)
         total_batches = self.val_batches_per_epoch
         num_batches = 0
-        with torch.no_grad():
+        with torch.inference_mode():
             for batch_idx, batch in enumerate(self.val_loader):
                 x, target = batch
                 x = x.to(self.device)
@@ -327,20 +375,26 @@ class Trainer:
                     f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
                     f"Loss: {loss.item():.8f}, Acc. Loss: {val_loss / num_batches:.8f}"
                 )
-
-        # Visualize predictions
-        vis_path = self.epoch_dir / "val.png"
-        try:
-            visualize_predictions(vis_path, x, output, target, num_samples=4, svg=True)
-            log_predictions_wandb(
-                run=self.wandb_run,
-                image_path=vis_path.parent,
-                name_prefix=f"epoch_{self.epoch}",
-            )
-        except Exception as e:
-            self.logger.error(f"Error visualizing predictions: {e}")
-            self.logger.error(f"Error type: {type(e)}")
-            self.logger.error(f"Error args: {e.args}")
+                break
+        ############################################################
+        # Visualize predictions ####################################
+        ############################################################
+        if self.global_rank == 0:
+            # Visualize predictions
+            vis_path = self.epoch_dir / "val.png"
+            try:
+                visualize_predictions(
+                    vis_path, x, output, target, num_samples=4, svg=True
+                )
+                log_predictions_wandb(
+                    run=self.wandb_run,
+                    image_path=vis_path.parent,
+                    name_prefix=f"epoch_{self.epoch}",
+                )
+            except Exception as e:
+                self.logger.error(f"Error visualizing predictions: {e}")
+                self.logger.error(f"Error type: {type(e)}")
+                self.logger.error(f"Error args: {e.args}")
 
         return val_loss / total_batches
 
@@ -390,43 +444,47 @@ class Trainer:
             ######################################################################
             ########### Wandb logging ###########################################
             ######################################################################
-            self.wandb_run.log(
-                {
-                    "epoch": epoch,
-                    "training/epoch_loss": train_loss,
-                    "validation/epoch_loss": val_loss,
-                    "training/minutes_per_epoch": duration / 60,
-                    "training/avg_minutes_per_epoch": self.avg_sec_per_epoch / 60,
-                    "training/projected_minutes_remaining": proj_time_remaining / 60,
-                }
-            )
+            if self.global_rank == 0:
+                self.wandb_run.log(
+                    {
+                        "epoch": epoch,
+                        "training/epoch_loss": train_loss,
+                        "validation/epoch_loss": val_loss,
+                        "training/minutes_per_epoch": duration / 60,
+                        "training/avg_minutes_per_epoch": self.avg_sec_per_epoch / 60,
+                        "training/projected_minutes_remaining": proj_time_remaining
+                        / 60,
+                    }
+                )
 
             ######################################################################
             ########### Save best model #########################################
             ######################################################################
-            if val_loss < best_loss:
-                best_loss = val_loss
-                torch.save(self.model.state_dict(), self.log_dir / "best_model.pth")
-                self.logger.info(f"Model saved with loss: {best_loss:.8f}")
+            if self.global_rank == 0:
+                if val_loss < best_loss:
+                    best_loss = val_loss
+                    torch.save(self.model.state_dict(), self.log_dir / "best_model.pth")
+                    self.logger.info(f"Model saved with loss: {best_loss:.8f}")
 
             ######################################################################
             ########### Save checkpoint ########################################
             ######################################################################
-            checkpoint = {
-                "epoch": epoch,
-                "samples_trained": self.samples_trained,
-                "model_state_dict": self.model.state_dict(),
-                "optimizer_state_dict": self.optimizer.state_dict(),
-                "train_loss": train_loss,
-                "val_loss": val_loss,
-                "config": self.config,
-            }
-            if self.scheduler is not None:
-                checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
-            torch.save(
-                checkpoint,
-                self.epoch_dir / "checkpoint.pth",
-            )
+            if self.global_rank == 0:
+                checkpoint = {
+                    "epoch": epoch,
+                    "samples_trained": self.samples_trained,
+                    "model_state_dict": self.model.state_dict(),
+                    "optimizer_state_dict": self.optimizer.state_dict(),
+                    "train_loss": train_loss,
+                    "val_loss": val_loss,
+                    "config": self.config,
+                }
+                if self.scheduler is not None:
+                    checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
+                torch.save(
+                    checkpoint,
+                    self.epoch_dir / "checkpoint.pth",
+                )
 
             ############################################################
             # Shut down if time limit is set and next epoch would exceed it
@@ -440,7 +498,13 @@ class Trainer:
                     )
                     break
 
-        self.wandb_run.finish()
+        self.cleanup()
+
+    def cleanup(self):
+        if self.global_rank == 0:
+            self.wandb_run.finish()
+        if dist.is_initialized():
+            dist.destroy_process_group()
 
 
 def get_lr_scheduler(

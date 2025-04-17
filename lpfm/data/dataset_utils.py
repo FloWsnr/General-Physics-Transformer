@@ -2,6 +2,8 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import default_collate, DataLoader
+from torch.utils.data.distributed import DistributedSampler
+
 from the_well.data.augmentation import (
     Compose,
     RandomAxisFlip,
@@ -57,7 +59,9 @@ def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
     return x, y
 
 
-def get_dataloader(data_config: dict, train_config: dict, split: str) -> DataLoader:
+def get_dataloader(
+    data_config: dict, train_config: dict, split: str, is_distributed: bool = False
+) -> DataLoader:
     """Get a dataloader for the dataset.
 
     Parameters
@@ -68,6 +72,8 @@ def get_dataloader(data_config: dict, train_config: dict, split: str) -> DataLoa
         Configuration for the training.
     split : str
         Split to load ("train", "val", "test")
+    is_distributed : bool
+        Whether to use distributed sampling
     """
     datasets = get_datasets(data_config, split)
     train_super_dataset = SuperDataset(
@@ -76,13 +82,18 @@ def get_dataloader(data_config: dict, train_config: dict, split: str) -> DataLoa
         max_samples_per_ds=data_config["max_samples_per_ds"],
     )
 
+    if is_distributed:
+        sampler = DistributedSampler(train_super_dataset)
+    else:
+        sampler = None
     dataloader = DataLoader(
         dataset=train_super_dataset,
         batch_size=train_config["batch_size"],
-        shuffle=True,
+        shuffle=False if is_distributed else True,
         collate_fn=collate_fn,
         num_workers=train_config["num_workers"],
         pin_memory=True,
+        sampler=sampler,
     )
 
     return dataloader
