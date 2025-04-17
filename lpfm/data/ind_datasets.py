@@ -214,24 +214,40 @@ class EulerDataset(PhysicsDataset):
     def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
         x, y = super().__getitem__(index)  # (time, h, w, c)
 
-        mom_x = x[:, :, :, 2]
-        mom_y = x[:, :, :, 3]
-        density = x[:, :, :, 1]
+        ###########################################################
+        ############### handle x ##################################
+        ###########################################################
+        x_mom_x = x[:, :, :, 2]
+        x_mom_y = x[:, :, :, 3]
+        x_density = x[:, :, :, 1]
 
         # Convert momentum to velocity
-        vel_x = mom_x / density
-        vel_y = mom_y / density
+        x_vel_x = x_mom_x / x_density
+        x_vel_y = x_mom_y / x_density
 
         # Replace momentum with velocity
-        x[:, :, :, 2], x[:, :, :, 3] = vel_x, vel_y
-        y[:, :, :, 2], y[:, :, :, 3] = vel_x, vel_y
-
+        x[:, :, :, 2], x[:, :, :, 3] = x_vel_x, x_vel_y
         # no temperature is available, so we add it
         zero_tensor_x = torch.zeros_like(x[:, :, :, 0])
-        zero_tensor_y = torch.zeros_like(y[:, :, :, 0])
         zero_tensor_x = zero_tensor_x.unsqueeze(-1)
+        x = torch.cat([x[:, :, :, :2], zero_tensor_x, x[:, :, :, 2:]], dim=-1)
+
+        ###########################################################
+        ############### handle y ##################################
+        ###########################################################
+        y_mom_x = y[:, :, :, 2]
+        y_mom_y = y[:, :, :, 3]
+        y_density = y[:, :, :, 1]
+
+        # Convert momentum to velocity
+        y_vel_x = y_mom_x / y_density
+        y_vel_y = y_mom_y / y_density
+
+        # Replace momentum with velocity
+        y[:, :, :, 2], y[:, :, :, 3] = y_vel_x, y_vel_y
+
+        zero_tensor_y = torch.zeros_like(y[:, :, :, 0])
         zero_tensor_y = zero_tensor_y.unsqueeze(-1)
 
-        x = torch.cat([x[:, :, :, :2], zero_tensor_x, x[:, :, :, 2:]], dim=-1)
         y = torch.cat([y[:, :, :, :2], zero_tensor_y, y[:, :, :, 2:]], dim=-1)
         return x, y
