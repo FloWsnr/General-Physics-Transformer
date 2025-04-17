@@ -43,6 +43,7 @@ class Trainer:
             if torch.cuda.is_available()
             else torch.device("cpu")
         )
+        self.ddp_enabled = dist.is_initialized()
 
         if isinstance(config, dict):
             self.config = config
@@ -113,7 +114,7 @@ class Trainer:
         self.model.to(self.device)
         if self.config["training"]["compile"]:
             self.model = torch.compile(self.model)
-        if dist.is_initialized():
+        if self.ddp_enabled:
             self.model = DDP(
                 self.model,
                 device_ids=[self.local_rank],
@@ -123,18 +124,17 @@ class Trainer:
         ################################################################
         ########### Initialize data loaders ##########################
         ################################################################
-        is_distributed = dist.is_initialized()
         self.train_loader = get_dataloader(
             self.config["data"],
             self.config["training"],
             split="train",
-            is_distributed=is_distributed,
+            is_distributed=self.ddp_enabled,
         )
         self.val_loader = get_dataloader(
             self.config["data"],
             self.config["training"],
             split="val",
-            is_distributed=is_distributed,
+            is_distributed=self.ddp_enabled,
         )
         ################################################################
         ########### Initialize training parameters ##################
@@ -163,14 +163,15 @@ class Trainer:
         )
         self.logger.info(f"Training for {self.total_samples} total samples")
 
-        self.wandb_run.config.update(
-            {
-                "training/total_samples": self.total_samples,
-                "training/train_samples_per_epoch": self.train_samples_per_epoch,
-                "training/train_batches_per_epoch": self.train_batches_per_epoch,
-            },
-            allow_val_change=True,
-        )
+        if self.global_rank == 0:
+            self.wandb_run.config.update(
+                {
+                    "training/total_samples": self.total_samples,
+                    "training/train_samples_per_epoch": self.train_samples_per_epoch,
+                    "training/train_batches_per_epoch": self.train_batches_per_epoch,
+                },
+                allow_val_change=True,
+            )
 
         ################################################################
         ########### Initialize loss function and optimizer ###########
@@ -248,7 +249,7 @@ class Trainer:
         self.start_epoch_time = time.time()
         self.model.train()
 
-        if dist.is_initialized():
+        if self.ddp_enabled:
             self.train_loader.sampler.set_epoch(self.epoch)
 
         acc_train_loss = 0
@@ -355,7 +356,7 @@ class Trainer:
         self.model.eval()
         val_loss = 0
 
-        if dist.is_initialized():
+        if self.ddp_enabled:
             self.val_loader.sampler.set_epoch(self.epoch)
         total_batches = self.val_batches_per_epoch
         num_batches = 0
@@ -503,7 +504,7 @@ class Trainer:
     def cleanup(self):
         if self.global_rank == 0:
             self.wandb_run.finish()
-        if dist.is_initialized():
+        if self.ddp_enabled:
             dist.destroy_process_group()
 
 
