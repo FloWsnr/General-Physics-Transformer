@@ -1,14 +1,13 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: all-datasets-0002
+  id: test-run_distributed
   tags:
-    - LPFM-M
-    - FullRes
-    - AllDatasets
+    - LPFM-S
+    - TestRun
   log_model: gradients # log :all", "parameters" or "gradients" or null
   log_interval: 10
-  notes: "Medium model - all datasets"
+  notes: "Test DDP"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -47,9 +46,10 @@ model:
 
 training:
   seed: 42
-  batch_size: 128
-  epochs: 100
-  num_workers: 12
+  compile: false
+  batch_size: 32
+  epochs: 1
+  num_workers: 6
   grad_clip: 1.0 # gradient clipping
   optimizer:
     # name: Adam
@@ -91,15 +91,15 @@ data:
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
-    - cylinder_sym_flow_water
-    - cylinder_pipe_flow_water
-    - object_periodic_flow_water
+    # - cylinder_sym_flow_water
+    # - cylinder_pipe_flow_water
+    # - object_periodic_flow_water
     - object_sym_flow_water
-    - object_sym_flow_air
+    # - object_sym_flow_air
 
-    - heated_object_pipe_flow_air
-    - cooled_object_pipe_flow_air
+    # - heated_object_pipe_flow_air
+    # - cooled_object_pipe_flow_air
 
-    - rayleigh_benard
-    - shear_flow
-    - euler_multi_quadrants_periodicBC
+    # - rayleigh_benard
+    # - shear_flow
+    # - euler_multi_quadrants_periodicBC
