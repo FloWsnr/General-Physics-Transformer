@@ -50,6 +50,10 @@ def visualize_predictions(
     predictions = predictions.detach().cpu().numpy()
     targets = targets.detach().cpu().numpy()
 
+    # check if enough samples are available
+    if num_samples > inputs.shape[0]:
+        num_samples = inputs.shape[0]
+
     for sample_idx in range(num_samples):
         sample_inputs = inputs[sample_idx, ...]
         sample_predictions = predictions[sample_idx, ...]

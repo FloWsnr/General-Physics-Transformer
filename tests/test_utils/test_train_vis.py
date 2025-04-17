@@ -134,3 +134,30 @@ def test_visualize_predictions_handles_multiple_samples(
     files = list(save_path.parent.glob("*.png"))
     files += list(save_path.parent.glob("*.svg"))
     assert len(files) == 4
+
+
+def test_visualize_predictions_handles_more_samples_than_available(
+    tmp_path: Path, sample_data: tuple
+):
+    """Test that visualize_predictions handles more samples than available correctly.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Temporary directory provided by pytest
+    sample_data : tuple
+        Sample input data provided by fixture
+    """
+    # swap the first two dimensions
+    inputs, predictions, targets = sample_data
+    save_path = tmp_path / "visualizations" / "test.png"
+
+    # Call the function
+    visualize_predictions(
+        save_path, inputs, predictions, targets, num_samples=10, svg=True
+    )
+
+    # find all files in the save_path.parent
+    files = list(save_path.parent.glob("*.png"))
+    files += list(save_path.parent.glob("*.svg"))
+    assert len(files) == 4 * 2  # batch size 4
