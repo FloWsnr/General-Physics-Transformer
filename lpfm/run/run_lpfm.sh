@@ -12,13 +12,13 @@
 #SBATCH --nodes=1
 
 ### How many CPU cores to use
-#SBATCH --cpus-per-task=24
+##SBATCH --cpus-per-task=24
 
 ### How much memory per core
 #SBATCH --mem-per-cpu=5200
 
 ### Mail notification configuration
-#SBATCH --mail-type=ALL
+#SBATCH --mail-type=END
 #SBATCH --mail-user=zsa8rk@virginia.edu
 
 ### Maximum runtime per task
@@ -53,15 +53,24 @@ conda activate lpfm
 ######################################################################################
 ############################# Set paths ##############################################
 ######################################################################################
+# debug mode
+debug=true
+
 
 # Set up paths
 python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/train.py"
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
-sim_name="test-run_distributed-01"
+sim_name="test-run_distributed-02"
 # sim directory
 sim_dir="${log_dir}/${sim_name}"
+
+# delete the sim_dir if it exists and debug is true
+if [ "$debug" = true ]; then
+    rm -rf $sim_dir
+fi
+
 # create the sim_dir if it doesn't exist
 mkdir -p $sim_dir
 
@@ -101,7 +110,7 @@ if [ "$restart" = true ]; then
 fi
 
 # Capture Python output and errors in a variable and run the script
-python $python_exec $exec_args
+torchrun --standalone --nproc_per_node=2 $python_exec $exec_args
 
 # move the output file to the sim_dir
 mv /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs/slrm_logs/train_lpfm_${SLURM_JOB_ID}.out $sim_dir

@@ -236,7 +236,9 @@ class Trainer:
     def load_checkpoint(self, checkpoint_path: Path):
         """Restart training from a checkpoint."""
         self.logger.info(f"Loading checkpoint from {checkpoint_path}")
-        checkpoint = torch.load(checkpoint_path, weights_only=False)
+        checkpoint = torch.load(
+            checkpoint_path, weights_only=False, map_location=self.device
+        )
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         if self.scheduler is not None:
@@ -503,6 +505,10 @@ class Trainer:
                     checkpoint,
                     self.epoch_dir / "checkpoint.pth",
                 )
+                self.logger.info(
+                    f"Checkpoint saved to {self.epoch_dir / 'checkpoint.pth'}"
+                )
+            dist.barrier()
 
             ############################################################
             # Shut down if time limit is set and next epoch would exceed it
@@ -683,10 +689,8 @@ def login_wandb(config: dict) -> wandb.wandb_run.Run:
     return run
 
 
-# def setup_ddp(rank: int, world_size: int):
-#     os.environ["MASTER_ADDR"] = "localhost"
-#     os.environ["MASTER_PORT"] = "12355"
-#     dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
+def setup_ddp():
+    dist.init_process_group()
 
 
 def main(
@@ -745,8 +749,8 @@ def main(
     ####################################################################
     ########### Initialize trainer #####################################
     ####################################################################
-    # if world_size > 1:
-    #     setup_ddp(global_rank, world_size)
+    if world_size > 1:
+        setup_ddp()
 
     trainer = Trainer(config, global_rank, local_rank, world_size)
     if restart and checkpoint_path is not None:
