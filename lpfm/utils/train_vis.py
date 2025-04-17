@@ -143,7 +143,11 @@ def visualize_predictions(
             img_target = axs[-2, channel].imshow(
                 target_channel, vmin=vmin, vmax=vmax, cmap=cmap
             )
-            img_diff = axs[-1, channel].imshow(diff_channel, cmap="RdBu_r")
+            vmin_diff = -np.abs(diff_channel).max()
+            vmax_diff = np.abs(diff_channel).max()
+            img_diff = axs[-1, channel].imshow(
+                diff_channel, cmap="RdBu_r", vmin=vmin_diff, vmax=vmax_diff
+            )
 
             # Remove axis ticks for prediction, target and difference plots
             axs[-3, channel].set_xticks([])
