@@ -191,10 +191,10 @@ class SuperDataset:
         y = einops.rearrange(y, "time h w c -> time c h w")
         # Reshape to out_shape
         x = torch.nn.functional.interpolate(
-            x, size=self.out_shape, mode="bilinear", align_corners=False
+            x, size=self.out_shape, mode="bicubic", align_corners=False
         )
         y = torch.nn.functional.interpolate(
-            y, size=self.out_shape, mode="bilinear", align_corners=False
+            y, size=self.out_shape, mode="bicubic", align_corners=False
         )
         x = einops.rearrange(x, "time c h w -> time h w c")
         y = einops.rearrange(y, "time c h w -> time h w c")
