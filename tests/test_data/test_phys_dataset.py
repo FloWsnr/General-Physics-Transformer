@@ -2,7 +2,6 @@ import pytest
 from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader
 from lpfm.data.phys_dataset import PhysicsDataset, SuperDataset
 
 
@@ -67,7 +66,9 @@ class TestSuperDataset:
         dataset2 = PhysicsDataset(
             dummy_datapath.parent, n_steps_input=1, n_steps_output=1
         )
-        super_dataset = SuperDataset([dataset1, dataset2], (32, 16))
+
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
+        super_dataset = SuperDataset(datasets, (32, 16))
         assert len(super_dataset) == len(dataset1) + len(dataset2)
         x, y = super_dataset[0]
         assert x.shape == (1, 32, 16, 6)
@@ -83,10 +84,11 @@ class TestSuperDataset:
             dummy_datapath.parent, n_steps_input=1, n_steps_output=1
         )
 
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
         # Create SuperDataset with max_samples_per_ds
         max_samples = 5
         super_dataset = SuperDataset(
-            [dataset1, dataset2],
+            datasets,
             out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=42,
@@ -105,10 +107,11 @@ class TestSuperDataset:
             dummy_datapath.parent, n_steps_input=1, n_steps_output=1
         )
 
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
         # Create SuperDataset with max_samples_per_ds
         max_samples = 5
         super_dataset = SuperDataset(
-            [dataset1, dataset2],
+            datasets,
             out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=42,
@@ -140,11 +143,11 @@ class TestSuperDataset:
         dataset2 = PhysicsDataset(
             dummy_datapath.parent, n_steps_input=1, n_steps_output=1
         )
-
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
         # Create SuperDataset with max_samples_per_ds
         max_samples = 5
         super_dataset = SuperDataset(
-            [dataset1, dataset2],
+            datasets,
             out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=42,
@@ -152,7 +155,7 @@ class TestSuperDataset:
 
         # Create another SuperDataset with the same seed
         super_dataset2 = SuperDataset(
-            [dataset1, dataset2],
+            datasets,
             out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=42,
@@ -174,11 +177,11 @@ class TestSuperDataset:
         dataset2 = PhysicsDataset(
             dummy_datapath.parent, n_steps_input=1, n_steps_output=1
         )
-
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
         # Create SuperDataset with max_samples_per_ds
         max_samples = 5
         super_dataset = SuperDataset(
-            [dataset1, dataset2],
+            datasets,
             out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=42,
@@ -186,7 +189,7 @@ class TestSuperDataset:
 
         # Create another SuperDataset with a different seed
         super_dataset3 = SuperDataset(
-            [dataset1, dataset2],
+            datasets,
             out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=43,

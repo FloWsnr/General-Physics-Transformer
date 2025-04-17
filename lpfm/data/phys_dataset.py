@@ -122,8 +122,8 @@ class SuperDataset:
 
     Parameters
     ----------
-    datasets : list[PhysicsDataset]
-        List of datasets to concatenate
+    datasets : dict[str, PhysicsDataset]
+        Dictionary of datasets to concatenate
     out_shape : tuple[int, int]
         Output shape (h, w) of the concatenated dataset.
         This is needed to account for the different shapes of the datasets.
@@ -138,12 +138,13 @@ class SuperDataset:
 
     def __init__(
         self,
-        datasets: list[PhysicsDataset],
+        datasets: dict[str, PhysicsDataset],
         out_shape: tuple[int, int],
         max_samples_per_ds: Optional[int] = None,
         seed: Optional[int] = None,
     ):
-        self.datasets = datasets
+        self.datasets = list(datasets.values())
+        self.dataset_names = list(datasets.keys())
         self.out_shape = out_shape
         self.max_samples_per_ds = max_samples_per_ds
 
