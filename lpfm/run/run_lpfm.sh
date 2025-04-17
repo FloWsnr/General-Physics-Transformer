@@ -41,7 +41,7 @@ time_limit="24:00:00"
 #####################################################################################
 
 # Set up paths
-python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/train_slrm.py"
+python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/train.py"
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
