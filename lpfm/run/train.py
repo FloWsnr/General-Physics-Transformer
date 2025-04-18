@@ -100,10 +100,10 @@ class Trainer:
         ################################################################
         ############# Log ddp info ####################################
         ################################################################
-        self.logger.info(f"DDP enabled: {self.ddp_enabled}")
-        self.logger.info(f"World size: {self.world_size}")
-        self.logger.info(f"Local rank: {self.local_rank}")
-        self.logger.info(f"Global rank: {self.global_rank}")
+        self.log_msg(f"DDP enabled: {self.ddp_enabled}")
+        self.log_msg(f"World size: {self.world_size}")
+        self.log_msg(f"Local rank: {self.local_rank}")
+        self.log_msg(f"Global rank: {self.global_rank}")
 
         ################################################################
         ########### Set random seeds ##################################
@@ -115,13 +115,13 @@ class Trainer:
         ################################################################
         ########### Initialize model ##################################
         ################################################################
-        self.logger.info(f"Using device: {self.device}")
+        self.log_msg(f"Using device: {self.device}")
 
         self.model = get_model(model_config=self.config["model"])
 
         total_params = sum(p.numel() for p in self.model.parameters())
-        self.logger.info(f"Model size: {total_params / 1e6:.2f}M parameters")
-        self.logger.info(f"Model architecture: {self.model}")
+        self.log_msg(f"Model size: {total_params / 1e6:.2f}M parameters")
+        self.log_msg(f"Model architecture: {self.model}")
 
         if self.global_rank == 0:
             self.wandb_run.config.update(
@@ -163,30 +163,32 @@ class Trainer:
         self.batch_size = self.config["training"]["batch_size"]
         self.total_epochs = self.config["training"]["epochs"]
 
+        # NOTE: These are per GPU worker
         self.train_batches_per_epoch = len(self.train_loader)
         self.val_batches_per_epoch = len(self.val_loader)
         self.train_samples_per_epoch = self.train_batches_per_epoch * self.batch_size
 
+        # NOTE: This is per GPU worker
         self.total_samples = self.train_samples_per_epoch * self.total_epochs
 
-        self.logger.info(f"Training for {self.total_epochs} epochs")
-        self.logger.info(
-            f"Training on {self.train_batches_per_epoch} batches per epoch"
-        )
-        self.logger.info(
-            f"Validating on {self.val_batches_per_epoch} batches per epoch"
-        )
-        self.logger.info(
-            f"Training for {self.train_samples_per_epoch} samples per epoch"
-        )
-        self.logger.info(f"Training for {self.total_samples} total samples")
+        # NOTE: This is across all GPU workers
+        self.sum_total_samples = self.total_samples * self.world_size
+        self.sum_train_batches = self.train_batches_per_epoch * self.world_size
+        self.sum_val_batches = self.val_batches_per_epoch * self.world_size
+        self.sum_train_samples = self.train_samples_per_epoch * self.world_size
+
+        self.log_msg(f"Training for {self.total_epochs} epochs")
+        self.log_msg(f"Training on {self.sum_train_batches} batches per epoch")
+        self.log_msg(f"Training for {self.sum_train_samples} samples per epoch")
+        self.log_msg(f"Training for {self.sum_total_samples} total samples")
+        self.log_msg(f"Validating on {self.sum_val_batches} batches per epoch")
 
         if self.global_rank == 0:
             self.wandb_run.config.update(
                 {
-                    "training/total_samples": self.total_samples,
-                    "training/train_samples_per_epoch": self.train_samples_per_epoch,
-                    "training/train_batches_per_epoch": self.train_batches_per_epoch,
+                    "training/total_samples": self.sum_total_samples,
+                    "training/train_samples_per_epoch": self.sum_train_samples,
+                    "training/train_batches_per_epoch": self.sum_train_batches,
                 },
                 allow_val_change=True,
             )
@@ -233,9 +235,14 @@ class Trainer:
                 log_freq=log_interval,
             )
 
+    def log_msg(self, msg: str):
+        """Log a message."""
+        if self.global_rank == 0:
+            self.logger.info(msg)
+
     def load_checkpoint(self, checkpoint_path: Path):
         """Restart training from a checkpoint."""
-        self.logger.info(f"Loading checkpoint from {checkpoint_path}")
+        self.log_msg(f"Loading checkpoint from {checkpoint_path}")
         checkpoint = torch.load(
             checkpoint_path, weights_only=False, map_location=self.device
         )
@@ -246,7 +253,7 @@ class Trainer:
 
         self.epoch = checkpoint["epoch"] + 1
         self.samples_trained = checkpoint["samples_trained"]
-        self.logger.info(
+        self.log_msg(
             f"Restarting training from epoch {self.epoch} with {self.samples_trained} samples trained"
         )
 
@@ -275,7 +282,7 @@ class Trainer:
         acc_train_loss = 0
 
         total_batches = self.train_batches_per_epoch
-        for batch_idx, batch in enumerate(self.train_loader):
+        for batch_idx, batch in enumerate(self.train_loader, start=1):
             x, target = batch
             x = x.to(self.device)
             target = target.to(self.device)
@@ -315,10 +322,13 @@ class Trainer:
             else:
                 lr = self.optimizer.param_groups[0]["lr"]
 
-            self.logger.info(
-                f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
-                f"Loss: {loss.item():.8f}, Acc. Loss: {acc_train_loss / (batch_idx + 1):.8f}, LR: {lr:.8f}, "
-                f"Samples: {self.samples_trained}/{self.total_samples}"
+            world_batch_idx = batch_idx * self.world_size
+            world_samples_trained = self.samples_trained * self.world_size
+            self.log_msg(
+                "Training: "
+                f"Epoch {self.epoch}/{self.total_epochs}, Batch {world_batch_idx}/{self.sum_train_batches}, "
+                f"Loss: {loss.item():.8f}, Acc. Loss: {acc_train_loss / batch_idx:.8f}, LR: {lr:.8f}, "
+                f"Samples: {world_samples_trained}/{self.sum_total_samples}"
             )
 
             ############################################################
@@ -333,9 +343,9 @@ class Trainer:
 
                     self.wandb_run.log(
                         {
-                            "training/num_batches": total_b_idx,
-                            "training/num_samples": self.samples_trained,
-                            "training/acc_batch_loss": acc_train_loss / (batch_idx + 1),
+                            "training/num_batches": total_b_idx * self.world_size,
+                            "training/num_samples": self.samples_trained * self.world_size,
+                            "training/acc_batch_loss": acc_train_loss / batch_idx,
                             "training/batch_loss_per_log": loss.item() / log_interval,
                             "training/learning_rate": lr,
                         }
@@ -346,7 +356,7 @@ class Trainer:
             ############################################################
             if self.time_limit is not None:
                 if time.time() - self.start_time > self.time_limit:
-                    self.logger.info("Time limit reached, stopping training")
+                    self.log_msg("Time limit reached, stopping training")
                     return acc_train_loss / total_batches
 
         ############################################################
@@ -364,9 +374,9 @@ class Trainer:
                     name_prefix=f"epoch_{self.epoch}",
                 )
             except Exception as e:
-                self.logger.error(f"Error visualizing predictions: {e}")
-                self.logger.error(f"Error type: {type(e)}")
-                self.logger.error(f"Error args: {e.args}")
+                self.log_msg(f"Error visualizing predictions: {e}")
+                self.log_msg(f"Error type: {type(e)}")
+                self.log_msg(f"Error args: {e.args}")
 
         return acc_train_loss / total_batches
 
@@ -377,10 +387,9 @@ class Trainer:
 
         if self.ddp_enabled:
             self.val_loader.sampler.set_epoch(self.epoch)
-        total_batches = self.val_batches_per_epoch
-        num_batches = 0
+        
         with torch.inference_mode():
-            for batch_idx, batch in enumerate(self.val_loader):
+            for batch_idx, batch in enumerate(self.val_loader, start=1):
                 x, target = batch
                 x = x.to(self.device)
                 target = target.to(self.device)
@@ -389,11 +398,11 @@ class Trainer:
                 loss = self.criterion(output, target)
 
                 val_loss += loss.item()
-                num_batches += 1
 
-                self.logger.info(
-                    f"Epoch {self.epoch}/{self.total_epochs}, Batch {batch_idx}/{total_batches}, "
-                    f"Loss: {loss.item():.8f}, Acc. Loss: {val_loss / num_batches:.8f}"
+                world_batch_idx = batch_idx * self.world_size
+                self.log_msg(
+                    f"Epoch {self.epoch}/{self.total_epochs}, Batch {world_batch_idx}/{self.sum_val_batches}, "
+                    f"Loss: {loss.item():.8f}, Acc. Loss: {val_loss / batch_idx:.8f}"
                 )
 
         ############################################################
@@ -412,11 +421,11 @@ class Trainer:
                     name_prefix=f"epoch_{self.epoch}",
                 )
             except Exception as e:
-                self.logger.error(f"Error visualizing predictions: {e}")
-                self.logger.error(f"Error type: {type(e)}")
-                self.logger.error(f"Error args: {e.args}")
+                self.log_msg(f"Error visualizing predictions: {e}")
+                self.log_msg(f"Error type: {type(e)}")
+                self.log_msg(f"Error args: {e.args}")
 
-        return val_loss / total_batches
+        return val_loss / self.val_batches_per_epoch
 
     def train(self):
         """Train the model."""
@@ -429,27 +438,41 @@ class Trainer:
             ######################################################################
             ########### Training ###############################################
             ######################################################################
-            self.logger.info(f"Training epoch {epoch}")
+            self.log_msg(f"Training epoch {epoch}")
             train_loss = self.train_epoch()
-            self.logger.info(f"Epoch {epoch}, Training loss: {train_loss:.8f}")
+
+            # Average training loss across all GPUs if DDP is enabled
+            if self.ddp_enabled:
+                train_loss_tensor = torch.tensor(train_loss, device=self.device)
+                dist.all_reduce(train_loss_tensor, op=dist.ReduceOp.SUM)
+                train_loss = train_loss_tensor.item() / self.world_size
+
+            self.log_msg(f"Epoch {epoch}, Training loss: {train_loss:.8f}")
 
             ######################################################################
             ########### Validation ###############################################
             ######################################################################
-            self.logger.info(f"Validating epoch {epoch}")
+            self.log_msg(f"Validating epoch {epoch}")
             val_loss = self.validate()
-            self.logger.info(f"Epoch {epoch}, Validation loss: {val_loss:.8f}")
+
+            # Average validation loss across all GPUs if DDP is enabled
+            if self.ddp_enabled:
+                val_loss_tensor = torch.tensor(val_loss, device=self.device)
+                dist.all_reduce(val_loss_tensor, op=dist.ReduceOp.AVG)
+                val_loss = val_loss_tensor.item()
+
+            self.log_msg(f"Epoch {epoch}, Validation loss: {val_loss:.8f}")
 
             ############################################################
             # Calculate average time per epoch #########################
             ############################################################
             duration = time.time() - self.start_epoch_time
-            self.logger.info(f"Epoch {epoch} took {duration / 60:.2f} minutes")
+            self.log_msg(f"Epoch {epoch} took {duration / 60:.2f} minutes")
             self.avg_sec_per_epoch = (
                 self.avg_sec_per_epoch * (self.epoch - 1) + duration
             ) / self.epoch
-            self.logger.info(
-                f"Average time per epoch: {self.avg_sec_per_epoch:.2f} seconds"
+            self.log_msg(
+                f"Average time per epoch: {self.avg_sec_per_epoch / 60:.2f} minutes"
             )
             ############################################################
             # Calculate time remaining #################################
@@ -457,7 +480,7 @@ class Trainer:
             proj_time_remaining = self.avg_sec_per_epoch * (
                 self.total_epochs - self.epoch
             )
-            self.logger.info(
+            self.log_msg(
                 f"Projected time remaining: {proj_time_remaining / 60:.2f} minutes"
             )
 
@@ -484,7 +507,7 @@ class Trainer:
                 if val_loss < best_loss:
                     best_loss = val_loss
                     torch.save(self.model.state_dict(), self.log_dir / "best_model.pth")
-                    self.logger.info(f"Model saved with loss: {best_loss:.8f}")
+                    self.log_msg(f"Model saved with loss: {best_loss:.8f}")
 
             ######################################################################
             ########### Save checkpoint ########################################
@@ -505,9 +528,7 @@ class Trainer:
                     checkpoint,
                     self.epoch_dir / "checkpoint.pth",
                 )
-                self.logger.info(
-                    f"Checkpoint saved to {self.epoch_dir / 'checkpoint.pth'}"
-                )
+                self.log_msg(f"Checkpoint saved to {self.epoch_dir / 'checkpoint.pth'}")
             dist.barrier()
 
             ############################################################
@@ -517,9 +538,7 @@ class Trainer:
                 time_passed = time.time() - self.start_time
                 time_remaining = self.time_limit - time_passed
                 if time_remaining < self.avg_sec_per_epoch:
-                    self.logger.info(
-                        "Next epoch would exceed time limit, shutting down"
-                    )
+                    self.log_msg("Next epoch would exceed time limit, shutting down")
                     break
 
         self.cleanup()

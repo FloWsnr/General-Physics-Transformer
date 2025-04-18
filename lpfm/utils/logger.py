@@ -5,7 +5,7 @@ from typing import Optional, TextIO
 
 
 def setup_logger(
-    name: str = "metaparc",
+    name: str = "lpfm",
     log_level: int = logging.INFO,
     log_file: Optional[Path] = None,
     stream: Optional[TextIO] = sys.stdout,
@@ -16,7 +16,7 @@ def setup_logger(
     Parameters
     ----------
     name : str, optional
-        Name of the logger, by default "metaparc"
+        Name of the logger, by default "lpfm"
     log_level : int, optional
         Logging level, by default logging.INFO
     log_file : Optional[Path], optional
@@ -62,7 +62,7 @@ def setup_logger(
 
 
 def get_logger(
-    name: str = "metaparc",
+    name: str = "lpfm",
     log_file: Optional[Path] = None,
     log_level: int = logging.INFO,
 ) -> logging.Logger:
@@ -71,7 +71,7 @@ def get_logger(
     Parameters
     ----------
     name : str, optional
-        Name of the logger, by default "metaparc"
+        Name of the logger, by default "lpfm"
     log_file : Optional[str], optional
         Path to log file, by default None
     log_level : int, optional
