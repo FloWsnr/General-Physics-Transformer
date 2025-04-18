@@ -351,10 +351,16 @@ class Trainer:
             log_interval = self.config["wandb"]["log_interval"]
             if batch_idx % log_interval == 0:
                 self.log_msg("Training: Collecting loss across all GPUs")
-                # accumulate loss for all gpu workers
-                acc_train_loss_tensor = torch.tensor(acc_train_loss, device=self.device)
-                dist.all_reduce(acc_train_loss_tensor, op=dist.ReduceOp.AVG)
-                sum_acc_train_loss = acc_train_loss_tensor.item() / world_batch_idx
+
+                if self.ddp_enabled:
+                    # accumulate loss for all gpu workers
+                    acc_train_loss_tensor = torch.tensor(
+                        acc_train_loss, device=self.device
+                    )
+                    dist.all_reduce(acc_train_loss_tensor, op=dist.ReduceOp.AVG)
+                    sum_acc_train_loss = acc_train_loss_tensor.item() / world_batch_idx
+                else:
+                    sum_acc_train_loss = acc_train_loss / world_batch_idx
 
                 total_b_idx = (
                     world_batch_idx + (self.epoch - 1) * self.sum_train_batches
@@ -554,7 +560,8 @@ class Trainer:
                 self.log_msg(
                     f"Summary: Checkpoint saved to {self.epoch_dir / 'checkpoint.pth'}"
                 )
-            dist.barrier()
+            if self.ddp_enabled:
+                dist.barrier()
 
             ############################################################
             # Shut down if time limit is set and next epoch would exceed it
