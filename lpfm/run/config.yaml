@@ -3,7 +3,7 @@ wandb:
   entity: wsnr-florian
   id: test-run_distributed
   tags:
-    - LPFM-S
+    - LPFM-Ti
     - TestRun
   log_model: gradients # log :all", "parameters" or "gradients" or null
   log_interval: 10
@@ -25,14 +25,14 @@ model:
   transformer:
     input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
     # number of hidden channels across all layers (must be divisible by 6 and by num_heads)
-    hidden_channels: 384
+    hidden_channels: 1024
     
-    mlp_dim: 1536 # number of hidden channels in the MLP
-    num_heads: 12 # number of attention heads
+    mlp_dim: 4096 # number of hidden channels in the MLP
+    num_heads: 16 # number of attention heads
     dropout: 0.0 # dropout rate
     pos_enc_mode: absolute # positional encoding mode (usually rope or absolute)
     patch_size: [4, 16, 16] # patch size (usually 4x16x16)
-    num_layers: 12 # number of attention layers
+    num_layers: 24 # number of attention layers
     stochastic_depth_rate: 0.0 # stochastic depth rate
     use_derivatives: true # whether to use derivatives in the model
   tokenizer:
@@ -45,11 +45,13 @@ model:
     detokenizer_net_channels: null # number of channels in the detokenizer conv_net
 
 training:
+  compile: true
+  tf32: true # use tf32 for faster matrix multiplications
+  amp: true # use automatic mixed precision training
   seed: 42
-  compile: false
-  batch_size: 32
-  epochs: 1
-  num_workers: 6
+  batch_size: 64 # batch size per GPU
+  epochs: 2
+  num_workers: 4 # number of workers for dataloader per GPU
   grad_clip: 1.0 # gradient clipping
   optimizer:
     # name: Adam
@@ -84,8 +86,8 @@ training:
 
 data:
   max_samples_per_ds: null # limit the number of samples per epoch, set to null for no limit
-  dt_stride: [1,8] # take every dt_stride-th timestep, if list, randomize between the values
-  n_steps_input: 16 # number of input timesteps
+  dt_stride: 1 # take every dt_stride-th timestep, if list, randomize between the values
+  n_steps_input: 8 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
   out_shape: [256, 128] # output shape (usually)
 
@@ -94,7 +96,7 @@ data:
     # - cylinder_sym_flow_water
     # - cylinder_pipe_flow_water
     # - object_periodic_flow_water
-    - object_sym_flow_water
+    # - object_sym_flow_water
     # - object_sym_flow_air
 
     # - heated_object_pipe_flow_air
@@ -103,3 +105,6 @@ data:
     # - rayleigh_benard
     # - shear_flow
     # - euler_multi_quadrants_periodicBC
+
+    # For testing
+    - turbulent_radiative_layer_2D

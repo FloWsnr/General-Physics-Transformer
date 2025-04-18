@@ -28,6 +28,7 @@ import torch.optim as optim
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.elastic.multiprocessing.errors import record
+from torch.amp.grad_scaler import GradScaler
 from dadaptation import DAdaptAdam
 
 from lpfm.data.dataset_utils import get_dataloader
@@ -122,7 +123,7 @@ class Trainer:
 
         total_params = sum(p.numel() for p in self.model.parameters())
         self.log_msg(f"Model size: {total_params / 1e6:.2f}M parameters")
-        self.log_msg(f"Model architecture: {self.model}")
+        # self.log_msg(f"Model architecture: {self.model}")
 
         if self.global_rank == 0:
             self.wandb_run.config.update(
@@ -131,7 +132,9 @@ class Trainer:
 
         # print the model architecture
         self.model.to(self.device)
+        torch.set_float32_matmul_precision("high")
         if self.config["training"]["compile"]:
+            self.log_msg("Compiling model")
             self.model = torch.compile(self.model)
         if self.ddp_enabled:
             self.model = DDP(
@@ -209,7 +212,10 @@ class Trainer:
                 f"Criterion {self.config['training']['criterion']} not supported"
             )
         self.optimizer = get_optimizer(self.model, opt_config)
-
+        if self.config["training"]["amp"]:
+            self.grad_scaler = GradScaler()
+        else:
+            self.grad_scaler = None
         ################################################################
         ########### Initialize learning rate scheduler ################
         ################################################################
@@ -289,10 +295,16 @@ class Trainer:
             target = target.to(self.device)
 
             self.optimizer.zero_grad()
-            output = self.model(x)
-            loss = self.criterion(output, target)
-            loss.backward()
+            with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16):
+                output = self.model(x)
+                loss = self.criterion(output, target)
 
+            if self.grad_scaler is not None:
+                self.grad_scaler.scale(loss).backward()
+                self.grad_scaler.step(self.optimizer)
+                self.grad_scaler.update()
+            else:
+                loss.backward()
             # Clip gradients to norm 1
             torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(), max_norm=self.config["training"]["grad_clip"]
@@ -401,8 +413,9 @@ class Trainer:
                 x = x.to(self.device)
                 target = target.to(self.device)
 
-                output = self.model(x)
-                loss = self.criterion(output, target)
+                with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16):
+                    output = self.model(x)
+                    loss = self.criterion(output, target)
 
                 val_loss += loss.item()
 
