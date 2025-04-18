@@ -12,7 +12,7 @@
 #SBATCH --nodes=1
 
 ### How many CPU cores to use
-##SBATCH --cpus-per-task=24
+#SBATCH --cpus-per-task=24
 
 ### How much memory per core
 #SBATCH --mem-per-cpu=5200
@@ -22,8 +22,8 @@
 #SBATCH --mail-user=zsa8rk@virginia.edu
 
 ### Maximum runtime per task
-##SBATCH --time=1-00:00:00
-#SBATCH --time=00:15:00
+#SBATCH --time=1-00:00:00
+##SBATCH --time=00:15:00
 
 ### set number of GPUs per task
 #SBATCH --gres=gpu:1
@@ -34,7 +34,7 @@
 ### Set the time limit for the job, allows for graceful shutdown
 ### Should be lower than the time limit of the partition
 ### Format: HH:MM:SS
-time_limit="00:15:00"
+time_limit="24:00:00"
 
 #####################################################################################
 ############################# Setup #################################################
@@ -54,19 +54,19 @@ conda activate lpfm
 ############################# Set paths ##############################################
 ######################################################################################
 # debug mode
-debug=true
+# debug=true
 # Set up paths
 python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/train.py"
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
-sim_name="test-run_distributed-03"
+sim_name="all-datasets-0007-S"
 nnodes=1
-ngpus_per_node=2
+ngpus_per_node=1
 
 # NOTE: set cuda visible devices, MUST be consecutive numbers
 # USE ONLY FOR DEBUGGING, non-slurm jobs
-export CUDA_VISIBLE_DEVICES=1,2
+# export CUDA_VISIBLE_DEVICES=1
 
 ######### Multi-Node Setup #########
 # rdzv_id=$SLURM_JOB_ID

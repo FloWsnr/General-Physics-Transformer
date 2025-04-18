@@ -1,13 +1,13 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: test-worker-benchmark
+  id: all-datasets-0005-S
   tags:
-    - LPFM-Ti
-    - TestRun
+    - LPFM-S
+    - AllDatasets
   log_model: gradients # log :all", "parameters" or "gradients" or null
   log_interval: 10
-  notes: "Test how many workers are optimal"
+  notes: "All datasets, small model"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -25,7 +25,7 @@ model:
   transformer:
     input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
     # number of hidden channels across all layers (must be divisible by 6 and by num_heads)
-    model_size: LPFM_Ti # model config (LPFM_Ti, LPFM_S, LPFM_M, LPFM_L)
+    model_size: LPFM_S # model config (LPFM_Ti, LPFM_S, LPFM_M, LPFM_L)
     dropout: 0.0 # dropout rate
     pos_enc_mode: absolute # positional encoding mode (usually rope or absolute)
     patch_size: [4, 16, 16] # patch size (usually 4x16x16)
@@ -45,9 +45,9 @@ training:
   tf32: true # use tf32 for faster matrix multiplications
   amp: true # use automatic mixed precision training
   seed: 42
-  batch_size: 64 # batch size per GPU
-  epochs: 2
-  num_workers: 4 # number of workers for dataloader per GPU
+  batch_size: 128 # batch size per GPU
+  epochs: 1000
+  num_workers: 6 # number of workers for dataloader per GPU
   grad_clip: 1.0 # gradient clipping
   optimizer:
     # name: Adam
@@ -89,18 +89,18 @@ data:
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
-    # - cylinder_sym_flow_water
-    # - cylinder_pipe_flow_water
-    # - object_periodic_flow_water
-    # - object_sym_flow_water
-    # - object_sym_flow_air
+    - cylinder_sym_flow_water
+    - cylinder_pipe_flow_water
+    - object_periodic_flow_water
+    - object_sym_flow_water
+    - object_sym_flow_air
 
-    # - heated_object_pipe_flow_air
-    # - cooled_object_pipe_flow_air
+    - heated_object_pipe_flow_air
+    - cooled_object_pipe_flow_air
 
-    # - rayleigh_benard
-    # - shear_flow
-    # - euler_multi_quadrants_periodicBC
+    - rayleigh_benard
+    - shear_flow
+    - euler_multi_quadrants_periodicBC
 
     # For testing
-    - turbulent_radiative_layer_2D
+    # - turbulent_radiative_layer_2D
