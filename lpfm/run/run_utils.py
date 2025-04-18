@@ -33,8 +33,11 @@ def find_last_checkpoint(sim_dir: Path) -> Path:
     # the checkpoint could be in the last epoch directory or the previous one
     checkpoint_path = last_epoch_dir / "checkpoint.pth"
     if not checkpoint_path.exists():
-        checkpoint_path = sorted_epoch_dirs[-2] / "checkpoint.pth"
-        if not checkpoint_path.exists():
+        if len(sorted_epoch_dirs) > 1:
+            checkpoint_path = sorted_epoch_dirs[-2] / "checkpoint.pth"
+            if not checkpoint_path.exists():
+                return None
+        else:
             return None
 
     return checkpoint_path
