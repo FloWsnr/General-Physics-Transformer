@@ -56,13 +56,13 @@ def get_model(model_config: dict):
     transformer_config = model_config["transformer"]
     tokenizer_config = model_config["tokenizer"]
 
-    if model_config["model_config"] == "LPFM_Ti":
+    if transformer_config["model_size"] == "LPFM_Ti":
         lpfm_config = LPFM_Ti()
-    elif model_config["model_config"] == "LPFM_S":
+    elif transformer_config["model_size"] == "LPFM_S":
         lpfm_config = LPFM_S()
-    elif model_config["model_config"] == "LPFM_M":
+    elif transformer_config["model_size"] == "LPFM_M":
         lpfm_config = LPFM_M()
-    elif model_config["model_config"] == "LPFM_L":
+    elif transformer_config["model_size"] == "LPFM_L":
         lpfm_config = LPFM_L()
 
     return PhysicsTransformer(
