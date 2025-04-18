@@ -55,16 +55,29 @@ conda activate lpfm
 ######################################################################################
 # debug mode
 debug=true
-
-
 # Set up paths
 python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/train.py"
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
-sim_name="test-run_distributed-02"
+sim_name="test-run_distributed-03"
+nnodes=1
+ngpus_per_node=2
+
+# NOTE: set cuda visible devices, MUST be consecutive numbers
+# USE ONLY FOR DEBUGGING, non-slurm jobs
+export CUDA_VISIBLE_DEVICES=1,2
+
+######### Multi-Node Setup #########
+# rdzv_id=$SLURM_JOB_ID
+
+
 # sim directory
 sim_dir="${log_dir}/${sim_name}"
+
+#######################################################################################
+############################# Setup sim dir and config file ###########################
+#######################################################################################
 
 # delete the sim_dir if it exists and debug is true
 if [ "$debug" = true ]; then
@@ -110,7 +123,7 @@ if [ "$restart" = true ]; then
 fi
 
 # Capture Python output and errors in a variable and run the script
-torchrun --standalone --nproc_per_node=2 $python_exec $exec_args
+torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args
 
 # move the output file to the sim_dir
 mv /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs/slrm_logs/train_lpfm_${SLURM_JOB_ID}.out $sim_dir

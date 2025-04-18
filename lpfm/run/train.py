@@ -27,6 +27,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.distributed.elastic.multiprocessing.errors import record
 from dadaptation import DAdaptAdam
 
 from lpfm.data.dataset_utils import get_dataloader
@@ -232,7 +233,7 @@ class Trainer:
                 self.model,
                 criterion=self.criterion,
                 log=self.config["wandb"]["log_model"],
-                log_freq=log_interval,
+                log_freq=100,
             )
 
     def log_msg(self, msg: str):
@@ -326,27 +327,33 @@ class Trainer:
             world_samples_trained = self.samples_trained * self.world_size
             self.log_msg(
                 "Training: "
-                f"Epoch {self.epoch}/{self.total_epochs}, Batch {world_batch_idx}/{self.sum_train_batches}, "
-                f"Loss: {loss.item():.8f}, Acc. Loss: {acc_train_loss / batch_idx:.8f}, LR: {lr:.8f}, "
-                f"Samples: {world_samples_trained}/{self.sum_total_samples}"
+                f"Epoch {self.epoch}/{self.total_epochs}, "
+                f"Batch (all GPUs): {world_batch_idx}/{self.sum_train_batches}, "
+                f"Samples (all GPUs): {world_samples_trained}/{self.sum_total_samples}, "
+                f"LR: {lr:.8f}"
             )
 
             ############################################################
             # Log to wandb #############################################
             ############################################################
-            if self.global_rank == 0:
-                log_interval = self.config["wandb"]["log_interval"]
-                if batch_idx % log_interval == 0:
-                    total_b_idx = (
-                        batch_idx + (self.epoch - 1) * self.train_batches_per_epoch
-                    )
+            log_interval = self.config["wandb"]["log_interval"]
+            if batch_idx % log_interval == 0:
+                self.log_msg("Training: Collecting loss across all GPUs")
+                # accumulate loss for all gpu workers
+                acc_train_loss_tensor = torch.tensor(acc_train_loss, device=self.device)
+                dist.all_reduce(acc_train_loss_tensor, op=dist.ReduceOp.AVG)
+                sum_acc_train_loss = acc_train_loss_tensor.item() / world_batch_idx
 
+                total_b_idx = (
+                    world_batch_idx + (self.epoch - 1) * self.sum_train_batches
+                )
+                self.log_msg(f"Training: Accumulated loss: {sum_acc_train_loss:.8f}")
+                if self.global_rank == 0:
                     self.wandb_run.log(
                         {
                             "training/num_batches": total_b_idx * self.world_size,
-                            "training/num_samples": self.samples_trained * self.world_size,
-                            "training/acc_batch_loss": acc_train_loss / batch_idx,
-                            "training/batch_loss_per_log": loss.item() / log_interval,
+                            "training/num_samples": world_samples_trained,
+                            "training/acc_batch_loss": sum_acc_train_loss,
                             "training/learning_rate": lr,
                         }
                     )
@@ -387,7 +394,7 @@ class Trainer:
 
         if self.ddp_enabled:
             self.val_loader.sampler.set_epoch(self.epoch)
-        
+
         with torch.inference_mode():
             for batch_idx, batch in enumerate(self.val_loader, start=1):
                 x, target = batch
@@ -401,8 +408,7 @@ class Trainer:
 
                 world_batch_idx = batch_idx * self.world_size
                 self.log_msg(
-                    f"Epoch {self.epoch}/{self.total_epochs}, Batch {world_batch_idx}/{self.sum_val_batches}, "
-                    f"Loss: {loss.item():.8f}, Acc. Loss: {val_loss / batch_idx:.8f}"
+                    f"Validation: Epoch {self.epoch}/{self.total_epochs}, Batch {world_batch_idx}/{self.sum_val_batches}, "
                 )
 
         ############################################################
@@ -438,41 +444,43 @@ class Trainer:
             ######################################################################
             ########### Training ###############################################
             ######################################################################
-            self.log_msg(f"Training epoch {epoch}")
+            self.log_msg(f"Training: Training epoch {epoch}")
             train_loss = self.train_epoch()
 
             # Average training loss across all GPUs if DDP is enabled
             if self.ddp_enabled:
+                self.log_msg("Training: Reducing training loss across all GPUs")
                 train_loss_tensor = torch.tensor(train_loss, device=self.device)
-                dist.all_reduce(train_loss_tensor, op=dist.ReduceOp.SUM)
-                train_loss = train_loss_tensor.item() / self.world_size
+                dist.all_reduce(train_loss_tensor, op=dist.ReduceOp.AVG)
+                train_loss = train_loss_tensor.item()
 
-            self.log_msg(f"Epoch {epoch}, Training loss: {train_loss:.8f}")
+            self.log_msg(f"Training: Epoch {epoch}, Training loss: {train_loss:.8f}")
 
             ######################################################################
             ########### Validation ###############################################
             ######################################################################
-            self.log_msg(f"Validating epoch {epoch}")
+            self.log_msg(f"Validation: Validating epoch {epoch}")
             val_loss = self.validate()
 
             # Average validation loss across all GPUs if DDP is enabled
             if self.ddp_enabled:
+                self.log_msg("Validation: Reducing validation loss across all GPUs")
                 val_loss_tensor = torch.tensor(val_loss, device=self.device)
                 dist.all_reduce(val_loss_tensor, op=dist.ReduceOp.AVG)
                 val_loss = val_loss_tensor.item()
 
-            self.log_msg(f"Epoch {epoch}, Validation loss: {val_loss:.8f}")
+            self.log_msg(f"Validation: Epoch {epoch}, Validation loss: {val_loss:.8f}")
 
             ############################################################
             # Calculate average time per epoch #########################
             ############################################################
             duration = time.time() - self.start_epoch_time
-            self.log_msg(f"Epoch {epoch} took {duration / 60:.2f} minutes")
+            self.log_msg(f"Summary: Epoch {epoch} took {duration / 60:.2f} minutes")
             self.avg_sec_per_epoch = (
                 self.avg_sec_per_epoch * (self.epoch - 1) + duration
             ) / self.epoch
             self.log_msg(
-                f"Average time per epoch: {self.avg_sec_per_epoch / 60:.2f} minutes"
+                f"Summary: Average time per epoch: {self.avg_sec_per_epoch / 60:.2f} minutes"
             )
             ############################################################
             # Calculate time remaining #################################
@@ -481,7 +489,7 @@ class Trainer:
                 self.total_epochs - self.epoch
             )
             self.log_msg(
-                f"Projected time remaining: {proj_time_remaining / 60:.2f} minutes"
+                f"Summary: Projected time remaining: {proj_time_remaining / 60:.2f} minutes"
             )
 
             ######################################################################
@@ -524,11 +532,15 @@ class Trainer:
                 }
                 if self.scheduler is not None:
                     checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
+                else:
+                    checkpoint["scheduler_state_dict"] = None
                 torch.save(
                     checkpoint,
                     self.epoch_dir / "checkpoint.pth",
                 )
-                self.log_msg(f"Checkpoint saved to {self.epoch_dir / 'checkpoint.pth'}")
+                self.log_msg(
+                    f"Summary: Checkpoint saved to {self.epoch_dir / 'checkpoint.pth'}"
+                )
             dist.barrier()
 
             ############################################################
@@ -538,7 +550,9 @@ class Trainer:
                 time_passed = time.time() - self.start_time
                 time_remaining = self.time_limit - time_passed
                 if time_remaining < self.avg_sec_per_epoch:
-                    self.log_msg("Next epoch would exceed time limit, shutting down")
+                    self.log_msg(
+                        "Summary: Next epoch would exceed time limit, shutting down"
+                    )
                     break
 
         self.cleanup()
@@ -709,9 +723,10 @@ def login_wandb(config: dict) -> wandb.wandb_run.Run:
 
 
 def setup_ddp():
-    dist.init_process_group()
+    dist.init_process_group(backend="nccl")
 
 
+@record
 def main(
     config_path: Path,
     log_dir: Path | None,
