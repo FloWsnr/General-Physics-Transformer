@@ -295,6 +295,7 @@ class Trainer:
             with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16):
                 output = self.model(x)
                 loss = self.criterion(output, target)
+            acc_train_loss += loss.item()
 
             self.grad_scaler.scale(loss).backward()
             self.grad_scaler.unscale_(self.optimizer)
@@ -304,9 +305,6 @@ class Trainer:
             )
             self.grad_scaler.step(self.optimizer)
             self.grad_scaler.update()
-
-
-            acc_train_loss += loss.item()
 
             ############################################################
             # Step learning rate scheduler #############################
