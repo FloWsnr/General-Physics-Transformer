@@ -212,10 +212,7 @@ class Trainer:
                 f"Criterion {self.config['training']['criterion']} not supported"
             )
         self.optimizer = get_optimizer(self.model, opt_config)
-        if self.config["training"]["amp"]:
-            self.grad_scaler = GradScaler()
-        else:
-            self.grad_scaler = None
+        self.grad_scaler = GradScaler()
         ################################################################
         ########### Initialize learning rate scheduler ################
         ################################################################
@@ -299,17 +296,15 @@ class Trainer:
                 output = self.model(x)
                 loss = self.criterion(output, target)
 
-            if self.grad_scaler is not None:
-                self.grad_scaler.scale(loss).backward()
-                self.grad_scaler.step(self.optimizer)
-                self.grad_scaler.update()
-            else:
-                loss.backward()
+            self.grad_scaler.scale(loss).backward()
+            self.grad_scaler.unscale_(self.optimizer)
             # Clip gradients to norm 1
             torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(), max_norm=self.config["training"]["grad_clip"]
             )
-            self.optimizer.step()
+            self.grad_scaler.step(self.optimizer)
+            self.grad_scaler.update()
+
 
             acc_train_loss += loss.item()
 
