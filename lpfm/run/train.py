@@ -369,7 +369,7 @@ class Trainer:
                 if self.global_rank == 0:
                     self.wandb_run.log(
                         {
-                            "training/num_batches": total_b_idx * self.world_size,
+                            "training/num_batches": total_b_idx,
                             "training/num_samples": world_samples_trained,
                             "training/acc_batch_loss": sum_acc_train_loss,
                             "training/learning_rate": lr,
@@ -620,20 +620,19 @@ def get_lr_scheduler(
             optimizer,
             start_factor=lrs_lin["start_factor"],
             end_factor=lrs_lin["end_factor"],
-            total_iters=train_batches_per_epoch * lrs_lin["epochs"],
+            total_iters=lrs_lin["samples"],
         )
 
     elif len(scheduler_names) == 2:
         # remove LinearLR from scheduler_names
         scheduler_names.remove("LinearLR")
         lrs_lin = lrs_config["schedulers"]["LinearLR"]
-        t_steps = train_batches_per_epoch * lrs_lin["epochs"]
 
         lrs1_scheduler = optim.lr_scheduler.LinearLR(
             optimizer,
             start_factor=lrs_lin["start_factor"],
             end_factor=lrs_lin["end_factor"],
-            total_iters=t_steps,
+            total_iters=lrs_lin["samples"],
         )
 
         lrs2_name = scheduler_names[0]
@@ -643,7 +642,7 @@ def get_lr_scheduler(
             T_0 = train_batches_per_epoch * lrs2["T_0"]
             # if T_max is -1, use all remaining epochs
             if lrs2["T_max"] == -1:
-                T_max = (total_epochs - lrs_lin["epochs"]) * train_batches_per_epoch
+                T_max = total_epochs * train_batches_per_epoch - lrs_lin["samples"]
             else:
                 T_max = train_batches_per_epoch * lrs2["T_max"]
 
@@ -653,7 +652,7 @@ def get_lr_scheduler(
         elif lrs2_name == "CosineAnnealingLR":
             # if T_max is -1, use all remaining epochs
             if lrs2["T_max"] == -1:
-                T_max = (total_epochs - lrs_lin["epochs"]) * train_batches_per_epoch
+                T_max = total_epochs * train_batches_per_epoch - lrs_lin["samples"]
             else:
                 T_max = train_batches_per_epoch * lrs2["T_max"]
 
@@ -666,7 +665,7 @@ def get_lr_scheduler(
         scheduler = optim.lr_scheduler.SequentialLR(
             optimizer,
             schedulers=[lrs1_scheduler, cosine_scheduler],
-            milestones=[t_steps],
+            milestones=[lrs_lin["samples"]],
         )
 
     return scheduler
