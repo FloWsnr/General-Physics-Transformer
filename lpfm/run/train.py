@@ -252,6 +252,7 @@ class Trainer:
         )
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.grad_scaler.load_state_dict(checkpoint["grad_scaler_state_dict"])
         if self.scheduler is not None:
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
@@ -259,6 +260,27 @@ class Trainer:
         self.samples_trained = checkpoint["samples_trained"]
         self.log_msg(
             f"Restarting training from epoch {self.epoch} with {self.samples_trained} samples trained"
+        )
+
+    def save_checkpoint(self, train_loss: float, val_loss: float):
+        """Save a checkpoint."""
+        checkpoint = {
+            "epoch": self.epoch,
+            "samples_trained": self.samples_trained,
+            "model_state_dict": self.model.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "grad_scaler_state_dict": self.grad_scaler.state_dict(),
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            "config": self.config,
+        }
+        if self.scheduler is not None:
+            checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
+        else:
+            checkpoint["scheduler_state_dict"] = None
+        torch.save(checkpoint, self.epoch_dir / "checkpoint.pth")
+        self.log_msg(
+            f"Summary: Checkpoint saved to {self.epoch_dir / 'checkpoint.pth'}"
         )
 
     def save_config(self):
@@ -283,7 +305,11 @@ class Trainer:
         if self.ddp_enabled:
             self.train_loader.sampler.set_epoch(self.epoch)
 
-        acc_train_loss = 0
+        epoch_log = {
+            "train_loss": [],
+            "acc_train_loss": [],
+            "lr": [],
+        }
 
         total_batches = self.train_batches_per_epoch
         for batch_idx, batch in enumerate(self.train_loader, start=1):
@@ -295,7 +321,13 @@ class Trainer:
             with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16):
                 output = self.model(x)
                 loss = self.criterion(output, target)
+
+            # Log training loss
+            epoch_log["train_loss"].append(loss.item())
+
+            # Log accumulated training loss
             acc_train_loss += loss.item()
+            epoch_log["acc_train_loss"].append(acc_train_loss)
 
             self.grad_scaler.scale(loss).backward()
             self.grad_scaler.unscale_(self.optimizer)
@@ -533,26 +565,7 @@ class Trainer:
             ########### Save checkpoint ########################################
             ######################################################################
             if self.global_rank == 0:
-                checkpoint = {
-                    "epoch": epoch,
-                    "samples_trained": self.samples_trained,
-                    "model_state_dict": self.model.state_dict(),
-                    "optimizer_state_dict": self.optimizer.state_dict(),
-                    "train_loss": train_loss,
-                    "val_loss": val_loss,
-                    "config": self.config,
-                }
-                if self.scheduler is not None:
-                    checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
-                else:
-                    checkpoint["scheduler_state_dict"] = None
-                torch.save(
-                    checkpoint,
-                    self.epoch_dir / "checkpoint.pth",
-                )
-                self.log_msg(
-                    f"Summary: Checkpoint saved to {self.epoch_dir / 'checkpoint.pth'}"
-                )
+                self.save_checkpoint(train_loss, val_loss)
             if self.ddp_enabled:
                 dist.barrier()
 
