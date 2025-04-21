@@ -1,13 +1,13 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: amp-test-005
+  id: ti-full-run-0001
   tags:
     - LPFM-Ti
-    - TestRun
+    - AllDatasets
   log_model: gradients # log :all", "parameters" or "gradients" or null
   log_interval: 10
-  notes: "test if amp and restarts work"
+  notes: "full run with ti-model"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -45,8 +45,8 @@ training:
   tf32: true # use tf32 for faster matrix multiplications
   amp: true # use automatic mixed precision training
   seed: 42
-  batch_size: 128 # batch size per GPU
-  epochs: 10
+  batch_size: 256 # batch size per GPU
+  epochs: 100
   num_workers: 8 # number of workers for dataloader per GPU
   grad_clip: 1.0 # gradient clipping
   optimizer:
@@ -55,7 +55,7 @@ training:
     # learning_rate: 0.0001
     # weight_decay: 0.0000
     name: AdamW
-    learning_rate: 1e-4
+    learning_rate: 1e-3
     weight_decay: 0.01
     betas: [0.9, 0.999]
     # name: DAdaptAdam
@@ -82,25 +82,25 @@ training:
 
 data:
   max_samples_per_ds: null # limit the number of samples per epoch, set to null for no limit
-  dt_stride: 1 # take every dt_stride-th timestep, if list, randomize between the values
+  dt_stride: [1,8] # take every dt_stride-th timestep, if list, randomize between the values
   n_steps_input: 4 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
   out_shape: [256, 128] # output shape (usually)
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
-    # - cylinder_sym_flow_water
-    # - cylinder_pipe_flow_water
-    # - object_periodic_flow_water
-    # - object_sym_flow_water
-    # - object_sym_flow_air
+    - cylinder_sym_flow_water
+    - cylinder_pipe_flow_water
+    - object_periodic_flow_water
+    - object_sym_flow_water
+    - object_sym_flow_air
 
-    # - heated_object_pipe_flow_air
-    # - cooled_object_pipe_flow_air
+    - heated_object_pipe_flow_air
+    - cooled_object_pipe_flow_air
 
-    # - rayleigh_benard
-    # - shear_flow
-    # - euler_multi_quadrants_periodicBC
+    - rayleigh_benard
+    - shear_flow
+    - euler_multi_quadrants_periodicBC
 
     # For testing
-    - turbulent_radiative_layer_2D
+    # - turbulent_radiative_layer_2D

@@ -12,21 +12,21 @@
 #SBATCH --nodes=1
 
 ### How many CPU cores to use
-#SBATCH --cpus-per-task=24
+#SBATCH --ntasks-per-node=96
 
 ### How much memory per core
 #SBATCH --mem-per-cpu=5200
 
 ### Mail notification configuration
-#SBATCH --mail-type=END
+#SBATCH --mail-type=NONE
 #SBATCH --mail-user=zsa8rk@virginia.edu
 
 ### Maximum runtime per task
 #SBATCH --time=1-00:00:00
-##SBATCH --time=00:15:00
+##SBATCH --time=00:30:00
 
 ### set number of GPUs per task
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:4
 
 ### create time series, i.e. 100 jobs one after another. Each runs for 24 hours
 ##SBATCH --array=1-10%1
@@ -60,9 +60,10 @@ python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/tr
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
-sim_name="all-datasets-0008-S"
+sim_name="ti-full-run-0001"
 nnodes=1
-ngpus_per_node=1
+ngpus_per_node=4
+export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
 # NOTE: set cuda visible devices, MUST be consecutive numbers
 # USE ONLY FOR DEBUGGING, non-slurm jobs
@@ -97,7 +98,8 @@ if [ -f "$config_file" ]; then
     restart=true
 else
     echo "No config file found in $sim_dir, starting new training..."
-    config_file="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/config.yaml"
+    # copy config file to sim_dir
+    cp /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/config.yaml $sim_dir
     restart=false
 fi
 
