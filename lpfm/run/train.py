@@ -136,6 +136,12 @@ class Trainer:
         if self.config["training"]["compile"]:
             self.log_msg("Compiling model")
             self.model = torch.compile(self.model)
+        if self.config["training"]["amp"] and torch.cuda.is_available():
+            self.log_msg("Using AMP")
+            self.use_amp = True
+        else:
+            self.use_amp = False
+
         if self.ddp_enabled:
             self.model = DDP(
                 self.model,
@@ -199,11 +205,11 @@ class Trainer:
         ################################################################
         # all losses which should be computed and logged
         self.loss_fns = {
+            "MAE": nn.L1Loss(),
             "MSE": nn.MSELoss(),
             "RMSE": nn.MSELoss(),
             "NMSE": NMSELoss(),
             "RNMSE": RNMSELoss(),
-            "MAE": nn.L1Loss(),
         }
         
         opt_config = self.config["training"]["optimizer"]
@@ -333,11 +339,11 @@ class Trainer:
         if self.ddp_enabled:
             self.train_loader.sampler.set_epoch(self.epoch)
         train_losses_per_epoch = {
-            "MSE": torch.tensor(0.0, device=self.device),
-            "RMSE": torch.tensor(0.0, device=self.device),
-            "NMSE": torch.tensor(0.0, device=self.device),
-            "RNMSE": torch.tensor(0.0, device=self.device),
-            "MAE": torch.tensor(0.0, device=self.device),
+            "training/total-MAE": torch.tensor(0.0, device=self.device),
+            "training/total-MSE": torch.tensor(0.0, device=self.device),
+            "training/total-RMSE": torch.tensor(0.0, device=self.device),
+            "training/total-NMSE": torch.tensor(0.0, device=self.device),
+            "training/total-RNMSE": torch.tensor(0.0, device=self.device),
         }
 
         for batch_idx, batch in enumerate(self.train_loader, start=1):
@@ -346,7 +352,7 @@ class Trainer:
             target = target.to(self.device)
 
             self.optimizer.zero_grad()
-            with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16):
+            with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16, enabled=self.use_amp):
                 output = self.model(x)
                 raw_loss = self.criterion(output, target)
 
@@ -416,13 +422,14 @@ class Trainer:
                         "training/learning_rate": lr,
                     }, commit=False
                 )
-                self.wandb_run.log(log_losses, commit=True)
+                log_losses_wandb = {f"training/{k}": v for k, v in log_losses.items()}
+                self.wandb_run.log(log_losses_wandb, commit=True)
 
             ###############################################################
             # Accumulate losses ###########################################
             ###############################################################
             for loss_name, loss in log_losses.items():
-                train_losses_per_epoch[loss_name] += loss.item()
+                train_losses_per_epoch[f"training/total-{loss_name}"] += loss.item()
 
         ############################################################
         # Visualize predictions ####################################
@@ -455,11 +462,11 @@ class Trainer:
         """Validate the model."""
         self.model.eval()
         val_losses_per_epoch = {
-            "MSE": torch.tensor(0.0, device=self.device),
-            "RMSE": torch.tensor(0.0, device=self.device),
-            "NMSE": torch.tensor(0.0, device=self.device),
-            "RNMSE": torch.tensor(0.0, device=self.device),
-            "MAE": torch.tensor(0.0, device=self.device),
+            "validation/MSE": torch.tensor(0.0, device=self.device),
+            "validation/RMSE": torch.tensor(0.0, device=self.device),
+            "validation/NMSE": torch.tensor(0.0, device=self.device),
+            "validation/RNMSE": torch.tensor(0.0, device=self.device),
+            "validation/MAE": torch.tensor(0.0, device=self.device),
         }
 
         if self.ddp_enabled:
@@ -471,7 +478,7 @@ class Trainer:
                 x = x.to(self.device)
                 target = target.to(self.device)
 
-                with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16):
+                with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16, enabled=self.use_amp):
                     output = self.model(x)
                     raw_loss = self.criterion(output, target)
 
@@ -491,7 +498,7 @@ class Trainer:
 
                 # Accumulate losses
                 for loss_name, loss in log_losses.items():
-                    val_losses_per_epoch[loss_name] += loss.item()
+                    val_losses_per_epoch[f"validation/{loss_name}"] += loss.item()
 
         ############################################################
         # Visualize predictions ####################################
@@ -530,25 +537,28 @@ class Trainer:
             ######################################################################
             ########### Training ###############################################
             ######################################################################
+            self.log_msg("="*100)
             self.log_msg(f"Training: Training epoch {epoch}")
             train_losses = self.train_epoch()
-            log_string = "\tLosses: "
+            self.log_msg("="*100)
+            log_string = "Training: Total Losses: "
             for loss_name, loss in train_losses.items():
                 log_string += f"{loss_name}: {loss.item():.8f}, "
             self.log_msg(log_string)
-
+            self.log_msg("="*100)
 
             ######################################################################
             ########### Validation ###############################################
             ######################################################################
             self.log_msg(f"Validation: Validating epoch {epoch}")
-            val_losses = self.validate()            
+            val_losses = self.validate()     
+            self.log_msg("="*100)
             # Log all other losses for both training and validation
-            log_string = "\tLosses: "
+            log_string = "Validation: Total Losses: "
             for loss_name, loss in val_losses.items():
                 log_string += f"{loss_name}: {loss.item():.8f}, "
             self.log_msg(log_string)
-
+            self.log_msg("="*100)
             ############################################################
             # Calculate average time per epoch #########################
             ############################################################
@@ -583,18 +593,16 @@ class Trainer:
                         / 60,
                     }, commit=False
                 )
-                # add training and validation to dict keys
-                train_losses_wandb = {f"training/{k}": v for k, v in train_losses.items()}
-                val_losses_wandb = {f"validation/{k}": v for k, v in val_losses.items()}
-                self.wandb_run.log(train_losses_wandb, commit=False)
-                self.wandb_run.log(val_losses_wandb, commit=True)
+                self.wandb_run.log(train_losses, commit=False)
+                self.wandb_run.log(val_losses, commit=True)
 
             ######################################################################
             ########### Save best model #########################################
             ######################################################################
             if self.global_rank == 0:
-                if val_losses[self.config["training"]["criterion"]] < best_loss:
-                    best_loss = val_losses[self.config["training"]["criterion"]]
+                criterion = self.config["training"]["criterion"]
+                if val_losses[f"validation/total-{criterion}"] < best_loss:
+                    best_loss = val_losses[f"validation/total-{criterion}"]
                     self.save_checkpoint(name="best_model")
                     self.log_msg(f"Model saved with loss: {best_loss:.8f}")
 
@@ -803,7 +811,8 @@ def main(
     """Main training function."""
     load_dotenv()
     # Set cuda device
-    torch.cuda.set_device(local_rank)
+    if torch.cuda.is_available():
+        torch.cuda.set_device(local_rank)
 
     # Load config
     config_path = Path(config_path)
