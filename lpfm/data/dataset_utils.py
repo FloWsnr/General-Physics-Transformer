@@ -251,4 +251,16 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
         )
         datasets["cooled_object_pipe_flow_air"] = cooled_flow_dataset
 
+    if "RayleighBenard_obstacle" in data_config["datasets"]:
+        rayleigh_benard_obstacle_dataset = ComsolHeatedFlowDataset(
+            data_dir=data_dir / f"RayleighBenard_obstacle/data/{split_name}",
+            split=split,
+            n_steps_input=n_steps_input,
+            n_steps_output=n_steps_output,
+            dt_stride=dt_stride,
+            full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
+        )
+        datasets["RayleighBenard_obstacle"] = rayleigh_benard_obstacle_dataset
+
     return datasets
