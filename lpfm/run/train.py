@@ -330,7 +330,7 @@ class Trainer:
 
     def _reduce_loss(self, loss: torch.Tensor) -> torch.Tensor:
         """Reduce the loss across all GPUs."""
-        loss_tensor = torch.tensor(loss, device=self.device, requires_grad=False)
+        loss_tensor = loss.clone().detach()
         dist.all_reduce(loss_tensor, op=dist.ReduceOp.AVG)
         return loss_tensor
 
