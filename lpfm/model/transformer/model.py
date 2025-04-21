@@ -40,14 +40,14 @@ class LPFM_M:
 class LPFM_L:
     hidden_dim: int = 1024
     mlp_dim: int = 4096
-    num_heads: int = 14
+    num_heads: int = 16
     num_layers: int = 24
 
 
 class LPFM_XL:
     hidden_dim: int = 1280
     mlp_dim: int = 5120
-    num_heads: int = 16
+    num_heads: int = 20
     num_layers: int = 32
 
 
