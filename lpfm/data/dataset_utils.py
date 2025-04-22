@@ -17,6 +17,7 @@ from lpfm.data.ind_datasets import (
     EulerDataset,
     ComsolIncompressibleFlowDataset,
     ComsolHeatedFlowDataset,
+    ComsolPorousMediaFlowDataset,
 )
 
 
@@ -262,5 +263,17 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             max_rollout_steps=max_rollout_steps,
         )
         datasets["rayleigh_benard_obstacle"] = rayleigh_benard_obstacle_dataset
+
+    if "twophase_flow" in data_config["datasets"]:
+        twophase_flow_dataset = ComsolPorousMediaFlowDataset(
+            data_dir=data_dir / f"twophase_flow/data/{split_name}",
+            split=split,
+            n_steps_input=n_steps_input,
+            n_steps_output=n_steps_output,
+            dt_stride=dt_stride,
+            full_trajectory_mode=full_traj,
+            max_rollout_steps=max_rollout_steps,
+        )
+        datasets["twophase_flow"] = twophase_flow_dataset
 
     return datasets

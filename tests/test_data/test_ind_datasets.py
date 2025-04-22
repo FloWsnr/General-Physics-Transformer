@@ -14,6 +14,7 @@ from lpfm.data.ind_datasets import (
     EulerDataset,
     ComsolIncompressibleFlowDataset,
     ComsolHeatedFlowDataset,
+    ComsolPorousMediaFlowDataset,
 )
 
 
@@ -235,3 +236,25 @@ def test_rayleigh_benard_obs_dataset():
     # check that the density and temperature are not zero
     assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
     assert not torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+
+
+def test_twophase_flow_dataset():
+    """Test TwophaseFlowDataset returns correct tensor shapes and field order."""
+    path = Path(
+        r"/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets/twophase_flow/data"
+    )
+    dataset = ComsolPorousMediaFlowDataset(data_dir=path)
+
+    x, y = dataset[0]
+
+    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+    assert x.shape == (1, 256, 128, 5)
+    assert y.shape == (1, 256, 128, 5)
+
+    # check that the density is not zero and temperature is zero
+    assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+
+
+if __name__ == "__main__":
+    test_twophase_flow_dataset()

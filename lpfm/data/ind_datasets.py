@@ -50,6 +50,33 @@ class ComsolIncompressibleFlowDataset(PhysicsDataset):
         return x, y
 
 
+class ComsolPorousMediaFlowDataset(PhysicsDataset):
+    def __init__(self, *args, **kwargs):
+        include_field_names = {
+            "t0_fields": ["pressure", "density"],
+            "t1_fields": ["velocity"],
+        }
+
+        super().__init__(include_field_names=include_field_names, *args, **kwargs)
+
+    def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
+        x, y = super().__getitem__(index)  # (time, h, w, c)
+
+        # create a zero tensor with the same shape as the input
+        zero_tensor_x = torch.zeros_like(x[:, :, :, 0])
+        zero_tensor_y = torch.zeros_like(y[:, :, :, 0])
+        zero_tensor_x = zero_tensor_x.unsqueeze(-1)
+        zero_tensor_y = zero_tensor_y.unsqueeze(-1)
+
+        # temperature is not present in the input
+        # so we need to add them at the correct position (1, 2)
+        x = torch.cat([x[:, :, :, :2], zero_tensor_x, x[:, :, :, 2:]], dim=-1)
+
+        y = torch.cat([y[:, :, :, :2], zero_tensor_y, y[:, :, :, 2:]], dim=-1)
+
+        return x, y
+
+
 class ComsolHeatedFlowDataset(PhysicsDataset):
     def __init__(self, *args, **kwargs):
         include_field_names = {
