@@ -221,7 +221,7 @@ class Trainer:
             "NMSE": NMSELoss(),
             "RNMSE": RNMSELoss(),
             "VMSE": VMSELoss(),
-            "VRMSE": RVMSELoss(),
+            "RVMSE": RVMSELoss(),
         }
 
         opt_config = self.config["training"]["optimizer"]
@@ -237,8 +237,8 @@ class Trainer:
             self.criterion = self.loss_fns.pop("MAE")
         elif self.config["training"]["criterion"] == "VMSE":
             self.criterion = self.loss_fns.pop("VMSE")
-        elif self.config["training"]["criterion"] == "VRMSE":
-            self.criterion = self.loss_fns.pop("VRMSE")
+        elif self.config["training"]["criterion"] == "RVMSE":
+            self.criterion = self.loss_fns.pop("RVMSE")
         else:
             raise ValueError(
                 f"Criterion {self.config['training']['criterion']} not supported"
@@ -252,6 +252,7 @@ class Trainer:
             self.scheduler = get_lr_scheduler(
                 optimizer=self.optimizer,
                 lrs_config=lrs_config,
+                learning_rate=float(opt_config["learning_rate"]),
                 total_epochs=self.total_epochs,
                 train_batches_per_epoch=self.train_batches_per_epoch,
             )
@@ -678,6 +679,7 @@ class Trainer:
 def get_lr_scheduler(
     optimizer: torch.optim.Optimizer,
     lrs_config: dict,
+    learning_rate: float,
     total_epochs: int,
     train_batches_per_epoch: int,
 ) -> optim.lr_scheduler.SequentialLR:
@@ -690,6 +692,8 @@ def get_lr_scheduler(
         Optimizer for training
     lrs_config : dict
         Configuration dictionary for the learning rate scheduler
+    learning_rate : float
+        Learning rate for training
     total_epochs : int
         Total number of training epochs
     train_batches_per_epoch : int
@@ -753,13 +757,15 @@ def get_lr_scheduler(
     second_stage_name = second_stage["name"]
     if second_stage_name == "CosineAnnealingLR":
         second_stage_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=second_stage_batches, eta_min=float(second_stage["min_lr"])
+            optimizer,
+            T_max=second_stage_batches,
+            eta_min=float(second_stage["end_factor"]) * learning_rate,
         )
         schedulers.append(second_stage_scheduler)
     elif second_stage_name == "LinearLR":
         second_stage_scheduler = optim.lr_scheduler.LinearLR(
             optimizer,
-            start_factor=second_stage["start_factor"],
+            start_factor=1,
             end_factor=second_stage["end_factor"],
             total_iters=second_stage_batches,
         )
@@ -778,7 +784,7 @@ def get_lr_scheduler(
         if third_stage_name == "LinearLR":
             third_stage_scheduler = optim.lr_scheduler.LinearLR(
                 optimizer,
-                start_factor=third_stage["start_factor"],
+                start_factor=second_stage["end_factor"],
                 end_factor=third_stage["end_factor"],
                 total_iters=third_stage_batches,
             )
