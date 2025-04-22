@@ -158,7 +158,7 @@ class RNMSELoss(NMSELoss):
         return torch.sqrt(nmse)
 
 
-class VRNMSELoss(VMSELoss):
+class RVMSELoss(VMSELoss):
     """Root Variance-Normalized Mean Squared Error loss function.
 
     Parameters

@@ -36,7 +36,7 @@ from lpfm.data.dataset_utils import get_dataloader
 from lpfm.model.transformer.model import get_model
 from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
 from lpfm.utils.logger import get_logger
-from lpfm.model.transformer.loss_fns import NMSELoss, RNMSELoss
+from lpfm.model.transformer.loss_fns import NMSELoss, RNMSELoss, VMSELoss, RVMSELoss
 from lpfm.run.run_utils import find_last_checkpoint
 
 
@@ -219,6 +219,8 @@ class Trainer:
             "RMSE": nn.MSELoss(),
             "NMSE": NMSELoss(),
             "RNMSE": RNMSELoss(),
+            "VMSE": VMSELoss(),
+            "VRMSE": RVMSELoss(),
         }
 
         opt_config = self.config["training"]["optimizer"]
@@ -232,6 +234,10 @@ class Trainer:
             self.criterion = self.loss_fns.pop("RNMSE")
         elif self.config["training"]["criterion"] == "MAE":
             self.criterion = self.loss_fns.pop("MAE")
+        elif self.config["training"]["criterion"] == "VMSE":
+            self.criterion = self.loss_fns.pop("VMSE")
+        elif self.config["training"]["criterion"] == "VRMSE":
+            self.criterion = self.loss_fns.pop("VRMSE")
         else:
             raise ValueError(
                 f"Criterion {self.config['training']['criterion']} not supported"
@@ -355,6 +361,8 @@ class Trainer:
             "total-RMSE": torch.tensor(0.0, device=self.device),
             "total-NMSE": torch.tensor(0.0, device=self.device),
             "total-RNMSE": torch.tensor(0.0, device=self.device),
+            "total-VMSE": torch.tensor(0.0, device=self.device),
+            "total-RVMSE": torch.tensor(0.0, device=self.device),
         }
 
         for batch_idx, batch in enumerate(self.train_loader, start=1):
@@ -481,6 +489,8 @@ class Trainer:
             "total-RMSE": torch.tensor(0.0, device=self.device),
             "total-NMSE": torch.tensor(0.0, device=self.device),
             "total-RNMSE": torch.tensor(0.0, device=self.device),
+            "total-VMSE": torch.tensor(0.0, device=self.device),
+            "total-RVMSE": torch.tensor(0.0, device=self.device),
         }
 
         if self.ddp_enabled:
