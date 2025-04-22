@@ -36,7 +36,7 @@ from lpfm.data.dataset_utils import get_dataloader
 from lpfm.model.transformer.model import get_model
 from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
 from lpfm.utils.logger import get_logger
-from lpfm.model.transformer.nmse_loss import NMSELoss, RNMSELoss
+from lpfm.model.transformer.loss_fns import NMSELoss, RNMSELoss
 from lpfm.run.run_utils import find_last_checkpoint
 
 
