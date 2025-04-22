@@ -50,35 +50,28 @@ training:
   num_workers: 8 # number of workers for dataloader per GPU
   grad_clip: 1.0 # gradient clipping
   optimizer:
-    # name: Adam
-    # betas: [0.9, 0.999]
-    # learning_rate: 0.0001
-    # weight_decay: 0.0000
-    name: AdamW
+    name: AdamW # optimizer name (Adam, AdamW)
     learning_rate: 1e-3
     weight_decay: 0.01
     betas: [0.9, 0.999]
-    # name: DAdaptAdam
-    # betas: [0.9, 0.999]
-    # weight_decay: 0.01
-    # name: DAdaptAdamW
-    # betas: [0.9, 0.999]
-    # weight_decay: 0.1
   criterion: NMSE # MSE or NMSE or MAE
 
   lr_scheduler:
-    schedulers:
-      LinearLR: # linear warmup scheduler
-        start_factor: 0.001
-        end_factor: 1.0
-        total_iters: 100 # number of training batches for linear warmup
-      # CosineAnnealingWarmRestarts: # cosine annealing scheduler
-      #   T_0: 9 # number epochs for one cosine annealing cycle
-      #   T_mult: 2 # multiplicative factor for the number of epochs in each cycle
-      #   min_lr: 0.0001
-      CosineAnnealingLR: # cosine annealing scheduler
-        T_max: -1 # Number of epochs for one cosine annealing cycle, if -1, use all remaining epochs
-        min_lr: 1e-6
+    first_stage:
+      name: LinearLR # linear warmup scheduler
+      start_factor: 0.001
+      end_factor: 1.0
+      total_iters: 200 # number of training batches for linear warmup
+    second_stage:
+      name: CosineAnnealingLR # cosine annealing scheduler
+      T_max: -1 # Number of epochs for one cosine annealing cycle, if -1, use all remaining epochs
+      min_lr_factor: 0.1 # percentage of initial learning rate to use as minimum learning rate
+      # name: ConstantLR # constant scheduler
+    third_stage:
+      name: LinearLR # linear cool down scheduler
+      start_factor: 1
+      end_factor: 0
+      total_iters: 200 # number of training batches for linear warmup
 
 data:
   max_samples_per_ds: null # limit the number of samples per epoch, set to null for no limit

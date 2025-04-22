@@ -700,60 +700,51 @@ def get_lr_scheduler(
     if total_epochs == 1:
         return None
 
-    scheduler_names = list(lrs_config["schedulers"].keys())
-    if len(scheduler_names) == 1:
-        lrs_lin = lrs_config["schedulers"]["LinearLR"]
-        scheduler = optim.lr_scheduler.LinearLR(
+    first_stage = lrs_config["first_stage"]
+    second_stage = lrs_config["second_stage"]
+    third_stage = lrs_config["third_stage"] if "third_stage" in lrs_config else None
+
+    ############################################################
+    ###### First stage #########################################
+    ############################################################
+    first_stage_name = first_stage["name"]
+    if first_stage_name == "LinearLR":
+        first_stage_scheduler = optim.lr_scheduler.LinearLR(
             optimizer,
-            start_factor=lrs_lin["start_factor"],
-            end_factor=lrs_lin["end_factor"],
-            total_iters=lrs_lin["total_iters"],
+            start_factor=first_stage["start_factor"],
+            end_factor=first_stage["end_factor"],
+            total_iters=first_stage["total_iters"],
         )
+    else:
+        raise ValueError(f"Scheduler {first_stage_name} not supported")
 
-    elif len(scheduler_names) == 2:
-        # remove LinearLR from scheduler_names
-        scheduler_names.remove("LinearLR")
-        lrs_lin = lrs_config["schedulers"]["LinearLR"]
-
-        lrs1_scheduler = optim.lr_scheduler.LinearLR(
-            optimizer,
-            start_factor=lrs_lin["start_factor"],
-            end_factor=lrs_lin["end_factor"],
-            total_iters=lrs_lin["total_iters"],
-        )
-
-        lrs2_name = scheduler_names[0]
-        lrs2 = lrs_config["schedulers"][lrs2_name]
-
-        if lrs2_name == "CosineAnnealingWarmRestarts":
-            T_0 = train_batches_per_epoch * lrs2["T_0"]
-            # if T_max is -1, use all remaining epochs
-            if lrs2["T_max"] == -1:
-                T_max = total_epochs * train_batches_per_epoch - lrs_lin["total_iters"]
-            else:
-                T_max = train_batches_per_epoch * lrs2["T_max"]
-
-            cosine_scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(
-                optimizer, T_0=T_0, T_mult=lrs2["T_mult"], eta_min=float(lrs2["min_lr"])
-            )
-        elif lrs2_name == "CosineAnnealingLR":
-            # if T_max is -1, use all remaining epochs
-            if lrs2["T_max"] == -1:
-                T_max = total_epochs * train_batches_per_epoch - lrs_lin["total_iters"]
-            else:
-                T_max = train_batches_per_epoch * lrs2["T_max"]
-
-            cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-                optimizer, T_max=T_max, eta_min=float(lrs2["min_lr"])
-            )
+    ############################################################
+    ###### Second stage ########################################
+    ############################################################
+    second_stage_name = second_stage["name"]
+    
+    if second_stage_name == "CosineAnnealingLR":
+        # if T_max is -1, use all remaining epochs
+        if second_stage["T_max"] == -1:
+            T_max = total_epochs * train_batches_per_epoch - first_stage_scheduler["total_iters"]
         else:
-            raise ValueError(f"Scheduler {lrs2_name} not supported")
+            T_max = train_batches_per_epoch * second_stage["T_max"]
 
-        scheduler = optim.lr_scheduler.SequentialLR(
-            optimizer,
-            schedulers=[lrs1_scheduler, cosine_scheduler],
-            milestones=[lrs_lin["total_iters"]],
+        second_stage_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=T_max, eta_min=float(second_stage["min_lr"])
         )
+    elif second_stage_name == "ConstantLR":
+        second_stage_scheduler = optim.lr_scheduler.ConstantLR(
+            optimizer, factor=second_stage["factor"], total_iters=second_stage["total_iters"]
+        )
+    else:
+        raise ValueError(f"Scheduler {second_stage_name} not supported")
+
+    scheduler = optim.lr_scheduler.SequentialLR(
+        optimizer,
+        schedulers=[first_stage_scheduler, second_stage_scheduler],
+        milestones=[first_stage_scheduler["total_iters"]],
+    )
 
     return scheduler
 
@@ -790,21 +781,6 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
             lr=float(config["learning_rate"]),
             weight_decay=weight_decay,
             betas=betas,
-        )
-    elif config["name"] == "DAdaptAdam":
-        optimizer = DAdaptAdam(
-            model.parameters(),
-            lr=1,
-            betas=config["betas"],
-            weight_decay=config["weight_decay"],
-        )
-    elif config["name"] == "DAdaptAdamW":
-        optimizer = DAdaptAdam(
-            model.parameters(),
-            lr=1,
-            betas=config["betas"],
-            weight_decay=config["weight_decay"],
-            decouple=True,
         )
     else:
         raise ValueError(f"Optimizer {config['name']} not supported")
