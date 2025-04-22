@@ -61,17 +61,20 @@ training:
       name: LinearLR # linear warmup scheduler
       start_factor: 0.001
       end_factor: 1.0
-      total_iters: 200 # number of training batches for linear warmup
+      num_batches: 100 # percentage of total iterations for linear warmup 
     second_stage:
-      name: CosineAnnealingLR # cosine annealing scheduler
-      T_max: -1 # Number of epochs for one cosine annealing cycle, if -1, use all remaining epochs
-      min_lr_factor: 0.1 # percentage of initial learning rate to use as minimum learning rate
-      # name: ConstantLR # constant scheduler
-    third_stage:
-      name: LinearLR # linear cool down scheduler
+      # name: CosineAnnealingLR # cosine annealing scheduler
+      # num_batches: -1 # num batches for cosine annealing, -1 means use all remaining batches
+      # min_lr_factor: 0.1 # percentage of initial learning rate to use as minimum learning rate
+      name: LinearLR # linear 
       start_factor: 1
       end_factor: 0
-      total_iters: 200 # number of training batches for linear warmup
+      num_batches: -1 # number of batches for for second stage, -1 means use all remaining batches
+    # third_stage:
+    #   name: LinearLR # linear cool down scheduler
+    #   start_factor: 1
+    #   end_factor: 0
+    #   num_batches: 200 # number of batches for linear cool down
 
 data:
   max_samples_per_ds: null # limit the number of samples per epoch, set to null for no limit
@@ -90,6 +93,7 @@ data:
 
     - heated_object_pipe_flow_air
     - cooled_object_pipe_flow_air
+    - rayleigh_benard_obstacle
 
     - rayleigh_benard
     - shear_flow

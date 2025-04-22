@@ -402,11 +402,6 @@ class Trainer:
             ############################################################
             if self.scheduler is not None:
                 lr = self.scheduler.get_last_lr()[0]
-            elif isinstance(self.optimizer, DAdaptAdam):
-                lr = (
-                    self.optimizer.param_groups[0]["lr"]
-                    * self.optimizer.param_groups[0]["d"]
-                )
             else:
                 lr = self.optimizer.param_groups[0]["lr"]
 
@@ -705,6 +700,30 @@ def get_lr_scheduler(
     third_stage = lrs_config["third_stage"] if "third_stage" in lrs_config else None
 
     ############################################################
+    ###### Get batches for each stage #########################
+    ############################################################
+    milestones = []
+    total_batches = total_epochs * train_batches_per_epoch
+    first_stage_batches = first_stage["num_batches"]
+    second_stage_batches = second_stage["num_batches"]
+    if third_stage is not None:
+        third_stage_batches = third_stage["num_batches"]
+    else:
+        third_stage_batches = 0
+
+    if second_stage_batches == -1:
+        second_stage_batches = total_batches - first_stage_batches - third_stage_batches
+
+    first_milestone = first_stage_batches
+    milestones.append(first_milestone)
+    if third_stage is not None:
+        # only add the second stage milestone if there is a third stage
+        second_milestone = first_milestone + second_stage_batches
+        milestones.append(second_milestone)
+    
+    ############################################################
+    schedulers = []
+    ############################################################
     ###### First stage #########################################
     ############################################################
     first_stage_name = first_stage["name"]
@@ -713,37 +732,58 @@ def get_lr_scheduler(
             optimizer,
             start_factor=first_stage["start_factor"],
             end_factor=first_stage["end_factor"],
-            total_iters=first_stage["total_iters"],
+            total_iters=first_stage_batches,
         )
+        schedulers.append(first_stage_scheduler)
     else:
-        raise ValueError(f"Scheduler {first_stage_name} not supported")
+        raise ValueError(f"Scheduler {first_stage_name} not supported for first stage")
 
     ############################################################
     ###### Second stage ########################################
     ############################################################
     second_stage_name = second_stage["name"]
-    
     if second_stage_name == "CosineAnnealingLR":
-        # if T_max is -1, use all remaining epochs
-        if second_stage["T_max"] == -1:
-            T_max = total_epochs * train_batches_per_epoch - first_stage_scheduler["total_iters"]
-        else:
-            T_max = train_batches_per_epoch * second_stage["T_max"]
-
         second_stage_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=T_max, eta_min=float(second_stage["min_lr"])
+            optimizer, T_max=second_stage_batches, eta_min=float(second_stage["min_lr"])
         )
-    elif second_stage_name == "ConstantLR":
-        second_stage_scheduler = optim.lr_scheduler.ConstantLR(
-            optimizer, factor=second_stage["factor"], total_iters=second_stage["total_iters"]
+        schedulers.append(second_stage_scheduler)
+    elif second_stage_name == "LinearLR":
+        second_stage_scheduler = optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=second_stage["start_factor"],
+            end_factor=second_stage["end_factor"],
+            total_iters=second_stage_batches,
         )
-    else:
-        raise ValueError(f"Scheduler {second_stage_name} not supported")
+        schedulers.append(second_stage_scheduler)
 
+    else:
+        raise ValueError(
+            f"Scheduler {second_stage_name} not supported for second stage"
+        )
+
+    ############################################################
+    ###### Third stage #########################################
+    ############################################################
+    if third_stage is not None:
+        third_stage_name = third_stage["name"]
+        if third_stage_name == "LinearLR":
+            third_stage_scheduler = optim.lr_scheduler.LinearLR(
+                optimizer,
+                start_factor=third_stage["start_factor"],
+                end_factor=third_stage["end_factor"],
+                total_iters=third_stage_batches,
+            )
+            schedulers.append(third_stage_scheduler)
+        else:
+            raise ValueError(
+                f"Scheduler {third_stage_name} not supported for third stage"
+            )
+
+    # agument the last scheduler with the remaining epochs
     scheduler = optim.lr_scheduler.SequentialLR(
         optimizer,
-        schedulers=[first_stage_scheduler, second_stage_scheduler],
-        milestones=[first_stage_scheduler["total_iters"]],
+        schedulers=schedulers,
+        milestones=milestones,
     )
 
     return scheduler
