@@ -283,7 +283,8 @@ class Trainer:
         )
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        self.grad_scaler.load_state_dict(checkpoint["grad_scaler_state_dict"])
+        if self.grad_scaler is not None:
+            self.grad_scaler.load_state_dict(checkpoint["grad_scaler_state_dict"])
         if self.scheduler is not None:
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
@@ -300,13 +301,13 @@ class Trainer:
             "samples_trained": self.world_total_samples_trained,
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
-            "grad_scaler_state_dict": self.grad_scaler.state_dict(),
             "config": self.config,
         }
+        if self.grad_scaler is not None:
+            checkpoint["grad_scaler_state_dict"] = self.grad_scaler.state_dict()
         if self.scheduler is not None:
             checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
-        else:
-            checkpoint["scheduler_state_dict"] = None
+
         torch.save(checkpoint, self.epoch_dir / f"{name}.pth")
         self.log_msg(f"Summary: Checkpoint saved to {self.epoch_dir / f'{name}.pth'}")
 
