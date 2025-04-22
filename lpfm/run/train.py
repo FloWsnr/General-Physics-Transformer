@@ -30,7 +30,6 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.amp.grad_scaler import GradScaler
-from dadaptation import DAdaptAdam
 
 from lpfm.data.dataset_utils import get_dataloader
 from lpfm.model.transformer.model import get_model
@@ -140,8 +139,10 @@ class Trainer:
         if self.config["training"]["amp"] and torch.cuda.is_available():
             self.log_msg("Using AMP")
             self.use_amp = True
+            self.grad_scaler = GradScaler()
         else:
             self.use_amp = False
+            self.grad_scaler = None
 
         if self.ddp_enabled:
             self.model = DDP(
@@ -243,7 +244,6 @@ class Trainer:
                 f"Criterion {self.config['training']['criterion']} not supported"
             )
         self.optimizer = get_optimizer(self.model, opt_config)
-        self.grad_scaler = GradScaler()
         ################################################################
         ########### Initialize learning rate scheduler ################
         ################################################################
@@ -381,15 +381,24 @@ class Trainer:
             log_losses = self._compute_log_metrics(output.detach(), target.detach())
             log_losses[self.config["training"]["criterion"]] = raw_loss.detach()
 
-            # Scale loss, backpropagate, unscale, clip, step, update
-            self.grad_scaler.scale(raw_loss).backward()
-            self.grad_scaler.unscale_(self.optimizer)
-            # Clip gradients to norm 1
-            torch.nn.utils.clip_grad_norm_(
-                self.model.parameters(), max_norm=self.config["training"]["grad_clip"]
-            )
-            self.grad_scaler.step(self.optimizer)
-            self.grad_scaler.update()
+            if self.use_amp:
+                # Scale loss, backpropagate, unscale, clip, step, update
+                self.grad_scaler.scale(raw_loss).backward()
+                self.grad_scaler.unscale_(self.optimizer)
+                # Clip gradients to norm 1
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(),
+                    max_norm=self.config["training"]["grad_clip"],
+                )
+                self.grad_scaler.step(self.optimizer)
+                self.grad_scaler.update()
+            else:
+                raw_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(),
+                    max_norm=self.config["training"]["grad_clip"],
+                )
+                self.optimizer.step()
 
             ############################################################
             # Step learning rate scheduler #############################
@@ -720,7 +729,7 @@ def get_lr_scheduler(
         # only add the second stage milestone if there is a third stage
         second_milestone = first_milestone + second_stage_batches
         milestones.append(second_milestone)
-    
+
     ############################################################
     schedulers = []
     ############################################################
