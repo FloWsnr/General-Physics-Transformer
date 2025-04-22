@@ -13,6 +13,7 @@
 
 ### How many CPU cores to use
 #SBATCH --ntasks-per-node=96
+#SBATCH --exclusive
 
 ### How much memory per core
 #SBATCH --mem-per-cpu=5200

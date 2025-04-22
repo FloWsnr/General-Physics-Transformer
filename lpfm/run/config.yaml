@@ -4,10 +4,11 @@ wandb:
   id: ti-test-run-LR-04
   tags:
     - LPFM-Ti
-    - TestRun
+    - AllDatasets
+    - MainRun
   log_model: gradients # log :all", "parameters" or "gradients" or null
   log_interval: 10
-  notes: "test run with new lr scheduler"
+  notes: "main run with all datasets"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -30,7 +31,7 @@ model:
     pos_enc_mode: absolute # positional encoding mode (usually rope or absolute)
     patch_size: [2, 16, 16] # patch size (usually 4x16x16)
     stochastic_depth_rate: 0.0 # stochastic depth rate
-    use_derivatives: true # whether to use derivatives in the model
+    use_derivatives: false # whether to use derivatives in the model
   tokenizer:
     tokenizer_mode: linear # tokenizer mode (usually linear or conv_net)
     detokenizer_mode: linear # detokenizer mode (usually linear or conv_net)
@@ -45,8 +46,8 @@ training:
   tf32: true # use tf32 for faster matrix multiplications
   amp: true # use automatic mixed precision training
   seed: 42
-  batch_size: 128 # batch size per GPU
-  epochs: 2
+  batch_size: 256 # batch size per GPU
+  epochs: 10
   num_workers: 8 # number of workers for dataloader per GPU
   grad_clip: 1.0 # gradient clipping
   optimizer:
@@ -61,42 +62,43 @@ training:
       name: LinearLR # linear warmup scheduler
       start_factor: 0.001
       end_factor: 1.0
-      num_batches: 10 # percentage of total iterations for linear warmup 
+      num_batches: 300 # percentage of total iterations for linear warmup 
     second_stage:
-      name: CosineAnnealingLR # cosine annealing scheduler
-      num_batches: -1 # num batches for cosine annealing, -1 means use all remaining batches
-      end_factor: 0.1 # percentage of initial learning rate to use as minimum learning rate
-      # name: LinearLR # linear 
-      # end_factor: 1
-      # num_batches: -1 # number of batches for for second stage, -1 means use all remaining batches
-    third_stage:
-      name: LinearLR # linear cool down scheduler
-      end_factor: 0
-      num_batches: 10 # number of batches for linear cool down
+      # name: CosineAnnealingLR # cosine annealing scheduler
+      # num_batches: -1 # num batches for cosine annealing, -1 means use all remaining batches
+      # end_factor: 0.1 # percentage of initial learning rate to use as minimum learning rate
+      name: LinearLR # linear 
+      end_factor: 1
+      num_batches: -1 # number of batches for for second stage, -1 means use all remaining batches
+    # third_stage:
+    #   name: LinearLR # linear cool down scheduler
+    #   end_factor: 0
+    #   num_batches: 10 # number of batches for linear cool down
 
 data:
   max_samples_per_ds: null # limit the number of samples per epoch, set to null for no limit
   dt_stride: [1,8] # take every dt_stride-th timestep, if list, randomize between the values
   n_steps_input: 4 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
-  out_shape: [128, 64] # output shape (usually)
+  out_shape: [256, 128] # output shape (usually 256 x 128
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
-    # - cylinder_sym_flow_water
-    # - cylinder_pipe_flow_water
-    # - object_periodic_flow_water
-    # - object_sym_flow_water
-    # - object_sym_flow_air
+    - cylinder_sym_flow_water
+    - cylinder_pipe_flow_water
+    - object_periodic_flow_water
+    - object_sym_flow_water
+    - object_sym_flow_air
 
-    # - heated_object_pipe_flow_air
-    # - cooled_object_pipe_flow_air
-    # - rayleigh_benard_obstacle
-    # - twophase_flow
+    - heated_object_pipe_flow_air
+    - cooled_object_pipe_flow_air
+    - rayleigh_benard_obstacle
+    
+    - twophase_flow
 
-    # - rayleigh_benard
-    # - shear_flow
-    # - euler_multi_quadrants_periodicBC
+    - rayleigh_benard
+    - shear_flow
+    - euler_multi_quadrants_periodicBC
 
     # For testing
-    - turbulent_radiative_layer_2D
+    # - turbulent_radiative_layer_2D
