@@ -70,7 +70,6 @@ class Trainer:
         ################################################################
         self.avg_sec_per_epoch = 0
         self.start_time = time.time()
-        self.start_epoch_time = 0
         if "time_limit" in self.config["training"]:
             self.time_limit = self.config["training"]["time_limit"]
         else:
@@ -354,7 +353,6 @@ class Trainer:
         float
             Average training loss for the epoch
         """
-        self.start_epoch_time = time.time()
         self.model.train()
 
         if self.ddp_enabled:
@@ -576,6 +574,7 @@ class Trainer:
         best_loss = float("inf")
         epochs = range(self.epoch, self.total_epochs + 1)
         for epoch in epochs:
+            start_epoch_time = time.time()
             self.epoch = epoch
             self.epoch_dir = self.log_dir / f"epoch_{epoch:04d}"
             self.epoch_dir.mkdir(parents=True, exist_ok=True)
@@ -596,6 +595,13 @@ class Trainer:
                     f"training-summary/{k}": v for k, v in train_losses.items()
                 }
                 self.wandb_run.log(train_losses_wandb, commit=True)
+            ######################################################################
+            ########### Save checkpoint ########################################
+            ######################################################################
+            if self.global_rank == 0:
+                self.save_checkpoint(name="checkpoint")
+            if self.ddp_enabled:
+                dist.barrier()
 
             ######################################################################
             ########### Validation ###############################################
@@ -612,7 +618,7 @@ class Trainer:
             ############################################################
             # Calculate average time per epoch #########################
             ############################################################
-            duration = time.time() - self.start_epoch_time
+            duration = time.time() - start_epoch_time
             self.log_msg(f"Summary: Epoch {epoch} took {duration / 60:.2f} minutes")
             self.avg_sec_per_epoch = (
                 self.avg_sec_per_epoch * (self.epoch - 1) + duration
@@ -658,14 +664,6 @@ class Trainer:
                     best_loss = val_losses[f"total-{criterion}"]
                     self.save_checkpoint(name="best_model")
                     self.log_msg(f"Model saved with loss: {best_loss:.8f}")
-
-            ######################################################################
-            ########### Save checkpoint ########################################
-            ######################################################################
-            if self.global_rank == 0:
-                self.save_checkpoint(name="checkpoint")
-            if self.ddp_enabled:
-                dist.barrier()
 
             ############################################################
             # Shut down if time limit is set and next epoch would exceed it
