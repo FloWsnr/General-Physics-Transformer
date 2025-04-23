@@ -1,7 +1,7 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: ti-test-run-LR-04
+  id: ti-main-run-0001
   tags:
     - LPFM-Ti
     - AllDatasets
@@ -68,7 +68,7 @@ training:
       # num_batches: -1 # num batches for cosine annealing, -1 means use all remaining batches
       # end_factor: 0.1 # percentage of initial learning rate to use as minimum learning rate
       name: LinearLR # linear 
-      end_factor: 1
+      end_factor: 0.01
       num_batches: -1 # number of batches for for second stage, -1 means use all remaining batches
     # third_stage:
     #   name: LinearLR # linear cool down scheduler

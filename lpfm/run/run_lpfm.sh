@@ -23,11 +23,11 @@
 #SBATCH --mail-user=zsa8rk@virginia.edu
 
 ### Maximum runtime per task
-#SBATCH --time=1-00:00:00
+#SBATCH --time=12:00:00
 ##SBATCH --time=00:30:00
 
 ### set number of GPUs per task
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:2
 
 ### create time series, i.e. 100 jobs one after another. Each runs for 24 hours
 ##SBATCH --array=1-10%1
@@ -61,9 +61,9 @@ python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/tr
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
-sim_name="ti-full-run-0001"
+sim_name="ti-main-run-0004"
 nnodes=1
-ngpus_per_node=4
+ngpus_per_node=2
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
 # NOTE: set cuda visible devices, MUST be consecutive numbers
