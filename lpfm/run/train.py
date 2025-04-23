@@ -31,7 +31,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.amp.grad_scaler import GradScaler
 
-from dadaptation import DAdaptAdam
+import dadaptation
+import prodigyopt
 
 from lpfm.data.dataset_utils import get_dataloader
 from lpfm.model.transformer.model import get_model
@@ -182,31 +183,37 @@ class Trainer:
         self.train_samples_per_epoch = self.train_batches_per_epoch * self.batch_size
 
         # NOTE: This is across all GPU workers
-        world_total_samples = (
+        self.world_total_samples = (
             self.train_samples_per_epoch * self.total_epochs * self.world_size
         )
-        world_total_batches = (
+        self.world_total_batches = (
             self.train_batches_per_epoch * self.total_epochs * self.world_size
         )
-        world_train_batches_per_epoch = self.train_batches_per_epoch * self.world_size
-        world_val_batches_per_epoch = self.val_batches_per_epoch * self.world_size
-        world_train_samples_per_epoch = self.train_samples_per_epoch * self.world_size
+        self.world_train_batches_per_epoch = (
+            self.train_batches_per_epoch * self.world_size
+        )
+        self.world_val_batches_per_epoch = self.val_batches_per_epoch * self.world_size
+        self.world_train_samples_per_epoch = (
+            self.train_samples_per_epoch * self.world_size
+        )
 
         self.log_msg(f"Training for {self.total_epochs} epochs")
         self.log_msg(
-            f"Training on {world_train_batches_per_epoch} batches per epoch, {world_total_batches} batches in total"
+            f"Training on {self.world_train_batches_per_epoch} batches per epoch, {self.world_total_batches} batches in total"
         )
         self.log_msg(
-            f"Training for {world_train_samples_per_epoch} samples per epoch, {world_total_samples} samples in total"
+            f"Training for {self.world_train_samples_per_epoch} samples per epoch, {self.world_total_samples} samples in total"
         )
-        self.log_msg(f"Validating on {world_val_batches_per_epoch} batches per epoch")
+        self.log_msg(
+            f"Validating on {self.world_val_batches_per_epoch} batches per epoch"
+        )
 
         if self.global_rank == 0:
             self.wandb_run.config.update(
                 {
-                    "training/total_samples": world_total_samples,
-                    "training/samples_per_epoch": world_train_samples_per_epoch,
-                    "training/batches_per_epoch": world_train_batches_per_epoch,
+                    "training/total_samples": self.world_total_samples,
+                    "training/samples_per_epoch": self.world_train_samples_per_epoch,
+                    "training/batches_per_epoch": self.world_train_batches_per_epoch,
                 },
                 allow_val_change=True,
             )
@@ -343,6 +350,21 @@ class Trainer:
         dist.all_reduce(loss_tensor, op=dist.ReduceOp.AVG)
         return loss_tensor
 
+    def _get_lr(self) -> float:
+        """Get the learning rate."""
+        match self.optimizer:
+            case torch.optim.AdamW if self.scheduler is not None:
+                return self.scheduler.get_last_lr()[0]
+            case dadaptation.DAdaptAdam | prodigyopt.Prodigy if (
+                self.scheduler is not None
+            ):
+                return (
+                    self.optimizer.param_groups[0]["lr"]
+                    * self.optimizer.param_groups[0]["d"]
+                )
+            case _:
+                return self.optimizer.param_groups[0]["lr"]
+
     def train_epoch(self) -> float:
         """Train the model for one epoch.
 
@@ -405,16 +427,13 @@ class Trainer:
             ############################################################
             # Step learning rate scheduler #############################
             ############################################################
+            lr = self._get_lr()  # get learning rate for logging
             if self.scheduler is not None:
                 self.scheduler.step()
 
             ############################################################
             # Log training progress ####################################
             ############################################################
-            if self.scheduler is not None:
-                lr = self.scheduler.get_last_lr()[0]
-            else:
-                lr = self.optimizer.param_groups[0]["lr"]
 
             self.world_total_samples_trained += self.batch_size * self.world_size
             self.world_total_batches_trained += self.world_size
@@ -426,19 +445,17 @@ class Trainer:
             self.log_msg(
                 "Training: "
                 f"Epoch {self.epoch}/{self.total_epochs}, "
-                f"total batches: {self.world_total_batches_trained}, "
-                f"total samples: {self.world_total_samples_trained}"
+                f"total batches: {self.world_total_batches_trained}/{self.world_total_batches}, "
+                f"total samples: {self.world_total_samples_trained}/{self.world_total_samples}"
             )
             world_batch_idx = batch_idx * self.world_size
             world_samples_trained = self.batch_size * world_batch_idx
-            world_batches_per_epoch = self.train_batches_per_epoch * self.world_size
-            world_samples_per_epoch = self.train_samples_per_epoch * self.world_size
             self.log_msg(
-                f"\tBatch (all GPUs): {world_batch_idx}/{world_batches_per_epoch}, "
-                f"Samples (all GPUs): {world_samples_trained}/{world_samples_per_epoch}, "
+                f"\t\tBatch (all GPUs): {world_batch_idx}/{self.world_train_batches_per_epoch}, "
+                f"Samples (all GPUs): {world_samples_trained}/{self.world_train_samples_per_epoch}, "
                 f"LR: {lr:.8f}"
             )
-            log_string = "\tLosses: "
+            log_string = "\t\tLosses: "
             for loss_name, loss in log_losses.items():
                 log_string += f"{loss_name}: {loss.item():.8f}, "
             self.log_msg(log_string)
@@ -451,15 +468,17 @@ class Trainer:
                     {
                         "training/total_batches": self.world_total_batches_trained,
                         "training/total_samples": self.world_total_samples_trained,
-                        "training/epoch_batch_remaining": world_batches_per_epoch
+                        "training/epoch_batch_remaining": self.world_train_batches_per_epoch
                         - world_batch_idx,
-                        "training/epoch_samples_remaining": world_samples_per_epoch
+                        "training/epoch_samples_remaining": self.world_train_samples_per_epoch
                         - world_samples_trained,
                         "training/learning_rate": lr,
                     },
                     commit=False,
                 )
-                log_losses_wandb = {f"training/{k}": v for k, v in log_losses.items()}
+                log_losses_wandb = {
+                    f"training-losses/{k}": v for k, v in log_losses.items()
+                }
                 self.wandb_run.log(log_losses_wandb, commit=True)
 
             ###############################################################
@@ -534,7 +553,7 @@ class Trainer:
                     f"Epoch {self.epoch}/{self.total_epochs}, "
                     f"Batch (all GPUs): {batch_idx * self.world_size}/{self.val_batches_per_epoch * self.world_size}, "
                 )
-                log_string = "\tLosses: "
+                log_string = "\t\tLosses: "
                 for loss_name, loss in log_losses.items():
                     log_string += f"{loss_name}: {loss.item():.8f}, "
                 self.log_msg(log_string)
@@ -850,11 +869,19 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
     elif config["name"] == "AdaptAdamW":
         weight_decay = config["weight_decay"]
         betas = config["betas"]
-        optimizer = DAdaptAdam(
+        optimizer = dadaptation.DAdaptAdam(
             model.parameters(),
-            lr=1,
+            lr=config["learning_rate"],
             betas=betas,
             weight_decay=weight_decay,
+            decouple=True,
+        )
+    elif config["name"] == "Prodigy":
+        optimizer = prodigyopt.Prodigy(
+            model.parameters(),
+            lr=config["learning_rate"],
+            weight_decay=config["weight_decay"],
+            betas=config["betas"],
             decouple=True,
         )
     else:

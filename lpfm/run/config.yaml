@@ -1,14 +1,14 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: ti-main-run-0001
+  id: ti-main-run-single-0001
   tags:
     - LPFM-Ti
-    - AllDatasets
+    - SingleDataset
     - MainRun
   log_model: gradients # log :all", "parameters" or "gradients" or null
   log_interval: 10
-  notes: "main run with all datasets"
+  notes: "main run with single dataset"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -46,9 +46,9 @@ training:
   tf32: true # use tf32 for faster matrix multiplications
   amp: true # use automatic mixed precision training
   seed: 42
-  batch_size: 256 # batch size per GPU
+  batch_size: 128 # batch size per GPU
   epochs: 10
-  num_workers: 8 # number of workers for dataloader per GPU
+  num_workers: 6 # number of workers for dataloader per GPU
   grad_clip: 1.0 # gradient clipping
   optimizer:
     # name: AdamW # optimizer name (Adam, AdamW)
@@ -58,6 +58,12 @@ training:
     name: AdaptAdamW # AdaptAdamW or AdamW
     weight_decay: 0.01
     betas: [0.9, 0.999]
+    learning_rate: 1
+    #name: Prodigy
+    #learning_rate: 1
+    #weight_decay: 0.01
+    #slice_p: 1
+    #betas: [0.9, 0.999]
   criterion: NMSE # MSE or NMSE or MAE
 
   lr_scheduler:
@@ -88,20 +94,20 @@ data:
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
     - cylinder_sym_flow_water
-    - cylinder_pipe_flow_water
-    - object_periodic_flow_water
-    - object_sym_flow_water
-    - object_sym_flow_air
+    # - cylinder_pipe_flow_water
+    # - object_periodic_flow_water
+    # - object_sym_flow_water
+    # - object_sym_flow_air
 
-    - heated_object_pipe_flow_air
-    - cooled_object_pipe_flow_air
-    - rayleigh_benard_obstacle
+    # - heated_object_pipe_flow_air
+    # - cooled_object_pipe_flow_air
+    # - rayleigh_benard_obstacle
     
-    - twophase_flow
+    # - twophase_flow
 
-    - rayleigh_benard
-    - shear_flow
-    - euler_multi_quadrants_periodicBC
+    # - rayleigh_benard
+    # - shear_flow
+    # - euler_multi_quadrants_periodicBC
 
     # For testing
     # - turbulent_radiative_layer_2D
