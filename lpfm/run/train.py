@@ -978,9 +978,11 @@ def main(
         checkpoint_dir = config["logging"]["log_dir"] / config["wandb"]["id"]
         checkpoint_path = find_last_checkpoint(checkpoint_dir)
         if checkpoint_path is None:
-            print("No checkpoint found, starting from scratch")
+            if global_rank == 0:
+                print("No checkpoint found, starting from scratch")
         else:
-            print(f"Restarting from checkpoint {checkpoint_path}")
+            if global_rank == 0:
+                print(f"Restarting from checkpoint {checkpoint_path}")
     else:
         checkpoint_path = None
 
