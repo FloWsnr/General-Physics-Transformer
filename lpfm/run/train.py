@@ -31,6 +31,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.amp.grad_scaler import GradScaler
 
+from dadaptation import DAdaptAdam
+
 from lpfm.data.dataset_utils import get_dataloader
 from lpfm.model.transformer.model import get_model
 from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
@@ -429,8 +431,13 @@ class Trainer:
                 f"total batches: {self.world_total_batches_trained}, "
                 f"total samples: {self.world_total_samples_trained}"
             )
+            world_batch_idx = batch_idx * self.world_size
+            world_samples_trained = self.batch_size * world_batch_idx
+            world_batches_per_epoch = self.train_batches_per_epoch * self.world_size
+            world_samples_per_epoch = self.train_samples_per_epoch * self.world_size
             self.log_msg(
-                f"Batch (all GPUs): {batch_idx * self.world_size}/{self.train_batches_per_epoch * self.world_size}, "
+                f"\tBatch (all GPUs): {world_batch_idx}/{world_batches_per_epoch}, "
+                f"Samples (all GPUs): {world_samples_trained}/{world_samples_per_epoch}, "
                 f"LR: {lr:.8f}"
             )
             log_string = "\tLosses: "
@@ -444,8 +451,12 @@ class Trainer:
             if self.global_rank == 0:
                 self.wandb_run.log(
                     {
-                        "training/num_batches": self.world_total_batches_trained,
-                        "training/num_samples": self.world_total_samples_trained,
+                        "training/total_batches": self.world_total_batches_trained,
+                        "training/total_samples": self.world_total_samples_trained,
+                        "training/epoch_batch_remaining": world_batches_per_epoch
+                        - world_batch_idx,
+                        "training/epoch_samples_remaining": world_samples_per_epoch
+                        - world_samples_trained,
                         "training/learning_rate": lr,
                     },
                     commit=False,
@@ -837,6 +848,16 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
             lr=float(config["learning_rate"]),
             weight_decay=weight_decay,
             betas=betas,
+        )
+    elif config["name"] == "AdaptAdamW":
+        weight_decay = config["weight_decay"]
+        betas = config["betas"]
+        optimizer = DAdaptAdam(
+            model.parameters(),
+            lr=1,
+            betas=betas,
+            weight_decay=weight_decay,
+            decouple=True,
         )
     else:
         raise ValueError(f"Optimizer {config['name']} not supported")
