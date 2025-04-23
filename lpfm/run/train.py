@@ -354,18 +354,22 @@ class Trainer:
 
     def _get_lr(self) -> float:
         """Get the learning rate."""
-        match self.optimizer:
-            case torch.optim.AdamW if self.scheduler is not None:
-                return self.scheduler.get_last_lr()[0]
-            case dadaptation.DAdaptAdam | prodigyopt.Prodigy if (
-                self.scheduler is not None
-            ):
-                return (
-                    self.optimizer.param_groups[0]["lr"]
-                    * self.optimizer.param_groups[0]["d"]
-                )
-            case _:
-                return self.optimizer.param_groups[0]["lr"]
+        if isinstance(self.optimizer, torch.optim.AdamW):
+            return self.scheduler.get_last_lr()[0]
+
+        elif isinstance(self.optimizer, dadaptation.DAdaptAdam):
+            return (
+                self.optimizer.param_groups[0]["lr"]
+                * self.optimizer.param_groups[0]["d"]
+            )
+
+        elif isinstance(self.optimizer, prodigyopt.Prodigy):
+            return (
+                self.optimizer.param_groups[0]["lr"]
+                * self.optimizer.param_groups[0]["d"]
+            )
+        else:
+            return self.optimizer.param_groups[0]["lr"]
 
     def train_epoch(self) -> float:
         """Train the model for one epoch.
