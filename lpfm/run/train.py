@@ -298,6 +298,7 @@ class Trainer:
 
         self.epoch = checkpoint["epoch"] + 1
         self.world_total_samples_trained = checkpoint["samples_trained"]
+        self.world_total_batches_trained = checkpoint["batches_trained"]
         self.log_msg(
             f"Restarting training from epoch {self.epoch} with {self.world_total_samples_trained} samples trained"
         )
@@ -307,6 +308,7 @@ class Trainer:
         checkpoint = {
             "epoch": self.epoch,
             "samples_trained": self.world_total_samples_trained,
+            "batches_trained": self.world_total_batches_trained,
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
             "config": self.config,
@@ -431,34 +433,44 @@ class Trainer:
             if self.scheduler is not None:
                 self.scheduler.step()
 
-            ############################################################
-            # Log training progress ####################################
-            ############################################################
-
-            self.world_total_samples_trained += self.batch_size * self.world_size
-            self.world_total_batches_trained += self.world_size
-
+            ###############################################################
+            # Accumulate losses ###########################################
+            ###############################################################
             if self.ddp_enabled:
                 # average the losses across all GPUs
                 log_losses = self._reduce_all_losses(log_losses)
+            for loss_name, log_loss in log_losses.items():
+                train_losses_per_epoch[f"total-{loss_name}"] += log_loss
 
+            ############################################################
+            # Log training progress ####################################
+            ############################################################
+            self.world_total_samples_trained += self.batch_size * self.world_size
+            self.world_total_batches_trained += self.world_size
             self.log_msg(
-                "Training: "
+                "Training - Total: "
                 f"Epoch {self.epoch}/{self.total_epochs}, "
-                f"total batches: {self.world_total_batches_trained}/{self.world_total_batches}, "
-                f"total samples: {self.world_total_samples_trained}/{self.world_total_samples}"
+                f"total batches {self.world_total_batches_trained}/{self.world_total_batches}, "
+                f"total samples {self.world_total_samples_trained}/{self.world_total_samples}"
             )
             world_batch_idx = batch_idx * self.world_size
-            world_samples_trained = self.batch_size * world_batch_idx
+            world_samples_per_batch = self.batch_size * world_batch_idx
             self.log_msg(
-                f"\t\tBatch (all GPUs): {world_batch_idx}/{self.world_train_batches_per_epoch}, "
-                f"Samples (all GPUs): {world_samples_trained}/{self.world_train_samples_per_epoch}, "
+                f"Training - Epoch: Batch (all GPUs): {world_batch_idx}/{self.world_train_batches_per_epoch}, "
+                f"Samples (all GPUs): {world_samples_per_batch}/{self.world_train_samples_per_epoch}, "
                 f"LR: {lr:.8f}"
             )
-            log_string = "\t\tLosses: "
+            ############################################################
+            # Log losses ###############################################
+            ############################################################
+            wandb_log_losses = {}
+            log_string = "Training - Epoch: "
             for loss_name, loss in log_losses.items():
-                log_string += f"{loss_name}: {loss.item():.8f}, "
+                loss = loss.item()
+                log_string += f"{loss_name}: {loss:.8f}, "
+                wandb_log_losses[f"training-losses/{loss_name}"] = loss
             self.log_msg(log_string)
+            self.log_msg("")
 
             ############################################################
             # Log to wandb #############################################
@@ -466,26 +478,22 @@ class Trainer:
             if self.global_rank == 0:
                 self.wandb_run.log(
                     {
-                        "training/total_batches": self.world_total_batches_trained,
-                        "training/total_samples": self.world_total_samples_trained,
+                        "training/total_batches_trained": self.world_total_batches_trained,
+                        "training/total_samples_trained": self.world_total_samples_trained,
+                        "training/total_samples_remaining": self.world_total_samples
+                        - self.world_total_samples_trained,
+                        "training/total_batches_remaining": self.world_total_batches
+                        - self.world_total_batches_trained,
                         "training/epoch_batch_remaining": self.world_train_batches_per_epoch
                         - world_batch_idx,
                         "training/epoch_samples_remaining": self.world_train_samples_per_epoch
-                        - world_samples_trained,
+                        - world_samples_per_batch,
                         "training/learning_rate": lr,
+                        "training/batch_idx": world_batch_idx,
                     },
                     commit=False,
                 )
-                log_losses_wandb = {
-                    f"training-losses/{k}": v for k, v in log_losses.items()
-                }
-                self.wandb_run.log(log_losses_wandb, commit=True)
-
-            ###############################################################
-            # Accumulate losses ###########################################
-            ###############################################################
-            for loss_name, loss in log_losses.items():
-                train_losses_per_epoch[f"total-{loss_name}"] += loss.item()
+                self.wandb_run.log(wandb_log_losses, commit=True)
 
         ############################################################
         # Visualize predictions ####################################
@@ -547,20 +555,26 @@ class Trainer:
                 # Log validation loss
                 log_losses = self._compute_log_metrics(output.detach(), target.detach())
                 log_losses[self.config["training"]["criterion"]] = raw_loss.detach()
+                # Accumulate losses
+                for loss_name, loss in log_losses.items():
+                    val_losses_per_epoch[f"total-{loss_name}"] += loss
 
                 self.log_msg(
-                    "Validation: "
+                    "Validation - Total: "
                     f"Epoch {self.epoch}/{self.total_epochs}, "
                     f"Batch (all GPUs): {batch_idx * self.world_size}/{self.val_batches_per_epoch * self.world_size}, "
                 )
-                log_string = "\t\tLosses: "
+                ############################################################
+                # Log losses ###############################################
+                ############################################################
+                wandb_log_losses = {}
+                log_string = "Validation - Epoch: "
                 for loss_name, loss in log_losses.items():
-                    log_string += f"{loss_name}: {loss.item():.8f}, "
+                    loss = loss.item()
+                    log_string += f"{loss_name}: {loss:.8f}, "
+                    wandb_log_losses[f"validation-losses/{loss_name}"] = loss
                 self.log_msg(log_string)
-
-                # Accumulate losses
-                for loss_name, loss in log_losses.items():
-                    val_losses_per_epoch[f"total-{loss_name}"] += loss.item()
+                self.log_msg("")
 
         ############################################################
         # Visualize predictions ####################################
@@ -984,12 +998,14 @@ if __name__ == "__main__":
     ########### Default arguments ##############################
     ############################################################
 
-    default_config_path = Path("lpfm/run/config.yaml")
+    default_config_path = Path(
+        r"C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs\ti-main-run-single-0001\config.yaml"
+    )
     default_log_dir = Path("logs")
     default_sim_name = None
     default_data_dir = Path("data/datasets")
     default_time_limit = None
-    default_restart = False
+    default_restart = True
 
     ############################################################
     ########### Parse arguments ################################
