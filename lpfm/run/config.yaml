@@ -1,14 +1,14 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: ti-main-run-single-0001
+  id: ti-main-run-all-0001
   tags:
     - LPFM-Ti
-    - SingleDataset
+    - AllDatasets
     - MainRun
   log_model: gradients # log :all", "parameters" or "gradients" or null
   log_interval: 10
-  notes: "main run with single dataset"
+  notes: "main run with all datasets"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -46,19 +46,19 @@ training:
   tf32: true # use tf32 for faster matrix multiplications
   amp: true # use automatic mixed precision training
   seed: 42
-  batch_size: 128 # batch size per GPU
+  batch_size: 256 # batch size per GPU
   epochs: 10
-  num_workers: 6 # number of workers for dataloader per GPU
+  num_workers: 16 # number of workers for dataloader per GPU
   grad_clip: 1.0 # gradient clipping
   optimizer:
-    # name: AdamW # optimizer name (Adam, AdamW)
-    # learning_rate: 1e-3
-    # weight_decay: 0.01
-    # betas: [0.9, 0.999]
-    name: AdaptAdamW # AdaptAdamW or AdamW
+    name: AdamW # optimizer name (Adam, AdamW)
+    learning_rate: 1e-4
     weight_decay: 0.01
     betas: [0.9, 0.999]
-    learning_rate: 1
+    # name: AdaptAdamW # AdaptAdamW or AdamW
+    # weight_decay: 0.01
+    # betas: [0.9, 0.999]
+    # learning_rate: 1
     #name: Prodigy
     #learning_rate: 1
     #weight_decay: 0.01
@@ -77,7 +77,7 @@ training:
       # num_batches: -1 # num batches for cosine annealing, -1 means use all remaining batches
       # end_factor: 0.1 # percentage of initial learning rate to use as minimum learning rate
       name: LinearLR # linear 
-      end_factor: 0.01
+      end_factor: 1
       num_batches: -1 # number of batches for for second stage, -1 means use all remaining batches
     # third_stage:
     #   name: LinearLR # linear cool down scheduler
@@ -94,20 +94,20 @@ data:
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
     - cylinder_sym_flow_water
-    # - cylinder_pipe_flow_water
-    # - object_periodic_flow_water
-    # - object_sym_flow_water
-    # - object_sym_flow_air
+    - cylinder_pipe_flow_water
+    - object_periodic_flow_water
+    - object_sym_flow_water
+    - object_sym_flow_air
 
-    # - heated_object_pipe_flow_air
-    # - cooled_object_pipe_flow_air
-    # - rayleigh_benard_obstacle
+    - heated_object_pipe_flow_air
+    - cooled_object_pipe_flow_air
+    - rayleigh_benard_obstacle
     
-    # - twophase_flow
+    - twophase_flow
 
-    # - rayleigh_benard
-    # - shear_flow
-    # - euler_multi_quadrants_periodicBC
+    - rayleigh_benard
+    - shear_flow
+    - euler_multi_quadrants_periodicBC
 
     # For testing
     # - turbulent_radiative_layer_2D
