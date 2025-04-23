@@ -883,6 +883,7 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
             weight_decay=config["weight_decay"],
             betas=config["betas"],
             decouple=True,
+            slice_p=config["slice_p"],
         )
     else:
         raise ValueError(f"Optimizer {config['name']} not supported")
