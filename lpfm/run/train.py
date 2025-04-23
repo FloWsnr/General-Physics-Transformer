@@ -303,7 +303,7 @@ class Trainer:
             f"Restarting training from epoch {self.epoch} with {self.world_total_samples_trained} samples trained"
         )
 
-    def save_checkpoint(self, name: str = "checkpoint"):
+    def save_checkpoint(self, path: Path):
         """Save a checkpoint."""
         checkpoint = {
             "epoch": self.epoch,
@@ -318,8 +318,8 @@ class Trainer:
         if self.scheduler is not None:
             checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
 
-        torch.save(checkpoint, self.epoch_dir / f"{name}.pth")
-        self.log_msg(f"Summary: Checkpoint saved to {self.epoch_dir / f'{name}.pth'}")
+        torch.save(checkpoint, path)
+        self.log_msg(f"Summary: Checkpoint saved to {path}")
 
     def save_config(self):
         """Save the config to the log directory."""
@@ -632,7 +632,7 @@ class Trainer:
             ########### Save checkpoint ########################################
             ######################################################################
             if self.global_rank == 0:
-                self.save_checkpoint(name="checkpoint")
+                self.save_checkpoint(path=self.epoch_dir / "checkpoint.pth")
             if self.ddp_enabled:
                 dist.barrier()
 
@@ -695,7 +695,7 @@ class Trainer:
                 criterion = self.config["training"]["criterion"]
                 if val_losses[f"total-{criterion}"] < best_loss:
                     best_loss = val_losses[f"total-{criterion}"]
-                    self.save_checkpoint(name="best_model")
+                    self.save_checkpoint(path=self.log_dir / "best_model.pth")
                     self.log_msg(f"Model saved with loss: {best_loss:.8f}")
 
             ############################################################
