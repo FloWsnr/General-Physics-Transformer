@@ -296,15 +296,17 @@ def process_hdf5(
 
 if __name__ == "__main__":
     base_path = Path(
-        r"C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\data\datasets\cylinder_sym_flow_water"
+        "/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
     )
+    dataset = Path("cylinder_sym_flow_water")
+    dataset_dir = base_path / dataset
 
     # make a safety copy of the whole directory and its contents
-    shutil.copytree(base_path, base_path.parent / f"{base_path.stem}_copy")
+    shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
 
     swap = False
 
-    for file in list(base_path.glob("**/*.hdf5")):
+    for file in list(dataset_dir.glob("**/*.hdf5")):
         new_name = file.parent / f"{file.stem}_new.hdf5"
         process_hdf5(file, new_name, swap)
         # remove old file
