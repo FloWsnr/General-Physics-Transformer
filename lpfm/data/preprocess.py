@@ -86,7 +86,7 @@ def add_missing_datasets(
 ):
     """Add missing fields to the group."""
     names = ["pressure", "temperature", "density"]
-    zero_data = np.zeros((num_traj, num_time, *target_shape))
+    zero_data = np.zeros((num_traj, num_time, *target_shape), dtype=np.float32)
     # get the keys of the group
     keys = list(t0_group.keys())
     # check if the keys are in the keys
@@ -107,14 +107,14 @@ def handle_boundary_conditions(
 ):
     """Handle the boundary conditions."""
 
-    x_mask = np.zeros(target_shape[0])
-    y_mask = np.zeros(target_shape[1])
+    x_mask = np.zeros(target_shape[0], dtype=np.float32)
+    y_mask = np.zeros(target_shape[1], dtype=np.float32)
     x_mask[0] = 1
     x_mask[-1] = 1
     y_mask[0] = 1
     y_mask[-1] = 1
-    x_values = np.zeros(target_shape[0])
-    y_values = np.zeros(target_shape[1])
+    x_values = np.zeros(target_shape[0], dtype=np.float32)
+    y_values = np.zeros(target_shape[1], dtype=np.float32)
 
     group_data = {"attributes": {}, "data": {}}
     for subgroup_name, sub_group in src_group.items():
@@ -265,12 +265,12 @@ def process_hdf5(
 
                     elif isinstance(item, h5py.Dataset):
                         if name == "x":
-                            new_x = np.arange(0, target_shape[0])
+                            new_x = np.arange(0, target_shape[0], dtype=np.float32)
                             # Copy dataset and its attributes
                             new_dataset = dst_group.create_dataset("x", data=new_x)
                             copy_attr(item.attrs, new_dataset.attrs)
                         elif name == "y":
-                            new_y = np.arange(0, target_shape[1])
+                            new_y = np.arange(0, target_shape[1], dtype=np.float32)
                             # Copy dataset and its attributes
                             new_dataset = dst_group.create_dataset("y", data=new_y)
                             copy_attr(item.attrs, new_dataset.attrs)

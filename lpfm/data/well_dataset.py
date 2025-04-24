@@ -233,7 +233,7 @@ class WellDataset(Dataset):
             Maximum numel of constant tensor to cache
         return_grid:
             Whether to return grid coordinates
-        boundary_return_type: options=['padding', 'mask', 'exact', 'none']
+        boundary_return_type: options=['padding', 'mask', 'exact', None]
             How to return boundary conditions. Currently only padding supported.
         full_trajectory_mode:
             Overrides to return full trajectory starting from t0 instead of samples
@@ -274,8 +274,8 @@ class WellDataset(Dataset):
         flatten_tensors: bool = True,
         cache_small: bool = True,
         max_cache_size: float = 1e9,
-        return_grid: bool = True,
-        boundary_return_type: str = "padding",
+        return_grid: bool = False,
+        boundary_return_type: str = None,
         full_trajectory_mode: bool = False,
         name_override: Optional[str] = None,
         transform: Optional["Augmentation"] = None,
@@ -309,10 +309,13 @@ class WellDataset(Dataset):
                 stats = yaml.safe_load(f)
 
             self.means = {
-                field: torch.as_tensor(val) for field, val in stats["mean"].items()
+                field: torch.as_tensor(val, dtype=torch.float32)
+                for field, val in stats["mean"].items()
             }
             self.stds = {
-                field: torch.clip(torch.as_tensor(val), min=min_std)
+                field: torch.clip(
+                    torch.as_tensor(val, dtype=torch.float32), min=min_std
+                )
                 for field, val in stats["std"].items()
             }
 
@@ -578,7 +581,7 @@ class WellDataset(Dataset):
                             slice(time_idx, time_idx + n_steps * dt, dt),
                         )
                     field_data = field_data[multi_index]
-                    field_data = torch.as_tensor(field_data)
+                    field_data = torch.as_tensor(field_data, dtype=torch.float32)
                     # Normalize
                     if self.use_normalization:
                         if field_name in self.means:
@@ -628,7 +631,7 @@ class WellDataset(Dataset):
                         slice(time_idx, time_idx + n_steps * dt, dt),
                     )
                 scalar_data = scalar_data[multi_index]
-                scalar_data = torch.as_tensor(scalar_data)
+                scalar_data = torch.as_tensor(scalar_data, dtype=torch.float32)
                 # If constant, try to cache
                 if (
                     not scalar.attrs["time_varying"]
@@ -766,47 +769,47 @@ class WellDataset(Dataset):
             self.n_steps_input + output_steps,
             dt,
         )
-        data["variable_scalars"], data["constant_scalars"] = self._reconstruct_scalars(
-            self.files[file_idx],
-            self.caches[file_idx],
-            sample_idx,
-            time_idx,
-            self.n_steps_input + output_steps,
-            dt,
-        )
+        # data["variable_scalars"], data["constant_scalars"] = self._reconstruct_scalars(
+        #     self.files[file_idx],
+        #     self.caches[file_idx],
+        #     sample_idx,
+        #     time_idx,
+        #     self.n_steps_input + output_steps,
+        #     dt,
+        # )
 
-        if self.boundary_return_type is not None:
-            data["boundary_conditions"] = self._reconstruct_bcs(
-                self.files[file_idx],
-                self.caches[file_idx],
-                sample_idx,
-                time_idx,
-                self.n_steps_input + output_steps,
-                dt,
-            )
+        # if self.boundary_return_type is not None:
+        #     data["boundary_conditions"] = self._reconstruct_bcs(
+        #         self.files[file_idx],
+        #         self.caches[file_idx],
+        #         sample_idx,
+        #         time_idx,
+        #         self.n_steps_input + output_steps,
+        #         dt,
+        #     )
 
-        if self.return_grid:
-            data["space_grid"], data["time_grid"] = self._reconstruct_grids(
-                self.files[file_idx],
-                self.caches[file_idx],
-                sample_idx,
-                time_idx,
-                self.n_steps_input + output_steps,
-                dt,
-            )
+        # if self.return_grid:
+        #     data["space_grid"], data["time_grid"] = self._reconstruct_grids(
+        #         self.files[file_idx],
+        #         self.caches[file_idx],
+        #         sample_idx,
+        #         time_idx,
+        #         self.n_steps_input + output_steps,
+        #         dt,
+        #     )
 
-        # Data transformation/augmentation
-        if self.transform is not None:
-            data = self.transform(
-                cast(TrajectoryData, data),
-                TrajectoryMetadata(
-                    dataset=self,
-                    file_idx=file_idx,
-                    sample_idx=sample_idx,
-                    time_idx=time_idx,
-                    time_stride=dt,
-                ),
-            )
+        # # Data transformation/augmentation
+        # if self.transform is not None:
+        #     data = self.transform(
+        #         cast(TrajectoryData, data),
+        #         TrajectoryMetadata(
+        #             dataset=self,
+        #             file_idx=file_idx,
+        #             sample_idx=sample_idx,
+        #             time_idx=time_idx,
+        #             time_stride=dt,
+        #         ),
+        #     )
 
         # Concatenate fields and scalars
         for key in ("variable_fields", "constant_fields"):
@@ -821,13 +824,13 @@ class WellDataset(Dataset):
             else:
                 data[key] = torch.tensor([])
 
-        for key in ("variable_scalars", "constant_scalars"):
-            data[key] = [scalar.unsqueeze(-1) for _, scalar in data[key].items()]
+        # for key in ("variable_scalars", "constant_scalars"):
+        #     data[key] = [scalar.unsqueeze(-1) for _, scalar in data[key].items()]
 
-            if data[key]:
-                data[key] = torch.concatenate(data[key], dim=-1)
-            else:
-                data[key] = torch.tensor([])
+        #     if data[key]:
+        #         data[key] = torch.concatenate(data[key], dim=-1)
+        #     else:
+        #         data[key] = torch.tensor([])
 
         # Input/Output split
         sample = {
@@ -838,18 +841,18 @@ class WellDataset(Dataset):
                 self.n_steps_input :
             ],  # To x H x W x C
             "constant_fields": data["constant_fields"],  # H x W x C
-            "input_scalars": data["variable_scalars"][: self.n_steps_input],  # Ti x C
-            "output_scalars": data["variable_scalars"][self.n_steps_input :],  # To x C
-            "constant_scalars": data["constant_scalars"],  # C
+            # "input_scalars": data["variable_scalars"][: self.n_steps_input],  # Ti x C
+            # "output_scalars": data["variable_scalars"][self.n_steps_input :],  # To x C
+            # "constant_scalars": data["constant_scalars"],  # C
         }
 
-        if self.boundary_return_type is not None:
-            sample["boundary_conditions"] = data["boundary_conditions"]  # N x 2
+        # if self.boundary_return_type is not None:
+        #     sample["boundary_conditions"] = data["boundary_conditions"]  # N x 2
 
-        if self.return_grid:
-            sample["space_grid"] = data["space_grid"]  # H x W x D
-            sample["input_time_grid"] = data["time_grid"][: self.n_steps_input]  # Ti
-            sample["output_time_grid"] = data["time_grid"][self.n_steps_input :]  # To
+        # if self.return_grid:
+        #     sample["space_grid"] = data["space_grid"]  # H x W x D
+        #     sample["input_time_grid"] = data["time_grid"][: self.n_steps_input]  # Ti
+        #     sample["output_time_grid"] = data["time_grid"][self.n_steps_input :]  # To
 
         # Return only non-empty keys - maybe change this later
         return {k: v for k, v in sample.items() if v.numel() > 0}
