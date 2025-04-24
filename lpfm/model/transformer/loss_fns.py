@@ -49,7 +49,7 @@ class NMSELoss(nn.Module):
         # Calculate residuals
         residuals = pred - target
         # Normalize by mean squared target values (with small epsilon)
-        target_norm = target.pow(2).mean(self.dims, keepdim=True) + 1e-8
+        target_norm = target.pow(2).mean(self.dims, keepdim=True) + 1e-6
         # Calculate normalized MSE
         nmse = residuals.pow(2).mean(self.dims, keepdim=True) / target_norm
         if self.reduce:
@@ -103,7 +103,7 @@ class VMSELoss(nn.Module):
         # Calculate residuals
         residuals = pred - target
         # Calculate variance
-        norm = torch.std(target, dim=self.dims, keepdim=True) ** 2 + 1e-8
+        norm = torch.std(target, dim=self.dims, keepdim=True) ** 2 + 1e-6
         # Calculate normalized MSE
         nmse = residuals.pow(2).mean(self.dims, keepdim=True) / norm
         if self.reduce:
