@@ -61,7 +61,8 @@ python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/tr
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
 # sim_name (same as wandb id)
-sim_name="ti-main-run-all-0001"
+# sim_name="ti-main-run-all-0002"
+sim_name="ti-main-run-all-0002"
 nnodes=1
 ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
