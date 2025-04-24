@@ -7,28 +7,24 @@ import pytest
 import torch
 from pathlib import Path
 from torch.utils.data import DataLoader
-from lpfm.data.ind_datasets import (
-    RayleighBenardDataset,
-    ShearFlowDataset,
-    TurbulentRadiativeDataset,
-    EulerDataset,
-    ComsolIncompressibleFlowDataset,
-    ComsolHeatedFlowDataset,
-    ComsolPorousMediaFlowDataset,
-)
+from lpfm.data.phys_dataset import PhysicsDataset
 
 
 def test_rayleigh_benard_dataset():
     """Test RayleighBenardDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/rayleigh_benard/data/train")
-    dataset = RayleighBenardDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["buoyancy"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     # Call the method - parent returns (time, h, w, c) with c=[pressure, buoyancy]
     x, y = dataset[1]
 
     # Check shapes - should now have 5 channels (pressure, density, temperature, velocities)
-    assert x.shape == (1, 512, 128, 5)
-    assert y.shape == (1, 512, 128, 5)
+    assert x.shape == (1, 256, 128, 5)
+    assert y.shape == (1, 256, 128, 5)
 
     # Verify we don't have NaN values (which could happen in temperature calculation)
     assert not torch.isnan(x).any()
@@ -38,14 +34,18 @@ def test_rayleigh_benard_dataset():
 def test_shear_flow_dataset():
     """Test ShearFlowDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/shear_flow/data/train")
-    dataset = ShearFlowDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
     x, y = dataset[0]
 
     # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 512, 256, 5)
-    assert y.shape == (1, 512, 256, 5)
+    assert x.shape == (1, 256, 128, 5)
+    assert y.shape == (1, 256, 128, 5)
 
     # check that the density and temperature are zero
     assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
@@ -55,14 +55,18 @@ def test_shear_flow_dataset():
 def test_turbulent_radiative_dataset():
     """Test TurbulentRadiativeDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/turbulent_radiative_layer_2D/data/train")
-    dataset = TurbulentRadiativeDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     # Call the method - parent returns (time, h, w, c) with c=[pressure, density, velocity]
     x, y = dataset[0]
 
     # Check shapes - should now have 4 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 384, 128, 5)
-    assert y.shape == (1, 384, 128, 5)
+    assert x.shape == (1, 256, 128, 5)
+    assert y.shape == (1, 256, 128, 5)
 
     # check that the temperature is zero
     assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
@@ -72,14 +76,18 @@ def test_turbulent_radiative_dataset():
 def test_euler_dataset():
     """Test EulerDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/euler_multi_quadrants_periodicBC/data/train")
-    dataset = EulerDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     # Call the method - parent returns (time, h, w, c) with c=[pressure, density, velocity]
     x, y = dataset[0]
 
     # Check shapes - should now have 4 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 512, 512, 5)
-    assert y.shape == (1, 512, 512, 5)
+    assert x.shape == (1, 256, 128, 5)
+    assert y.shape == (1, 256, 128, 5)
 
     # check that the temperature is zero
     assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
@@ -89,14 +97,18 @@ def test_euler_dataset():
 def test_cylinder_pipe_flow_water_dataset():
     """Test ComsolIncompressibleFlowDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/cylinder_pipe_flow_water/data/train")
-    dataset = ComsolIncompressibleFlowDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
     x, y = dataset[0]
 
     # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 336, 128, 5)
-    assert y.shape == (1, 336, 128, 5)
+    assert x.shape == (1, 256, 128, 5)
+    assert y.shape == (1, 256, 128, 5)
 
     # check that the density and temperature are zero
     assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
@@ -106,7 +118,11 @@ def test_cylinder_pipe_flow_water_dataset():
 def test_cylinder_pipe_flow_water_dataset_with_dataloader():
     """Test ComsolIncompressibleFlowDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/cylinder_pipe_flow_water/data/train")
-    dataset = ComsolIncompressibleFlowDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     dataloader = DataLoader(dataset, batch_size=2, shuffle=True)
 
@@ -115,8 +131,8 @@ def test_cylinder_pipe_flow_water_dataset_with_dataloader():
         break
 
     # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (2, 1, 336, 128, 5)
-    assert y.shape == (2, 1, 336, 128, 5)
+    assert x.shape == (2, 1, 256, 128, 5)
+    assert y.shape == (2, 1, 256, 128, 5)
 
     # check that the density and temperature are zero
     assert torch.allclose(x[..., 1], torch.zeros_like(x[..., 1]))
@@ -126,14 +142,18 @@ def test_cylinder_pipe_flow_water_dataset_with_dataloader():
 def test_cylinder_sym_flow_water_dataset():
     """Test ComsolIncompressibleFlowDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/cylinder_sym_flow_water/data/train")
-    dataset = ComsolIncompressibleFlowDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
     x, y = dataset[0]
 
     # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 336, 128, 5)
-    assert y.shape == (1, 336, 128, 5)
+    assert x.shape == (1, 256, 128, 5)
+    assert y.shape == (1, 256, 128, 5)
 
     # check that the density and temperature are zero
     assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
@@ -143,7 +163,11 @@ def test_cylinder_sym_flow_water_dataset():
 def test_object_periodic_flow_water_dataset():
     """Test ComsolIncompressibleFlowDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/object_periodic_flow_water/data/train")
-    dataset = ComsolIncompressibleFlowDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
     x, y = dataset[0]
@@ -160,7 +184,11 @@ def test_object_periodic_flow_water_dataset():
 def test_object_sym_flow_air_dataset():
     """Test ComsolIncompressibleFlowDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/object_sym_flow_air/data/train")
-    dataset = ComsolIncompressibleFlowDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
     x, y = dataset[0]
@@ -177,7 +205,11 @@ def test_object_sym_flow_air_dataset():
 def test_object_sym_flow_water_dataset():
     """Test ComsolIncompressibleFlowDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/object_sym_flow_water/data/train")
-    dataset = ComsolIncompressibleFlowDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     x, y = dataset[0]
 
@@ -193,7 +225,11 @@ def test_object_sym_flow_water_dataset():
 def test_heated_flow_dataset():
     """Test ComsolHeatedFlowDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/heated_object_pipe_flow_air/data/train")
-    dataset = ComsolHeatedFlowDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     x, y = dataset[0]
 
@@ -209,7 +245,11 @@ def test_heated_flow_dataset():
 def test_cooled_flow_dataset():
     """Test ComsolHeatedFlowDataset returns correct tensor shapes and field order."""
     path = Path("data/datasets/cooled_object_pipe_flow_air/data/train")
-    dataset = ComsolHeatedFlowDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     x, y = dataset[0]
 
@@ -225,7 +265,11 @@ def test_cooled_flow_dataset():
 def test_rayleigh_benard_obs_dataset():
     """Test RayleighBenardDataset returns correct tensor shapes and field order."""
     path = Path(r"data\datasets\rayleigh_benard_obstacle\data\train")
-    dataset = ComsolHeatedFlowDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     x, y = dataset[0]
 
@@ -243,7 +287,11 @@ def test_twophase_flow_dataset():
     path = Path(
         r"/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets/twophase_flow/data"
     )
-    dataset = ComsolPorousMediaFlowDataset(data_dir=path)
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
     x, y = dataset[0]
 

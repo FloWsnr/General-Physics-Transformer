@@ -10,15 +10,6 @@ from the_well.data.augmentation import (
 )
 
 from lpfm.data.phys_dataset import SuperDataset, PhysicsDataset
-from lpfm.data.ind_datasets import (
-    RayleighBenardDataset,
-    ShearFlowDataset,
-    TurbulentRadiativeDataset,
-    EulerDataset,
-    ComsolIncompressibleFlowDataset,
-    ComsolHeatedFlowDataset,
-    ComsolPorousMediaFlowDataset,
-)
 
 
 def get_rng_transforms(p_flip: float) -> Compose:
@@ -104,6 +95,11 @@ def get_dataloader(
 def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDataset]:
     """Get the datasets."""
 
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+
     split_name = split
     if split == "val":
         split_name = "valid"
@@ -122,7 +118,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
 
     datasets = {}
     if "shear_flow" in data_config["datasets"]:
-        shearflow_dataset = ShearFlowDataset(
+        shearflow_dataset = PhysicsDataset(
             data_dir=data_dir / f"shear_flow/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -130,11 +126,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["shear_flow"] = shearflow_dataset
 
     if "rayleigh_benard" in data_config["datasets"]:
-        rayleigh_benard_dataset = RayleighBenardDataset(
+        rayleigh_benard_dataset = PhysicsDataset(
             data_dir=data_dir / f"rayleigh_benard/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -142,11 +139,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["rayleigh_benard"] = rayleigh_benard_dataset
 
     if "turbulent_radiative_layer_2D" in data_config["datasets"]:
-        turbulent_radiative_dataset = TurbulentRadiativeDataset(
+        turbulent_radiative_dataset = PhysicsDataset(
             data_dir=data_dir / f"turbulent_radiative_layer_2D/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -154,11 +152,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["turbulent_radiative_layer_2D"] = turbulent_radiative_dataset
 
     if "euler_multi_quadrants_periodicBC" in data_config["datasets"]:
-        euler_dataset = EulerDataset(
+        euler_dataset = PhysicsDataset(
             data_dir=data_dir / f"euler_multi_quadrants_periodicBC/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -166,11 +165,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["euler_multi_quadrants_periodicBC"] = euler_dataset
 
     if "cylinder_pipe_flow_water" in data_config["datasets"]:
-        cylinder_pipe_flow_dataset = ComsolIncompressibleFlowDataset(
+        cylinder_pipe_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"cylinder_pipe_flow_water/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -178,11 +178,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["cylinder_pipe_flow_water"] = cylinder_pipe_flow_dataset
 
     if "cylinder_sym_flow_water" in data_config["datasets"]:
-        cylinder_symmetry_flow_dataset = ComsolIncompressibleFlowDataset(
+        cylinder_symmetry_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"cylinder_sym_flow_water/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -190,11 +191,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["cylinder_sym_flow_water"] = cylinder_symmetry_flow_dataset
 
     if "object_periodic_flow_water" in data_config["datasets"]:
-        object_periodic_flow_dataset = ComsolIncompressibleFlowDataset(
+        object_periodic_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"object_periodic_flow_water/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -202,11 +204,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["object_periodic_flow_water"] = object_periodic_flow_dataset
 
     if "object_sym_flow_water" in data_config["datasets"]:
-        object_symmetry_flow_dataset = ComsolIncompressibleFlowDataset(
+        object_symmetry_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"object_sym_flow_water/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -214,11 +217,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["object_sym_flow_water"] = object_symmetry_flow_dataset
 
     if "object_sym_flow_air" in data_config["datasets"]:
-        object_symmetry_flow_dataset = ComsolIncompressibleFlowDataset(
+        object_symmetry_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"object_sym_flow_air/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -226,11 +230,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["object_sym_flow_air"] = object_symmetry_flow_dataset
 
     if "heated_object_pipe_flow_air" in data_config["datasets"]:
-        heated_flow_dataset = ComsolHeatedFlowDataset(
+        heated_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"heated_object_pipe_flow_air/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -238,11 +243,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["heated_object_pipe_flow_air"] = heated_flow_dataset
 
     if "cooled_object_pipe_flow_air" in data_config["datasets"]:
-        cooled_flow_dataset = ComsolHeatedFlowDataset(
+        cooled_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"cooled_object_pipe_flow_air/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -250,11 +256,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["cooled_object_pipe_flow_air"] = cooled_flow_dataset
 
     if "rayleigh_benard_obstacle" in data_config["datasets"]:
-        rayleigh_benard_obstacle_dataset = ComsolHeatedFlowDataset(
+        rayleigh_benard_obstacle_dataset = PhysicsDataset(
             data_dir=data_dir / f"rayleigh_benard_obstacle/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -262,11 +269,12 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["rayleigh_benard_obstacle"] = rayleigh_benard_obstacle_dataset
 
     if "twophase_flow" in data_config["datasets"]:
-        twophase_flow_dataset = ComsolPorousMediaFlowDataset(
+        twophase_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"twophase_flow/data/{split_name}",
             split=split,
             n_steps_input=n_steps_input,
@@ -274,6 +282,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
+            include_field_names=include_field_names,
         )
         datasets["twophase_flow"] = twophase_flow_dataset
 
