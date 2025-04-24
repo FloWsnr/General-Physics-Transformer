@@ -95,6 +95,7 @@ def get_dataloader(
         num_workers=train_config["num_workers"],
         pin_memory=True,
         sampler=sampler,
+        prefetch_factor=train_config["prefetch_factor"],
     )
 
     return dataloader
