@@ -283,7 +283,9 @@ class Trainer:
         if self.global_rank == 0:
             self.logger.info(msg)
 
-    def load_checkpoint(self, checkpoint_path: Path):
+    def load_checkpoint(
+        self, checkpoint_path: Path, new_training_from_checkpoint: bool = False
+    ):
         """Restart training from a checkpoint."""
         self.log_msg(f"Loading checkpoint from {checkpoint_path}")
         checkpoint = torch.load(
@@ -293,7 +295,7 @@ class Trainer:
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         if self.grad_scaler is not None:
             self.grad_scaler.load_state_dict(checkpoint["grad_scaler_state_dict"])
-        if self.scheduler is not None:
+        if self.scheduler is not None and not new_training_from_checkpoint:
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
         self.epoch = checkpoint["epoch"] + 1
@@ -934,6 +936,7 @@ def main(
     config_path: Path,
     log_dir: Path | None,
     restart: bool,
+    new_training_from_checkpoint: bool,
     sim_name: str | None,
     data_dir: Path | None,
     time_limit: str | None,
@@ -994,7 +997,10 @@ def main(
 
     trainer = Trainer(config, global_rank, local_rank, world_size)
     if restart and checkpoint_path is not None:
-        trainer.load_checkpoint(checkpoint_path=checkpoint_path)
+        trainer.load_checkpoint(
+            checkpoint_path=checkpoint_path,
+            new_training_from_checkpoint=new_training_from_checkpoint,
+        )
     trainer.save_config()
     trainer.train()
 
@@ -1015,6 +1021,7 @@ if __name__ == "__main__":
     default_data_dir = Path("data/datasets")
     default_time_limit = None
     default_restart = False
+    default_new_training_from_checkpoint = False
 
     ############################################################
     ########### Parse arguments ################################
@@ -1025,6 +1032,11 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", type=str, default=default_log_dir)
     parser.add_argument(
         "--restart", action=argparse.BooleanOptionalAction, default=default_restart
+    )
+    parser.add_argument(
+        "--new_training_from_checkpoint",
+        action=argparse.BooleanOptionalAction,
+        default=default_new_training_from_checkpoint,
     )
     parser.add_argument("--sim_name", type=str, default=default_sim_name)
     parser.add_argument("--data_dir", type=str, default=default_data_dir)
@@ -1041,6 +1053,7 @@ if __name__ == "__main__":
     data_dir = args.data_dir
     time_limit = args.time_limit
     restart = args.restart
+    new_training_from_checkpoint = args.new_training_from_checkpoint
 
     main(
         config_path=config_path,
@@ -1048,6 +1061,7 @@ if __name__ == "__main__":
         sim_name=sim_name,
         data_dir=data_dir,
         restart=restart,
+        new_training_from_checkpoint=new_training_from_checkpoint,
         time_limit=time_limit,
         global_rank=global_rank,
         local_rank=local_rank,

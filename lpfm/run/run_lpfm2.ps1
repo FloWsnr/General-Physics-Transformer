@@ -26,14 +26,7 @@ $python_exec = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\lpfm\run\t
 $log_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs"
 $data_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\data\datasets"
 $sim_name = "ti-main-run-single-0004"
-$nnodes = 1
-$ngpus_per_node = 1
-$env:OMP_NUM_THREADS = 1 # (num cpu - num_workers) / num_gpus
-
-# NOTE: set cuda visible devices, MUST be consecutive numbers
-# USE ONLY FOR DEBUGGING, non-slurm jobs
-# $env:CUDA_VISIBLE_DEVICES = "1"
-
+$new_training_from_checkpoint = $false
 # sim directory
 $sim_dir = Join-Path $log_dir $sim_name
 
@@ -85,6 +78,10 @@ $cmd += " --sim_name `"$sim_name`""
 $cmd += " --log_dir `"$log_dir`""
 $cmd += " --data_dir `"$data_dir`""
 $cmd += " --time_limit `"$time_limit`""
+
+if ($new_training_from_checkpoint) {
+    $cmd += " --new_training_from_checkpoint"
+}
 
 # Add --restart if the restart flag is true
 if ($restart) {

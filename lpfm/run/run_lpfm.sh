@@ -67,6 +67,8 @@ nnodes=1
 ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
+new_training_from_checkpoint=true
+
 # NOTE: set cuda visible devices, MUST be consecutive numbers
 # USE ONLY FOR DEBUGGING, non-slurm jobs
 # export CUDA_VISIBLE_DEVICES=1
@@ -93,16 +95,22 @@ mkdir -p $sim_dir
 # copy the slurm script to the sim_dir
 cp /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/run_lpfm.sh $sim_dir
 
-# Try to find config file in sim_dir
-config_file="${sim_dir}/config.yaml"
-if [ -f "$config_file" ]; then
-    echo "Config file found in $sim_dir, attempting restart..."
+if [ "$new_training_from_checkpoint" = true ]; then
+    # overwrite the config file in the sim_dir
+    cp /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/config.yaml $sim_dir
     restart=true
 else
+    # Try to find config file in sim_dir
+    config_file="${sim_dir}/config.yaml"
+    if [ -f "$config_file" ]; then
+    echo "Config file found in $sim_dir, attempting restart..."
+    restart=true
+    else
     echo "No config file found in $sim_dir, starting new training..."
     # copy config file to sim_dir
     cp /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/config.yaml $sim_dir
-    restart=false
+        restart=false
+    fi
 fi
 
 #####################################################################################
@@ -113,6 +121,7 @@ echo "Starting LPFM training..."
 echo "config_file: $config_file"
 echo "sim_dir: $sim_dir"
 echo "restart: $restart"
+echo "new_training_from_checkpoint: $new_training_from_checkpoint"
 echo "--------------------------------"
 
 exec_args="--config_file $config_file \
@@ -124,6 +133,9 @@ exec_args="--config_file $config_file \
 # Add --restart if the restart flag is true
 if [ "$restart" = true ]; then
     exec_args="$exec_args --restart"
+fi
+if [ "$new_training_from_checkpoint" = true ]; then
+    exec_args="$exec_args --new_training_from_checkpoint"
 fi
 
 # Capture Python output and errors in a variable and run the script
