@@ -2,7 +2,6 @@ from typing import Optional
 from pathlib import Path
 
 import torch
-import einops
 from the_well.data.augmentation import Compose
 
 from lpfm.data.well_dataset import WellDataset
@@ -108,10 +107,6 @@ class PhysicsDataset(WellDataset):
             torch.zeros_like(y),
             y,
         )
-
-        if self.channels_first:
-            x = einops.rearrange(x, "time h w c -> time c h w")
-            y = einops.rearrange(y, "time h w c -> time c h w")
         return x, y
 
 
@@ -186,17 +181,4 @@ class SuperDataset:
                 x, y = self.datasets[i][actual_index]  # (time, h, w, n_channels)
                 break
             index -= length
-
-        x = einops.rearrange(x, "time h w c -> time c h w")
-        y = einops.rearrange(y, "time h w c -> time c h w")
-        # Reshape to out_shape
-        x = torch.nn.functional.interpolate(
-            x, size=self.out_shape, mode="bilinear", align_corners=False
-        )
-        y = torch.nn.functional.interpolate(
-            y, size=self.out_shape, mode="bilinear", align_corners=False
-        )
-        x = einops.rearrange(x, "time c h w -> time h w c")
-        y = einops.rearrange(y, "time c h w -> time h w c")
-
         return x, y
