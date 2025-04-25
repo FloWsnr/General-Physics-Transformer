@@ -1,14 +1,14 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: ti-main-run-single-0004
+  id: ti-main-run-single-0005
   tags:
     - LPFM-Ti
     - SingleDataset
     - MainRun
   log_model: gradients # log :all", "parameters" or "gradients" or null
   log_interval: 10
-  notes: "main run with single dataset"
+  notes: "main run with single dataset and higher learning rate"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -47,13 +47,13 @@ training:
   amp: true # use automatic mixed precision training
   seed: 42
   batch_size: 256 # batch size per GPU
-  epochs: 40
+  epochs: 30
   num_workers: 6 # number of workers for dataloader per GPU
   prefetch_factor: 2 # how many batches to prefetch for each worker
   grad_clip: 1.0 # gradient clipping
   optimizer:
     name: AdamW # optimizer name (Adam, AdamW)
-    learning_rate: 1e-4
+    learning_rate: 1e-3
     weight_decay: 0.01
     betas: [0.9, 0.999]
     # name: AdaptAdamW # AdaptAdamW or AdamW
@@ -78,7 +78,7 @@ training:
       # num_batches: -1 # num batches for cosine annealing, -1 means use all remaining batches
       # end_factor: 0.1 # percentage of initial learning rate to use as minimum learning rate
       name: LinearLR # linear 
-      end_factor: 1
+      end_factor: 0.0001
       num_batches: -1 # number of batches for for second stage, -1 means use all remaining batches
     # third_stage:
     #   name: LinearLR # linear cool down scheduler

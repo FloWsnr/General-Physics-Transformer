@@ -25,9 +25,10 @@ conda activate lpfm
 $python_exec = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\lpfm\run\train.py"
 $log_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs"
 $data_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\data\datasets"
-$config_file = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs\ti-main-run-single-0004\config_cooldown.yaml"
-$sim_name = "ti-main-run-single-0004"
-$new_training_from_checkpoint = $true
+$config_file = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\lpfm\run\config.yaml"
+# $config_file = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs\ti-main-run-single-0004\config_cooldown.yaml"
+$sim_name = "ti-main-run-single-0005"
+$new_training_from_checkpoint = $false
 
 # sim directory
 $sim_dir = Join-Path $log_dir $sim_name
@@ -58,10 +59,11 @@ if ($new_training_from_checkpoint) {
     Write-Host "Using checkpoint to continue training with new config file..."
 } else {
     # Try to find config file in sim_dir
-    $config_file = Join-Path $sim_dir "config.yaml"
-    if (Test-Path $config_file) {
+    $restart_config_file = Join-Path $sim_dir "config.yaml"
+    if (Test-Path $restart_config_file) {
         Write-Host "Config file found in $sim_dir, attempting restart..."
         $restart = $true
+        $config_file = $restart_config_file
     } else {
         Write-Host "No config file found in $sim_dir, starting new training..."
         # copy config file to sim_dir
