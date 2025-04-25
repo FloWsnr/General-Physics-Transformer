@@ -132,8 +132,10 @@ class CausalSpatioTemporalAttention(AbstractAttention):
         width: int,
         dropout: float = 0.0,
         pe: Optional[RotaryPositionalEmbedding] = None,
+        return_att: bool = False,
     ):
         super().__init__(hidden_dim, num_heads, dropout, pe)
+        self.return_att = return_att
         # Calculate total number of patches (tokens) and patches per timestep
         num_patches = time * height * width
         patches_per_timestep = height * width
@@ -169,10 +171,15 @@ class CausalSpatioTemporalAttention(AbstractAttention):
         v = rearrange(v, "b t h w c -> b (t h w) c")
 
         # NOTE: potentially also norm qk again?
-        x, att_weights = self.attention(q, k, v, attn_mask=self.mask)
+        x, att_weights = self.attention(
+            q, k, v, attn_mask=self.mask, need_weights=self.return_att
+        )
         x = rearrange(x, "b (t h w) c -> b t h w c", t=T, h=H, w=W)
 
-        return x
+        if self.return_att:
+            return x, att_weights
+        else:
+            return x
 
 
 class SpatialAttention(AbstractAttention):

@@ -62,22 +62,24 @@ class TestCausalSpatioTemporalAttention:
 
     def test_forward(self):
         """Test forward pass of CausalSpatioTemporalAttention module."""
-        batch_size = 2
-        time = 3
-        height = 16
-        width = 16
+        batch_size = 1
+        time = 2
+        height = 2
+        width = 2
         hidden_dim = 64
         num_heads = 4
 
         x = torch.randn(batch_size, time, height, width, hidden_dim)
         attention = CausalSpatioTemporalAttention(
-            hidden_dim, num_heads, time, height, width
+            hidden_dim, num_heads, time, height, width, return_att=True
         )
 
-        output = attention(x)
+        output, att_weights = attention(x)
+        num_patches = time * height * width
 
         # Check output shape
         assert output.shape == (batch_size, time, height, width, hidden_dim)
+        assert att_weights.shape == (batch_size, num_patches, num_patches)
 
 
 class TestMLP:
@@ -183,3 +185,8 @@ class TestAttentionBlock:
 
         # Check output shape
         assert output.shape == (batch_size, time, height, width, channels)
+
+
+if __name__ == "__main__":
+    test = TestCausalSpatioTemporalAttention()
+    test.test_forward()
