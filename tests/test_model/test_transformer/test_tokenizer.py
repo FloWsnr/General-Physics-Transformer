@@ -83,44 +83,6 @@ class TestDetokenizer:
 
         assert output.shape == (batch_size, *img_size, out_channels)
 
-    def test_detokenizer_with_squash_time(self):
-        """
-        Test that the Detokenizer class forward pass is correct.
-        """
-        img_size = (4, 64, 32)
-        patch_size = (2, 4, 4)
-        out_channels = 5
-        dim_embed = 128
-        batch_size = 2
-
-        conv_net_channels = [64, 32, 16]
-
-        num_t_patches = img_size[0] // patch_size[0]
-        num_h_patches = img_size[1] // patch_size[1]
-        num_w_patches = img_size[2] // patch_size[2]
-        x = torch.randn(
-            batch_size, num_t_patches, num_h_patches, num_w_patches, dim_embed
-        )
-
-        detokenizer = Detokenizer(
-            patch_size=patch_size,
-            dim_embed=dim_embed,
-            out_channels=out_channels,
-            mode="linear",
-            conv_net_channels=conv_net_channels,
-            squash_time=True,
-            img_size=img_size,
-        )
-        output = detokenizer(x)
-
-        assert output.shape == (
-            batch_size,
-            1,
-            img_size[1],
-            img_size[2],
-            out_channels,
-        )
-
 
 class TestLinearTokenizer:
     """
@@ -237,52 +199,6 @@ class TestLinearDetokenizer:
         output = detokenizer(x)
 
         assert output.shape == (batch_size, *img_size, out_channels)
-
-    @pytest.mark.parametrize(
-        "time_steps, patch_size_t",
-        [
-            (1, 1),
-            (2, 2),
-            (4, 2),
-            (8, 2),
-            (16, 4),
-        ],
-    )
-    def test_linear_detokenizer_squash_time(self, time_steps, patch_size_t):
-        """
-        Test that the LinearDetokenizer class works correctly with overlap.
-        """
-        batch_size = 2
-        img_size = (time_steps, 128, 64)
-        patch_size = (patch_size_t, 16, 16)
-        out_channels = 5
-        dim_embed = 256
-
-        num_t_patches = img_size[0] // patch_size[0]
-        num_h_patches = img_size[1] // patch_size[1]
-        num_w_patches = img_size[2] // patch_size[2]
-
-        x = torch.randn(
-            batch_size, num_t_patches, num_h_patches, num_w_patches, dim_embed
-        )
-
-        detokenizer = LinearDetokenizer(
-            patch_size=patch_size,
-            out_channels=out_channels,
-            dim_embed=dim_embed,
-            overlap=0,
-            squash_time=True,
-            img_size=img_size,
-        )
-        output = detokenizer(x)
-
-        assert output.shape == (
-            batch_size,
-            1,
-            img_size[1],
-            img_size[2],
-            out_channels,
-        )
 
 
 class TestConvNetTokenizer:

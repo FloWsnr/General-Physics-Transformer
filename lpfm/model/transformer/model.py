@@ -71,6 +71,7 @@ def get_model(model_config: dict):
         mlp_dim=lpfm_config.mlp_dim,
         num_heads=lpfm_config.num_heads,
         num_layers=lpfm_config.num_layers,
+        att_mode=transformer_config["att_mode"],
         pos_enc_mode=transformer_config["pos_enc_mode"],
         img_size=model_config["img_size"],
         patch_size=transformer_config["patch_size"],
@@ -79,7 +80,6 @@ def get_model(model_config: dict):
         detokenizer_mode=tokenizer_config["detokenizer_mode"],
         tokenizer_overlap=tokenizer_config["tokenizer_overlap"],
         detokenizer_overlap=tokenizer_config["detokenizer_overlap"],
-        detokenizer_squash_time=tokenizer_config["detokenizer_squash_time"],
         tokenizer_net_channels=tokenizer_config["tokenizer_net_channels"],
         detokenizer_net_channels=tokenizer_config["detokenizer_net_channels"],
         dropout=transformer_config["dropout"],
@@ -125,8 +125,6 @@ class PhysicsTransformer(nn.Module):
         Tokenizer mode. Can be "linear" or "non_linear".
     detokenizer_mode: str = "linear"
         Detokenizer mode. Can be "linear" or "non_linear".
-    detokenizer_squash_time: bool = False
-        If True, the time dimension will be squashed into a single time step for the detokenizer.
     tokenizer_net_channels: list[int] = None
         Number of channels in the tokenizer conv_net.
     detokenizer_net_channels: list[int] = None
@@ -157,11 +155,11 @@ class PhysicsTransformer(nn.Module):
         patch_size: tuple[int, int, int],
         img_size: tuple[int, int, int],
         use_derivatives: bool = False,
+        att_mode: str = "full",
         tokenizer_mode: str = "linear",
         detokenizer_mode: str = "linear",
         tokenizer_overlap: int = 0,
         detokenizer_overlap: int = 0,
-        detokenizer_squash_time: bool = False,
         tokenizer_net_channels: Optional[list[int]] = None,
         detokenizer_net_channels: Optional[list[int]] = None,
         dropout: float = 0.0,
@@ -171,7 +169,10 @@ class PhysicsTransformer(nn.Module):
 
         self.input_channels = input_channels
         self.output_channels = input_channels
-        self.squash_time = detokenizer_squash_time
+
+        n_patch_t = img_size[0] // patch_size[0]
+        n_patch_h = img_size[1] // patch_size[1]
+        n_patch_w = img_size[2] // patch_size[2]
 
         # Initialize derivatives module
         self.use_derivatives = use_derivatives
@@ -202,9 +203,9 @@ class PhysicsTransformer(nn.Module):
         elif pos_enc_mode == "absolute":
             self.init_pos_encodings = AbsPositionalEmbedding(
                 num_channels=hidden_dim,
-                time=img_size[0] // patch_size[0],
-                height=img_size[1] // patch_size[1],
-                width=img_size[2] // patch_size[2],
+                time=n_patch_t,
+                height=n_patch_h,
+                width=n_patch_w,
             )
             att_pos_encodings = None
         else:
@@ -214,10 +215,13 @@ class PhysicsTransformer(nn.Module):
         self.attention_blocks = nn.ModuleList(
             [
                 AttentionBlock(
-                    att_type="full",
+                    att_type=att_mode,
                     hidden_dim=hidden_dim,
                     mlp_dim=mlp_dim,
                     num_heads=num_heads,
+                    time=n_patch_t,
+                    height=n_patch_h,
+                    width=n_patch_w,
                     dropout=dropout,
                     pe=att_pos_encodings,
                 )
@@ -234,7 +238,6 @@ class PhysicsTransformer(nn.Module):
             mode=detokenizer_mode,
             conv_net_channels=detokenizer_net_channels,
             overlap=detokenizer_overlap,
-            squash_time=detokenizer_squash_time,
             img_size=img_size,
         )
 
@@ -266,7 +269,4 @@ class PhysicsTransformer(nn.Module):
         x = self.revin(x, mode="denorm")
 
         # return last time step
-        if not self.squash_time:
-            return x[:, -1, ...].unsqueeze(1)
-        else:
-            return x
+        return x[:, -1, ...].unsqueeze(1)

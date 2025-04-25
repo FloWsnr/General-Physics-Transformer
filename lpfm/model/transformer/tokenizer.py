@@ -88,8 +88,6 @@ class Detokenizer(nn.Module):
     overlap : int, optional
         The number of pixels to overlap between patches for the linear detokenizer.
         Must be even number.
-    squash_time : bool, optional
-        If True, the time dimension will be squashed into a single time step for the output.
     img_size : tuple, optional
         The size of the input image. Needed for the squash_time option.
     """
@@ -102,7 +100,6 @@ class Detokenizer(nn.Module):
         mode: str,
         conv_net_channels: Optional[list] = None,
         overlap: int = 0,
-        squash_time: bool = False,
         img_size: Optional[tuple] = None,
     ):
         super().__init__()
@@ -117,7 +114,6 @@ class Detokenizer(nn.Module):
                 out_channels=out_channels,
                 dim_embed=dim_embed,
                 overlap=overlap,
-                squash_time=squash_time,
                 img_size=img_size,
             )
         elif self.mode == "conv_net":
@@ -209,9 +205,6 @@ class LinearDetokenizer(nn.Module):
         Number of pixels to overlap between patches.
         Must be even number.
 
-    squash_time : bool, optional
-        If True, the time dimension will be squashed into a single time step for the output.
-
     img_size : tuple, optional
         The size of the input image. Needed for the squash_time option.
     """
@@ -222,7 +215,6 @@ class LinearDetokenizer(nn.Module):
         out_channels: int,
         dim_embed: int,
         overlap: int = 0,
-        squash_time: bool = False,
         img_size: Optional[tuple] = None,
     ):
         super().__init__()
@@ -230,8 +222,8 @@ class LinearDetokenizer(nn.Module):
         if overlap % 2 != 0:
             raise ValueError(f"Overlap must be an even number, got {overlap}")
 
-        if squash_time and img_size is None:
-            raise ValueError("img_size must be provided if squash_time is True")
+        if img_size is None:
+            raise ValueError("img_size must be provided")
 
         # Stride
         stride = patch_size
@@ -242,31 +234,8 @@ class LinearDetokenizer(nn.Module):
         # Calculate padding to maintain output size
         padding = tuple(overlap // 2 for _ in patch_size)
 
-        self.squash_net = nn.Identity()
-        if squash_time:
-            # Calculate the number of patches in the time dimension
-            num_t_patches = img_size[0] // patch_size[0]
-
-            kernel_size = (1, *kernel_size[1:])
-            stride = (1, *stride[1:])
-            padding = (0, *padding[1:])
-
-            kernel_size_squash = (num_t_patches, 1, 1)
-            stride_squash = (num_t_patches, 1, 1)
-            padding_squash = (0, 0, 0)
-
-            self.squash_net = nn.Conv3d(
-                in_channels=dim_embed,
-                out_channels=dim_embed,
-                kernel_size=kernel_size_squash,
-                stride=stride_squash,
-                padding=padding_squash,
-                padding_mode="zeros",
-            )
-
         self.from_patch_embedding = nn.Sequential(
             Rearrange("b t h w c -> b c t h w"),
-            self.squash_net,
             nn.ConvTranspose3d(
                 in_channels=dim_embed,
                 out_channels=out_channels,
