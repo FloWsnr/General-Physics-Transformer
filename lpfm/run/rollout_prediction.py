@@ -39,17 +39,9 @@ def load_model(
     torch.nn.Module
         Loaded model
     """
-    model_state_dict = torch.load(model_path, map_location=device)
+    data = torch.load(model_path, map_location=device, weights_only=False)
     model = get_model(model_config)
-
-    # Remove RevIN buffers from state dict since they were removed from the model
-    keys_to_remove = [
-        k for k in model_state_dict.keys() if "revin.mean" in k or "revin.stdev" in k
-    ]
-    for k in keys_to_remove:
-        del model_state_dict[k]
-
-    model.load_state_dict(model_state_dict, strict=False)
+    model.load_state_dict(data["model_state_dict"], strict=False)
     model.to(device)
     model.eval()
     return model
@@ -159,7 +151,7 @@ def load_config(model_path: Path) -> dict:
 
 def main():
     model_path = Path(
-        "C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs/tokenizer_overlap"
+        r"C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs\ti-main-run-single-0004"
     )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -170,16 +162,20 @@ def main():
     data_config = config["data"]
     data_config["full_trajectory_mode"] = True
     data_config["max_rollout_steps"] = 100
+    dt = 8
+    data_config["dt_stride"] = dt
 
     # data_config["datasets"] = ["rayleigh_benard"]
 
-    datasets = get_datasets(
+    datasets: dict = get_datasets(
         data_config,
         split="test",
     )
 
-    for dataset in datasets:
-        dataset = SuperDataset([dataset], out_shape=data_config["out_shape"])
+    for dataset_name, dataset in datasets.items():
+        dataset = SuperDataset(
+            {dataset_name: dataset}, out_shape=data_config["out_shape"]
+        )
         logger.info(
             f"Rolling out prediction for {dataset.datasets[0].metadata.dataset_name}"
         )
@@ -209,7 +205,7 @@ def main():
             full_traj,
             rollout_predictions,
             output_dir,
-            f"{dataset.datasets[0].metadata.dataset_name}_rollout",
+            f"{dataset.datasets[0].metadata.dataset_name}_rollout_dt{dt}",
         )
 
         # Create video of the ground truth and the next step prediction
@@ -218,7 +214,7 @@ def main():
             full_traj,
             next_step_predictions,
             output_dir,
-            f"{dataset.datasets[0].metadata.dataset_name}_next_step",
+            f"{dataset.datasets[0].metadata.dataset_name}_next_step_dt{dt}",
         )
 
 
