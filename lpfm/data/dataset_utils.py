@@ -120,7 +120,8 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
     dt_stride = data_config["dt_stride"]
 
     datasets = {}
-    if "shear_flow" in data_config["datasets"]:
+    dataset_list: list[str] = data_config["datasets"]
+    if "shear_flow" in dataset_list:
         shearflow_dataset = PhysicsDataset(
             data_dir=data_dir / f"shear_flow/data/{split_name}",
             split=split,
@@ -132,8 +133,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["shear_flow"] = shearflow_dataset
+        # remove shear_flow from dataset_list
+        dataset_list.remove("shear_flow")
 
-    if "rayleigh_benard" in data_config["datasets"]:
+    if "rayleigh_benard" in dataset_list:
         rayleigh_benard_dataset = PhysicsDataset(
             data_dir=data_dir / f"rayleigh_benard/data/{split_name}",
             split=split,
@@ -145,8 +148,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["rayleigh_benard"] = rayleigh_benard_dataset
+        # remove rayleigh_benard from dataset_list
+        dataset_list.remove("rayleigh_benard")
 
-    if "turbulent_radiative_layer_2D" in data_config["datasets"]:
+    if "turbulent_radiative_layer_2D" in dataset_list:
         turbulent_radiative_dataset = PhysicsDataset(
             data_dir=data_dir / f"turbulent_radiative_layer_2D/data/{split_name}",
             split=split,
@@ -158,8 +163,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["turbulent_radiative_layer_2D"] = turbulent_radiative_dataset
+        # remove turbulent_radiative_layer_2D from dataset_list
+        dataset_list.remove("turbulent_radiative_layer_2D")
 
-    if "euler_multi_quadrants_periodicBC" in data_config["datasets"]:
+    if "euler_multi_quadrants_periodicBC" in dataset_list:
         euler_dataset = PhysicsDataset(
             data_dir=data_dir / f"euler_multi_quadrants_periodicBC/data/{split_name}",
             split=split,
@@ -171,8 +178,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["euler_multi_quadrants_periodicBC"] = euler_dataset
+        # remove euler_multi_quadrants_periodicBC from dataset_list
+        dataset_list.remove("euler_multi_quadrants_periodicBC")
 
-    if "cylinder_pipe_flow_water" in data_config["datasets"]:
+    if "cylinder_pipe_flow_water" in dataset_list:
         cylinder_pipe_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"cylinder_pipe_flow_water/data/{split_name}",
             split=split,
@@ -184,8 +193,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["cylinder_pipe_flow_water"] = cylinder_pipe_flow_dataset
+        # remove cylinder_pipe_flow_water from dataset_list
+        dataset_list.remove("cylinder_pipe_flow_water")
 
-    if "cylinder_sym_flow_water" in data_config["datasets"]:
+    if "cylinder_sym_flow_water" in dataset_list:
         cylinder_symmetry_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"cylinder_sym_flow_water/data/{split_name}",
             split=split,
@@ -197,8 +208,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["cylinder_sym_flow_water"] = cylinder_symmetry_flow_dataset
+        # remove cylinder_sym_flow_water from dataset_list
+        dataset_list.remove("cylinder_sym_flow_water")
 
-    if "object_periodic_flow_water" in data_config["datasets"]:
+    if "object_periodic_flow_water" in dataset_list:
         object_periodic_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"object_periodic_flow_water/data/{split_name}",
             split=split,
@@ -210,8 +223,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["object_periodic_flow_water"] = object_periodic_flow_dataset
+        # remove object_periodic_flow_water from dataset_list
+        dataset_list.remove("object_periodic_flow_water")
 
-    if "object_sym_flow_water" in data_config["datasets"]:
+    if "object_sym_flow_water" in dataset_list:
         object_symmetry_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"object_sym_flow_water/data/{split_name}",
             split=split,
@@ -223,8 +238,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["object_sym_flow_water"] = object_symmetry_flow_dataset
+        # remove object_sym_flow_water from dataset_list
+        dataset_list.remove("object_sym_flow_water")
 
-    if "object_sym_flow_air" in data_config["datasets"]:
+    if "object_sym_flow_air" in dataset_list:
         object_symmetry_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"object_sym_flow_air/data/{split_name}",
             split=split,
@@ -236,8 +253,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["object_sym_flow_air"] = object_symmetry_flow_dataset
+        # remove object_sym_flow_air from dataset_list
+        dataset_list.remove("object_sym_flow_air")
 
-    if "heated_object_pipe_flow_air" in data_config["datasets"]:
+    if "heated_object_pipe_flow_air" in dataset_list:
         heated_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"heated_object_pipe_flow_air/data/{split_name}",
             split=split,
@@ -249,8 +268,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["heated_object_pipe_flow_air"] = heated_flow_dataset
+        # remove heated_object_pipe_flow_air from dataset_list
+        dataset_list.remove("heated_object_pipe_flow_air")
 
-    if "cooled_object_pipe_flow_air" in data_config["datasets"]:
+    if "cooled_object_pipe_flow_air" in dataset_list:
         cooled_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"cooled_object_pipe_flow_air/data/{split_name}",
             split=split,
@@ -262,8 +283,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["cooled_object_pipe_flow_air"] = cooled_flow_dataset
+        # remove cooled_object_pipe_flow_air from dataset_list
+        dataset_list.remove("cooled_object_pipe_flow_air")
 
-    if "rayleigh_benard_obstacle" in data_config["datasets"]:
+    if "rayleigh_benard_obstacle" in dataset_list:
         rayleigh_benard_obstacle_dataset = PhysicsDataset(
             data_dir=data_dir / f"rayleigh_benard_obstacle/data/{split_name}",
             split=split,
@@ -275,8 +298,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["rayleigh_benard_obstacle"] = rayleigh_benard_obstacle_dataset
+        # remove rayleigh_benard_obstacle from dataset_list
+        dataset_list.remove("rayleigh_benard_obstacle")
 
-    if "twophase_flow" in data_config["datasets"]:
+    if "twophase_flow" in dataset_list:
         twophase_flow_dataset = PhysicsDataset(
             data_dir=data_dir / f"twophase_flow/data/{split_name}",
             split=split,
@@ -288,5 +313,10 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
         )
         datasets["twophase_flow"] = twophase_flow_dataset
+        # remove twophase_flow from dataset_list
+        dataset_list.remove("twophase_flow")
+
+    if len(dataset_list) > 0:
+        raise ValueError(f"Unknown datasets: {dataset_list}")
 
     return datasets
