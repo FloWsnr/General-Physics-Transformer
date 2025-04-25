@@ -305,6 +305,9 @@ class AttentionBlock(nn.Module):
         hidden_dim: int,
         mlp_dim: int,
         num_heads: int,
+        time: Optional[int] = None,
+        height: Optional[int] = None,
+        width: Optional[int] = None,
         dropout: float = 0.0,
         pe: Optional[RotaryPositionalEmbedding] = None,
     ):
@@ -315,6 +318,14 @@ class AttentionBlock(nn.Module):
             self.attention = SpatialAttention(hidden_dim, num_heads, dropout, pe)
         elif att_type == "temporal":
             self.attention = TemporalAttention(hidden_dim, num_heads, dropout, pe)
+        elif att_type == "full_causal":
+            if time is None or height is None or width is None:
+                raise ValueError(
+                    "time, height, and width must be provided for causal attention"
+                )
+            self.attention = CausalSpatioTemporalAttention(
+                hidden_dim, num_heads, time, height, width, dropout, pe
+            )
         else:
             raise ValueError(f"Invalid attention type: {att_type}")
         self.norm1 = nn.LayerNorm(hidden_dim)
