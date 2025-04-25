@@ -7,9 +7,9 @@ import torch
 import yaml
 
 try:
-    from yaml import CLoader as Loader, CDumper as Dumper
+    from yaml import CLoader as Loader
 except ImportError:
-    from yaml import Loader, Dumper
+    from yaml import Loader
 
 from lpfm.model.transformer.model import get_model
 from lpfm.data.dataset_utils import get_datasets
