@@ -3,6 +3,8 @@
 This repository contains the code for the Large Physics Foundation Model (LPFM) for Computational Fluid Dynamics.
 The LPFM is a transformer-based foundation model capable of learning many different systems of CFD equations at once.
 
+Its input are multiple time-steps of physical fields, such as velocity and pressure, and the model predicts the next time-step.
+
 
 ## Introduction
 
@@ -34,3 +36,13 @@ All datasets are formatted according to the-well [format](https://polymathic-ai.
 In general, the data are hdf5 files, one for each parameter set.
 Inside the hdf5 files, the features are stored in the t0 (scalar), t1 (vector), and t2 (tensor) groups.
 The arrays are shaped as (n_trajectories, n_steps, x, y) or for vector features as (n_trajectories, n_steps, x, y, 2).
+
+### Physics
+
+The datasets cover the following physics:
+
+- Incompressible Navier-Stokes
+- Compressible Navier-Stokes
+- Flow with heat transfer
+- Obstacles and wall interactions
+- Two-phase flow
