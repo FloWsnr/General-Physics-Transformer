@@ -260,7 +260,7 @@ class Trainer:
             self.scheduler = get_lr_scheduler(
                 optimizer=self.optimizer,
                 lrs_config=lrs_config,
-                learning_rate=float(opt_config["learning_rate"]),
+                current_epoch=self.epoch,
                 total_epochs=self.total_epochs,
                 train_batches_per_epoch=self.train_batches_per_epoch,
             )
@@ -284,23 +284,46 @@ class Trainer:
             self.logger.info(msg)
 
     def load_checkpoint(
-        self, checkpoint_path: Path, new_training_from_checkpoint: bool = False
+        self,
+        checkpoint_path: Path,
+        restart: bool = False,
+        new_training_from_checkpoint: bool = False,
     ):
         """Restart training from a checkpoint."""
+
+        # can be either a restart or a new training from checkpoint
+        # check xor for both false or both true
+        if (restart and new_training_from_checkpoint) or (
+            not restart and not new_training_from_checkpoint
+        ):
+            raise ValueError(
+                "Invalid combination of restart and new_training_from_checkpoint"
+            )
+
         self.log_msg(f"Loading checkpoint from {checkpoint_path}")
         checkpoint = torch.load(
             checkpoint_path, weights_only=False, map_location=self.device
         )
+        self.epoch = checkpoint["epoch"] + 1
+        self.world_total_samples_trained = checkpoint["samples_trained"]
+        self.world_total_batches_trained = checkpoint["batches_trained"]
+        ##################################################################
+        ########## Load model, optimizer, and scheduler ##################
+        ##################################################################
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         if self.grad_scaler is not None:
             self.grad_scaler.load_state_dict(checkpoint["grad_scaler_state_dict"])
-        if self.scheduler is not None and not new_training_from_checkpoint:
+        if self.scheduler is not None and restart:
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-
-        self.epoch = checkpoint["epoch"] + 1
-        self.world_total_samples_trained = checkpoint["samples_trained"]
-        self.world_total_batches_trained = checkpoint["batches_trained"]
+        elif self.scheduler is not None and new_training_from_checkpoint:
+            self.scheduler = get_lr_scheduler(
+                optimizer=self.optimizer,
+                lrs_config=self.config["training"]["lr_scheduler"],
+                current_epoch=self.epoch,
+                total_epochs=self.total_epochs,
+                train_batches_per_epoch=self.train_batches_per_epoch,
+            )
         self.log_msg(
             f"Restarting training from epoch {self.epoch} with {self.world_total_samples_trained} samples trained"
         )
@@ -728,7 +751,7 @@ class Trainer:
 def get_lr_scheduler(
     optimizer: torch.optim.Optimizer,
     lrs_config: dict,
-    learning_rate: float,
+    current_epoch: int,
     total_epochs: int,
     train_batches_per_epoch: int,
 ) -> optim.lr_scheduler.SequentialLR:
@@ -739,10 +762,8 @@ def get_lr_scheduler(
     ----------
     optimizer : torch.optim.Optimizer
         Optimizer for training
-    lrs_config : dict
-        Configuration dictionary for the learning rate scheduler
-    learning_rate : float
-        Learning rate for training
+    current_epoch : int
+        Current epoch of training
     total_epochs : int
         Total number of training epochs
     train_batches_per_epoch : int
@@ -753,10 +774,7 @@ def get_lr_scheduler(
     optim.lr_scheduler.SequentialLR
         Learning rate scheduler
     """
-    # If total_epochs is 1, don't use a scheduler (debugging)
-    if total_epochs == 1:
-        return None
-
+    learning_rate = optimizer.param_groups[0]["lr"]
     first_stage = lrs_config["first_stage"]
     second_stage = lrs_config["second_stage"]
     third_stage = lrs_config["third_stage"] if "third_stage" in lrs_config else None
@@ -765,7 +783,7 @@ def get_lr_scheduler(
     ###### Get batches for each stage #########################
     ############################################################
     milestones = []
-    total_batches = total_epochs * train_batches_per_epoch
+    total_batches = (total_epochs - current_epoch) * train_batches_per_epoch
     first_stage_batches = first_stage["num_batches"]
     second_stage_batches = second_stage["num_batches"]
     if third_stage is not None:
@@ -975,9 +993,8 @@ def main(
 
     if sim_name is not None:
         config["wandb"]["id"] = sim_name
-        # config["logging"]["log_file"] = log_dir / sim_name / f"{sim_name}.log"
 
-    if restart:
+    if restart or new_training_from_checkpoint:
         checkpoint_dir = config["logging"]["log_dir"] / config["wandb"]["id"]
         checkpoint_path = find_last_checkpoint(checkpoint_dir)
         if checkpoint_path is None:
@@ -996,9 +1013,10 @@ def main(
         setup_ddp()
 
     trainer = Trainer(config, global_rank, local_rank, world_size)
-    if restart and checkpoint_path is not None:
+    if checkpoint_path is not None:
         trainer.load_checkpoint(
             checkpoint_path=checkpoint_path,
+            restart=restart,
             new_training_from_checkpoint=new_training_from_checkpoint,
         )
     trainer.save_config()

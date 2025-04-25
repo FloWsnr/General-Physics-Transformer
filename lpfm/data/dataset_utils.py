@@ -74,6 +74,7 @@ def get_dataloader(
         out_shape=data_config["out_shape"],
         max_samples_per_ds=data_config["max_samples_per_ds"],
     )
+    length = len(train_super_dataset)
 
     if is_distributed:
         sampler = DistributedSampler(train_super_dataset, seed=seed)
@@ -84,7 +85,6 @@ def get_dataloader(
     dataloader = DataLoader(
         dataset=train_super_dataset,
         batch_size=train_config["batch_size"],
-        shuffle=False if is_distributed else True,
         collate_fn=collate_fn,
         num_workers=train_config["num_workers"],
         pin_memory=True,
@@ -120,7 +120,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
     dt_stride = data_config["dt_stride"]
 
     datasets = {}
-    dataset_list: list[str] = data_config["datasets"]
+    dataset_list: list[str] = data_config["datasets"].copy()
     if "shear_flow" in dataset_list:
         shearflow_dataset = PhysicsDataset(
             data_dir=data_dir / f"shear_flow/data/{split_name}",

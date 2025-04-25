@@ -60,6 +60,7 @@ conda activate lpfm
 python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/train.py"
 log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
 data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
+config_file="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/config.yaml"
 # sim_name (same as wandb id)
 # sim_name="ti-main-run-all-0002"
 sim_name="ti-main-run-all-0002"
@@ -67,6 +68,7 @@ nnodes=1
 ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
+# use a checkpoint to continue training with a new config file (learning rate, etc.)
 new_training_from_checkpoint=true
 
 # NOTE: set cuda visible devices, MUST be consecutive numbers
@@ -97,18 +99,19 @@ cp /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/run_lpfm.sh 
 
 if [ "$new_training_from_checkpoint" = true ]; then
     # overwrite the config file in the sim_dir
-    cp /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/config.yaml $sim_dir
-    restart=true
+    cp $config_file $sim_dir
+    restart=false
+    echo "Using checkpoint to continue training with new config file..."
 else
     # Try to find config file in sim_dir
     config_file="${sim_dir}/config.yaml"
     if [ -f "$config_file" ]; then
     echo "Config file found in $sim_dir, attempting restart..."
-    restart=true
+        restart=true
     else
-    echo "No config file found in $sim_dir, starting new training..."
-    # copy config file to sim_dir
-    cp /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/config.yaml $sim_dir
+        echo "No config file found in $sim_dir, starting new training..."
+        # copy config file to sim_dir
+        cp $config_file $sim_dir
         restart=false
     fi
 fi

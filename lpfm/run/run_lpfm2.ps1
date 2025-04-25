@@ -25,8 +25,10 @@ conda activate lpfm
 $python_exec = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\lpfm\run\train.py"
 $log_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs"
 $data_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\data\datasets"
+$config_file = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs\ti-main-run-single-0004\config_cooldown.yaml"
 $sim_name = "ti-main-run-single-0004"
-$new_training_from_checkpoint = $false
+$new_training_from_checkpoint = $true
+
 # sim directory
 $sim_dir = Join-Path $log_dir $sim_name
 
@@ -49,16 +51,23 @@ if (-not (Test-Path $sim_dir)) {
 # copy the script to the sim_dir
 Copy-Item -Path $PSCommandPath -Destination $sim_dir
 
-# Try to find config file in sim_dir
-$config_file = Join-Path $sim_dir "config.yaml"
-if (Test-Path $config_file) {
-    Write-Host "Config file found in $sim_dir, attempting restart..."
-    $restart = $true
-} else {
-    Write-Host "No config file found in $sim_dir, starting new training..."
-    # copy config file to sim_dir
-    Copy-Item -Path "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\lpfm\run\config.yaml" -Destination $sim_dir
+if ($new_training_from_checkpoint) {
+    # overwrite the config file in the sim_dir
+    Copy-Item -Path $config_file -Destination $sim_dir
     $restart = $false
+    Write-Host "Using checkpoint to continue training with new config file..."
+} else {
+    # Try to find config file in sim_dir
+    $config_file = Join-Path $sim_dir "config.yaml"
+    if (Test-Path $config_file) {
+        Write-Host "Config file found in $sim_dir, attempting restart..."
+        $restart = $true
+    } else {
+        Write-Host "No config file found in $sim_dir, starting new training..."
+        # copy config file to sim_dir
+        Copy-Item -Path $config_file -Destination $sim_dir
+        $restart = $false
+    }
 }
 
 #####################################################################################
@@ -69,6 +78,7 @@ Write-Host "Starting LPFM training..."
 Write-Host "config_file: $config_file"
 Write-Host "sim_dir: $sim_dir"
 Write-Host "restart: $restart"
+Write-Host "new_training_from_checkpoint: $new_training_from_checkpoint"
 Write-Host "--------------------------------"
 
 # Build the command with proper argument formatting
@@ -89,4 +99,10 @@ if ($restart) {
 }
 
 # Run the training script
-Invoke-Expression $cmd 
+Invoke-Expression $cmd
+
+# Move the output file to the sim_dir (if it exists)
+$output_file = Join-Path $log_dir "slrm_logs" "train_lpfm_$PID.out"
+if (Test-Path $output_file) {
+    Move-Item -Path $output_file -Destination $sim_dir
+} 
