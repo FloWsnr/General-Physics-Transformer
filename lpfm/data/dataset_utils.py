@@ -74,7 +74,6 @@ def get_dataloader(
         out_shape=data_config["out_shape"],
         max_samples_per_ds=data_config["max_samples_per_ds"],
     )
-    length = len(train_super_dataset)
 
     if is_distributed:
         sampler = DistributedSampler(train_super_dataset, seed=seed)
