@@ -47,13 +47,13 @@ training:
   amp: true # use automatic mixed precision training
   seed: 42
   batch_size: 256 # batch size per GPU
-  epochs: 30
-  num_workers: 6 # number of workers for dataloader per GPU
+  epochs: 50
+  num_workers: 8 # number of workers for dataloader per GPU
   prefetch_factor: 2 # how many batches to prefetch for each worker
   grad_clip: 1.0 # gradient clipping
   optimizer:
     name: AdamW # optimizer name (Adam, AdamW)
-    learning_rate: 1e-3
+    learning_rate: 1e-4
     weight_decay: 0.01
     betas: [0.9, 0.999]
     # name: AdaptAdamW # AdaptAdamW or AdamW
@@ -74,12 +74,12 @@ training:
       end_factor: 1.0
       num_batches: 300 # percentage of total iterations for linear warmup 
     second_stage:
-      # name: CosineAnnealingLR # cosine annealing scheduler
-      # num_batches: -1 # num batches for cosine annealing, -1 means use all remaining batches
-      # end_factor: 0.1 # percentage of initial learning rate to use as minimum learning rate
-      name: LinearLR # linear 
-      end_factor: 0.0001
-      num_batches: -1 # number of batches for for second stage, -1 means use all remaining batches
+      name: CosineAnnealingLR # cosine annealing scheduler
+      num_batches: -1 # num batches for cosine annealing, -1 means use all remaining batches
+      end_factor: 0.01 # percentage of initial learning rate to use as minimum learning rate
+      # name: LinearLR # linear 
+      # end_factor: 0.0001
+      # num_batches: -1 # number of batches for for second stage, -1 means use all remaining batches
     # third_stage:
     #   name: LinearLR # linear cool down scheduler
     #   end_factor: 0
@@ -94,7 +94,7 @@ data:
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
-    - cylinder_sym_flow_water
+    # - cylinder_sym_flow_water
     # - cylinder_pipe_flow_water
     # - object_periodic_flow_water
     # - object_sym_flow_water

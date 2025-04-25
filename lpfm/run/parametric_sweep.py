@@ -18,12 +18,21 @@ def main():
         config = yaml.safe_load(f)
 
     wandb_id = "ti-main-run-single-"
-    epochs = [20, 30]
-    idx = [2, 3]
+    datasets = [
+        "cylinder_sym_flow_water",
+        "cylinder_pipe_flow_water",
+        "object_periodic_flow_water",
+        "object_sym_flow_water",
+        "object_sym_flow_air",
+        "heated_object_pipe_flow_air",
+        "cooled_object_pipe_flow_air",
+        "rayleigh_benard_obstacle",
+    ]
+    idx = range(6, 6 + len(datasets))
 
-    for epoch, id in zip(epochs, idx):
+    for id in idx:
         config["wandb"]["id"] = wandb_id + f"{id:04d}"
-        config["training"]["epochs"] = epoch
+        config["data"]["datasets"] = [datasets[id]]
         run_sweep(config)
 
 
