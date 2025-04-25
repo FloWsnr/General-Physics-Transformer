@@ -633,6 +633,7 @@ class Trainer:
                 train_losses_wandb = {
                     f"training-summary/{k}": v for k, v in train_losses.items()
                 }
+                train_losses_wandb["training-summary/epoch"] = epoch
                 self.wandb_run.log(train_losses_wandb, commit=True)
             ######################################################################
             ########### Save checkpoint ########################################
@@ -641,7 +642,6 @@ class Trainer:
                 self.save_checkpoint(path=self.epoch_dir / "checkpoint.pth")
             if self.ddp_enabled:
                 dist.barrier()
-
             ######################################################################
             ########### Validation ###############################################
             ######################################################################
@@ -654,6 +654,12 @@ class Trainer:
                 log_string += f"{loss_name}: {loss.item():.8f}, "
             self.log_msg(log_string)
             self.log_msg("=" * 100)
+            if self.global_rank == 0:
+                val_losses_wandb = {
+                    f"validation-summary/{k}": v for k, v in val_losses.items()
+                }
+                val_losses_wandb["validation-summary/epoch"] = epoch
+                self.wandb_run.log(val_losses_wandb, commit=True)
             ############################################################
             # Calculate average time per epoch #########################
             ############################################################
@@ -665,11 +671,6 @@ class Trainer:
             self.log_msg(
                 f"Summary: Average time per epoch: {self.avg_sec_per_epoch / 60:.2f} minutes"
             )
-            if self.global_rank == 0:
-                val_losses_wandb = {
-                    f"validation-summary/{k}": v for k, v in val_losses.items()
-                }
-                self.wandb_run.log(val_losses_wandb, commit=True)
             ############################################################
             # Calculate time remaining #################################
             ############################################################
@@ -679,7 +680,6 @@ class Trainer:
             self.log_msg(
                 f"Summary: Projected time remaining: {proj_time_remaining / 60:.2f} minutes"
             )
-
             ######################################################################
             ########### Wandb logging ###########################################
             ######################################################################
