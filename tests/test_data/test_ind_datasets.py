@@ -264,7 +264,7 @@ def test_cooled_flow_dataset():
 
 def test_rayleigh_benard_obs_dataset():
     """Test RayleighBenardDataset returns correct tensor shapes and field order."""
-    path = Path(r"data\datasets\rayleigh_benard_obstacle\data\train")
+    path = Path("data/datasets/rayleigh_benard_obstacle/data/train")
     include_field_names = {
         "t0_fields": ["pressure", "density", "temperature"],
         "t1_fields": ["velocity"],
@@ -284,9 +284,7 @@ def test_rayleigh_benard_obs_dataset():
 
 def test_twophase_flow_dataset():
     """Test TwophaseFlowDataset returns correct tensor shapes and field order."""
-    path = Path(
-        r"/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets/twophase_flow/data"
-    )
+    path = Path("data/datasets/twophase_flow/data/train")
     include_field_names = {
         "t0_fields": ["pressure", "density", "temperature"],
         "t1_fields": ["velocity"],
