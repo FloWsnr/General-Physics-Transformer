@@ -487,7 +487,7 @@ class Trainer:
             self.log_msg(
                 f"Training - Epoch: Batch (all GPUs): {world_batch_idx}/{self.world_train_batches_per_epoch}, "
                 f"Samples (all GPUs): {world_samples_per_batch}/{self.world_train_samples_per_epoch}, "
-                f"LR: {lr:.8f}"
+                f"LR: {lr:.2e}"
             )
             ############################################################
             # Log losses ###############################################
