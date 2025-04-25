@@ -1,3 +1,9 @@
+"""
+Custom loss functions for the transformer model.
+By: Florian Wiesner
+Date: 2025-04-25
+"""
+
 import torch
 import torch.nn as nn
 
@@ -31,6 +37,7 @@ class NMSELoss(nn.Module):
         super().__init__()
         self.dims = dims
         self.reduce = reduce
+
     def forward(self, pred, target):
         """Calculate the normalized mean square error.
 
@@ -85,6 +92,7 @@ class VMSELoss(nn.Module):
         super().__init__()
         self.dims = dims
         self.reduce = reduce
+
     def forward(self, pred, target):
         """Calculate the variance-normalized mean square error.
 

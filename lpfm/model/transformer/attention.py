@@ -104,6 +104,77 @@ class SpatioTemporalAttention(AbstractAttention):
         return x
 
 
+class CausalSpatioTemporalAttention(AbstractAttention):
+    """
+    Full attention over time, height, and width.
+    Use a causal mask to prevent attending to future timesteps.
+    Input shape: (B, T, H, W, C)
+    Output shape: (B, T, H, W, C)
+
+    Parameters
+    ----------
+    hidden_dim: int
+        Hidden dimension of the input.
+    num_heads: int
+        Number of attention heads.
+    dropout: float
+        Dropout rate.
+    pe: Optional[RotaryPositionalEmbedding]
+        Rotary positional embedding.
+    """
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        num_heads: int,
+        time: int,
+        height: int,
+        width: int,
+        dropout: float = 0.0,
+        pe: Optional[RotaryPositionalEmbedding] = None,
+    ):
+        super().__init__(hidden_dim, num_heads, dropout, pe)
+        # Calculate total number of patches (tokens) and patches per timestep
+        num_patches = time * height * width
+        patches_per_timestep = height * width
+
+        # Create indices for each patch (token) from 0 to N-1
+        indices = torch.arange(num_patches)
+
+        # Calculate the timestep 't' for each flattened patch index 'n'
+        # using the formula: t = n // (H * W)
+        token_timesteps = indices // patches_per_timestep  # Shape: (N,)
+
+        # --- Create the Causal Mask ---
+        # Expand timesteps to compare each query timestep with each key timestep
+        query_timesteps = token_timesteps.unsqueeze(
+            1
+        )  # Shape: (N, 1) -> Represents query token timesteps
+        key_timesteps = token_timesteps.unsqueeze(
+            0
+        )  # Shape: (1, N) -> Represents key token timesteps
+
+        # Generate the boolean mask. mask[i, j] is True if the key token j
+        # is from a future timestep relative to the query token i.
+        # This means query i cannot attend to key j.
+        causal_mask = key_timesteps > query_timesteps  # Shape: (N, N)
+        self.register_buffer("mask", causal_mask)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, T, H, W, C = x.shape
+
+        q, k, v = self._get_qkv(x)  # B, T, H, W, C
+        q = rearrange(q, "b t h w c -> b (t h w) c")
+        k = rearrange(k, "b t h w c -> b (t h w) c")
+        v = rearrange(v, "b t h w c -> b (t h w) c")
+
+        # NOTE: potentially also norm qk again?
+        x, att_weights = self.attention(q, k, v, attn_mask=self.mask)
+        x = rearrange(x, "b (t h w) c -> b t h w c", t=T, h=H, w=W)
+
+        return x
+
+
 class SpatialAttention(AbstractAttention):
     """
     Spatial attention over height and width.

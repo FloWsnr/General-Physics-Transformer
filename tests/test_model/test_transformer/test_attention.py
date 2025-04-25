@@ -8,6 +8,7 @@ import torch.nn as nn
 
 from lpfm.model.transformer.attention import (
     SpatioTemporalAttention,
+    CausalSpatioTemporalAttention,
     MLP,
     AttentionBlock,
     SpatialAttention,
@@ -48,6 +49,29 @@ class TestSpatioTemporalAttention:
         x = torch.randn(batch_size, time, height, width, hidden_dim)
         attention = SpatioTemporalAttention(
             hidden_dim, num_heads, pe=RotaryPositionalEmbedding(hidden_dim)
+        )
+
+        output = attention(x)
+
+        # Check output shape
+        assert output.shape == (batch_size, time, height, width, hidden_dim)
+
+
+class TestCausalSpatioTemporalAttention:
+    """Test suite for the CausalSpatioTemporalAttention class."""
+
+    def test_forward(self):
+        """Test forward pass of CausalSpatioTemporalAttention module."""
+        batch_size = 2
+        time = 3
+        height = 16
+        width = 16
+        hidden_dim = 64
+        num_heads = 4
+
+        x = torch.randn(batch_size, time, height, width, hidden_dim)
+        attention = CausalSpatioTemporalAttention(
+            hidden_dim, num_heads, time, height, width
         )
 
         output = attention(x)
