@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import torch
-from torch.utils.data import default_collate, DataLoader
+from torch.utils.data import default_collate, DataLoader, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 
 from the_well.data.augmentation import (
@@ -67,6 +67,7 @@ def get_dataloader(
     is_distributed : bool
         Whether to use distributed sampling
     """
+    seed = train_config["seed"]
     datasets = get_datasets(data_config, split)
     train_super_dataset = SuperDataset(
         datasets,
@@ -75,9 +76,11 @@ def get_dataloader(
     )
 
     if is_distributed:
-        sampler = DistributedSampler(train_super_dataset)
+        sampler = DistributedSampler(train_super_dataset, seed=seed)
     else:
-        sampler = None
+        generator = torch.Generator()
+        generator.manual_seed(seed)
+        sampler = RandomSampler(train_super_dataset, generator=generator)
     dataloader = DataLoader(
         dataset=train_super_dataset,
         batch_size=train_config["batch_size"],
