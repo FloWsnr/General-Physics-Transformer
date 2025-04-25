@@ -112,6 +112,8 @@ class PhysicsTransformer(nn.Module):
         Position encoding mode. Can be "rope" or "absolute".
     patch_size: tuple[int, int, int]
         Patch size for spatial-temporal embeddings. (time, height, width)
+    att_mode: str
+        Attention mode. Can be "full" or "full_causal".
     img_size: tuple[int, int, int]
         Incoming image size (time, height, width)
     use_derivatives: bool, optional
@@ -268,5 +270,8 @@ class PhysicsTransformer(nn.Module):
         x = self.detokenizer(x)
         x = self.revin(x, mode="denorm")
 
-        # return last time step
-        return x[:, -1, ...].unsqueeze(1)
+        if self.att_mode == "full_causal":
+            return x
+        else:
+            # return last time step
+            return x[:, -1, ...].unsqueeze(1)
