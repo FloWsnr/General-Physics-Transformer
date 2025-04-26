@@ -254,6 +254,9 @@ class WellDataset(Dataset):
         include_field_names : dict[list[str]]
             Dictionary of field names to include in the dataset in that order.
             The keys are the order of the field (t0, t1, t2) and the values are lists of field names.
+
+        return_grounding_frame : int, by default 0
+            How many starting frames to return as the grounding frames.
     """
 
     def __init__(
@@ -282,6 +285,7 @@ class WellDataset(Dataset):
         min_std: float = 1e-4,
         storage_options: Optional[Dict] = None,
         include_field_names: Dict[int, List[str]] = {},
+        return_grounding_frame: int = 0,
     ):
         super().__init__()
         assert path is not None or (
@@ -328,7 +332,7 @@ class WellDataset(Dataset):
         # field_names is a list of field names to include in the dataset in that order.
         # If empty, all fields are included.
         self.include_field_names = include_field_names
-
+        self.return_grounding_frame = return_grounding_frame
         # Copy params
         self.well_dataset_name = well_dataset_name
         self.use_normalization = use_normalization
