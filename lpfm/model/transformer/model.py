@@ -53,8 +53,8 @@ class LPFM_XL:
 
 def get_model(model_config: dict):
     """Get the model."""
-    transformer_config = model_config["transformer"]
-    tokenizer_config = model_config["tokenizer"]
+    transformer_config: dict = model_config["transformer"]
+    tokenizer_config: dict = model_config["tokenizer"]
 
     if transformer_config["model_size"] == "LPFM_Ti":
         lpfm_config = LPFM_Ti()
@@ -118,8 +118,6 @@ class PhysicsTransformer(nn.Module):
         Incoming image size (time, height, width)
     use_derivatives: bool, optional
         Whether to use derivatives in the model.
-    grounding_frame: bool, optional
-        Whether to add the ground truth frames to the input at each iteration.
 
     ################################################################
     ########### Tokenizer parameters ###############################
@@ -160,7 +158,6 @@ class PhysicsTransformer(nn.Module):
         img_size: tuple[int, int, int],
         use_derivatives: bool = False,
         att_mode: str = "full",
-        grounding_frame: bool = False,
         tokenizer_mode: str = "linear",
         detokenizer_mode: str = "linear",
         tokenizer_overlap: int = 0,
@@ -174,7 +171,6 @@ class PhysicsTransformer(nn.Module):
 
         self.input_channels = input_channels
         self.output_channels = input_channels
-        self.grounding_frame = grounding_frame
         self.att_mode = att_mode
 
         n_patch_t = img_size[0] // patch_size[0]
