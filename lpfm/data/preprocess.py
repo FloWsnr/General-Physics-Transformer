@@ -98,6 +98,9 @@ def add_missing_datasets(
             dset.attrs["sample_varying"] = True
             dset.attrs["time_varying"] = True
 
+    # add field names
+    t0_group.attrs["field_names"] = names
+
 
 def handle_boundary_conditions(
     src_group: h5py.Group,
@@ -124,7 +127,7 @@ def handle_boundary_conditions(
 
         if "x" in subgroup_name and swap:
             # replace x in name
-            subgroup_name_new = subgroup_name.replace("x", "y")
+            subgroup_name_new = subgroup_name.replace("x", "Y")
             group_data["data"][subgroup_name_new] = {"mask": y_mask, "values": y_values}
             group_data["attributes"][subgroup_name_new] = group_data["attributes"].pop(
                 subgroup_name
@@ -135,7 +138,7 @@ def handle_boundary_conditions(
             group_data["attributes"][subgroup_name]["associated_dims"] = ["x"]
         elif "y" in subgroup_name and swap:
             # replace y in name
-            subgroup_name_new = subgroup_name.replace("y", "x")
+            subgroup_name_new = subgroup_name.replace("y", "X")
             group_data["data"][subgroup_name_new] = {"mask": x_mask, "values": x_values}
             group_data["attributes"][subgroup_name_new] = group_data["attributes"].pop(
                 subgroup_name
@@ -202,6 +205,8 @@ def add_momentum_dataset(
     density_dataset = t0_group["density"]
     # get the data
     density_data = density_dataset[()]
+    # Reshape density_data to match momentum_data shape by adding a new axis for the last dimension
+    density_data = np.expand_dims(density_data, axis=-1)
     velocity_data = momentum_data / density_data
 
     dset = t1_group.create_dataset("velocity", data=velocity_data)
@@ -289,20 +294,24 @@ def process_hdf5(
             # finally add the missing datasets
             t0_group = dst_file["t0_fields"]
             t1_group = dst_file["t1_fields"]
+            # add field names for t1
+            t1_group.attrs["field_names"] = ["velocity"]
             # add_buoyancy_dataset(t0_group, target_shape)
-            # add_momentum_dataset(t1_group, t0_group, target_shape)
+            add_momentum_dataset(t1_group, t0_group, target_shape)
             add_missing_datasets(t0_group, num_traj, num_time, target_shape)
 
 
 if __name__ == "__main__":
     base_path = Path(
-        "/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
+        "/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets/euler_multi_quadrants_periodicBC/data/train"
     )
-    dataset = Path("cylinder_sym_flow_water")
-    dataset_dir = base_path / dataset
+    dataset_dir = base_path
+    # dataset = Path("shear_flow")
+    # dataset_dir = base_path / dataset
 
     # make a safety copy of the whole directory and its contents
-    shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
+    # print(f"Copying {dataset_dir} to {dataset_dir.parent / f'{dataset_dir.stem}_copy'}")
+    # shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
 
     swap = False
 
