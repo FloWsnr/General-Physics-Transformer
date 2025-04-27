@@ -67,6 +67,9 @@ def main():
     for dataset in datasets:
         print(f"Processing {dataset}")
         dataset_path = base_path / f"{dataset}/data/{split}"
+        if not dataset_path.exists():
+            print(f"Skipping {dataset} because it does not exist")
+            continue
         dataset = PhysicsDataset(
             dataset_path,
             split=split,
