@@ -160,7 +160,7 @@ def handle_boundary_conditions(
         sub_group.create_dataset("mask", data=data["mask"])
 
 
-def add_buoyancy_dataset(t0_group: h5py.Group, target_shape: tuple[int, int]):
+def convert_buoyancy_to_rho(t0_group: h5py.Group, target_shape: tuple[int, int]):
     """Add the buoyancy dataset."""
 
     # get the buoyancy dataset
@@ -190,7 +190,7 @@ def add_buoyancy_dataset(t0_group: h5py.Group, target_shape: tuple[int, int]):
     del t0_group["buoyancy"]
 
 
-def add_momentum_dataset(
+def convert_momentum_to_vel(
     momentum: np.ndarray,
     t1_group: h5py.Group,
     t0_group: h5py.Group,
@@ -220,6 +220,8 @@ def process_hdf5(
     input_path: Path,
     output_path: Path,
     swap: bool = False,
+    conv_buoyancy: bool = False,
+    conv_momentum: bool = False,
 ):
     """Copy HDF5 file contents to a new file
 
@@ -239,12 +241,6 @@ def process_hdf5(
     target_shape = (256, 128)
 
     with h5py.File(input_path, "r") as src_file:
-        # check dims
-        dim_x = src_file["dimensions"]["x"][()]
-        dim_y = src_file["dimensions"]["y"][()]
-        if dim_x.shape == (256,) and dim_y.shape == (128,):
-            print("Skipping", input_path)
-            return "skipped"
         with h5py.File(output_path, "w") as dst_file:
             num_traj = src_file.attrs["n_trajectories"]
             time = src_file["dimensions"]["time"][()]
@@ -309,10 +305,14 @@ def process_hdf5(
             # add field names for t1
             t1_group.attrs["field_names"] = ["velocity"]
             # add_buoyancy_dataset(t0_group, target_shape)
-            print("Loading momentum dataset")
-            momentum = src_file["t1_fields"]["momentum"][()]
-            print("Adding momentum dataset")
-            add_momentum_dataset(momentum, t1_group, t0_group, target_shape)
+            if conv_momentum:
+                print("Loading momentum dataset")
+                momentum = src_file["t1_fields"]["momentum"][()]
+                print("Adding momentum dataset")
+                convert_momentum_to_vel(momentum, t1_group, t0_group, target_shape)
+            if conv_buoyancy:
+                print("Adding buoyancy dataset")
+                convert_buoyancy_to_rho(t0_group, target_shape)
             print("Adding missing datasets")
             add_missing_datasets(t0_group, num_traj, num_time, target_shape)
 
@@ -364,25 +364,19 @@ if __name__ == "__main__":
     )
     dataset_dir = base_path
 
-    test_file = dataset_dir / "euler_multi_quadrants_periodicBC_gamma_1.76_Ar_-180.hdf5"
-    new_name = test_file.parent / f"{test_file.stem}_new.hdf5"
-    process_hdf5(test_file, new_name, swap=False)
-
     # make a safety copy of the whole directory and its contents
-    # print(f"Copying {dataset_dir} to {dataset_dir.parent / f'{dataset_dir.stem}_copy'}")
-    # shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
+    print(f"Copying {dataset_dir} to {dataset_dir.parent / f'{dataset_dir.stem}_copy'}")
+    shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
 
-    # swap = False
+    swap = False
 
-    # for file in list(dataset_dir.glob("**/*.hdf5")):
-    #     if "new" in file.stem:
-    #         print("Skipping", file)
-    #         continue
-    #     new_name = file.parent / f"{file.stem}_new.hdf5"
-    #     skipped = process_hdf5(file, new_name, swap)
-    #     if skipped:
-    #         continue
-    #     # remove old file
-    #     file.unlink()
-    #     # rename new file
-    #     new_name.rename(file)
+    for file in list(dataset_dir.glob("**/*.hdf5")):
+        if "new" in file.stem:
+            print("Skipping", file)
+            continue
+        new_name = file.parent / f"{file.stem}_new.hdf5"
+        process_hdf5(file, new_name, swap, conv_buoyancy=False, conv_momentum=False)
+        # remove old file
+        file.unlink()
+        # rename new file
+        new_name.rename(file)
