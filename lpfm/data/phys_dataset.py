@@ -48,6 +48,9 @@ class PhysicsDataset(WellDataset):
         Whether to use the full trajectory mode of the well dataset.
         This returns full trajectories instead of individual timesteps.
         By default False
+    nan_to_zero: bool
+        Whether to replace NaNs with 0
+        By default True
     """
 
     def __init__(
@@ -60,10 +63,10 @@ class PhysicsDataset(WellDataset):
         use_normalization: bool = False,
         dt_stride: int | list[int] = 1,
         transform: Optional[Compose] = None,
-        channels_first: bool = False,
         include_field_names: dict[str, list[str]] = {},
         full_trajectory_mode: bool = False,
         max_rollout_steps: int = 10000,
+        nan_to_zero: bool = True,
     ):
         if isinstance(dt_stride, list):
             min_dt_stride = dt_stride[0]
@@ -86,7 +89,7 @@ class PhysicsDataset(WellDataset):
             full_trajectory_mode=full_trajectory_mode,
             max_rollout_steps=max_rollout_steps,
         )
-        self.channels_first = channels_first
+        self.nan_to_zero = nan_to_zero
 
     def __len__(self):
         return super().__len__()
@@ -96,17 +99,17 @@ class PhysicsDataset(WellDataset):
         x = data["input_fields"]
         y = data["output_fields"]
 
-        # Replace NaNs with 0
-        x = torch.where(
-            torch.isnan(x),
-            torch.zeros_like(x),
-            x,
-        )
-        y = torch.where(
-            torch.isnan(y),
-            torch.zeros_like(y),
-            y,
-        )
+        if self.nan_to_zero:
+            x = torch.where(
+                torch.isnan(x),
+                torch.zeros_like(x),
+                x,
+            )
+            y = torch.where(
+                torch.isnan(y),
+                torch.zeros_like(y),
+                y,
+            )
         return x, y
 
 
