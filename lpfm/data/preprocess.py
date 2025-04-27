@@ -191,19 +191,20 @@ def add_buoyancy_dataset(t0_group: h5py.Group, target_shape: tuple[int, int]):
 
 
 def add_momentum_dataset(
-    t1_group: h5py.Group, t0_group: h5py.Group, target_shape: tuple[int, int]
+    momentum: np.ndarray,
+    t1_group: h5py.Group,
+    t0_group: h5py.Group,
+    target_shape: tuple[int, int],
 ):
     """Add the momentum dataset."""
 
-    # get the buoyancy dataset
-    momentum_dataset = t1_group["momentum"]
-    # get the data
-    data = momentum_dataset[()]
     # interpolate the data
-    momentum_data = interpolate_data(data, target_shape)
+    print("   Interpolating momentum")
+    momentum_data = interpolate_data(momentum, target_shape)
     # get the density dataset
     density_dataset = t0_group["density"]
     # get the data
+    print("   Compute velocity")
     density_data = density_dataset[()]
     # Reshape density_data to match momentum_data shape by adding a new axis for the last dimension
     density_data = np.expand_dims(density_data, axis=-1)
@@ -213,9 +214,6 @@ def add_momentum_dataset(
     dset.attrs["dim_varying"] = [True, True]
     dset.attrs["sample_varying"] = True
     dset.attrs["time_varying"] = True
-
-    # delete the momentum dataset
-    del t1_group["momentum"]
 
 
 def process_hdf5(
@@ -241,6 +239,12 @@ def process_hdf5(
     target_shape = (256, 128)
 
     with h5py.File(input_path, "r") as src_file:
+        # check dims
+        dim_x = src_file["dimensions"]["x"][()]
+        dim_y = src_file["dimensions"]["y"][()]
+        if dim_x.shape == (256,) and dim_y.shape == (128,):
+            print("Skipping", input_path)
+            return "skipped"
         with h5py.File(output_path, "w") as dst_file:
             num_traj = src_file.attrs["n_trajectories"]
             time = src_file["dimensions"]["time"][()]
@@ -259,6 +263,7 @@ def process_hdf5(
                     if isinstance(item, h5py.Group):
                         new_group = dst_group.create_group(name)
                         if name == "boundary_conditions":
+                            print("Handling boundary conditions")
                             handle_boundary_conditions(
                                 item, new_group, target_shape, swap
                             )
@@ -269,6 +274,7 @@ def process_hdf5(
                             copy_group(item, new_group)
 
                     elif isinstance(item, h5py.Dataset):
+                        print("Processing", name)
                         if name == "x":
                             new_x = np.arange(0, target_shape[0], dtype=np.float32)
                             # Copy dataset and its attributes
@@ -279,6 +285,12 @@ def process_hdf5(
                             # Copy dataset and its attributes
                             new_dataset = dst_group.create_dataset("y", data=new_y)
                             copy_attr(item.attrs, new_dataset.attrs)
+                        elif name == "energy":
+                            print("Skipping energy")
+                            continue
+                        elif name == "momentum":
+                            print("Skipping momentum")
+                            continue
                         else:
                             # Get the dataset data
                             data = item[()]
@@ -297,8 +309,53 @@ def process_hdf5(
             # add field names for t1
             t1_group.attrs["field_names"] = ["velocity"]
             # add_buoyancy_dataset(t0_group, target_shape)
-            add_momentum_dataset(t1_group, t0_group, target_shape)
+            print("Loading momentum dataset")
+            momentum = src_file["t1_fields"]["momentum"][()]
+            print("Adding momentum dataset")
+            add_momentum_dataset(momentum, t1_group, t0_group, target_shape)
+            print("Adding missing datasets")
             add_missing_datasets(t0_group, num_traj, num_time, target_shape)
+
+
+def remove_fields_hdf5(
+    input_path: Path,
+    output_path: Path,
+):
+    fields_to_remove = ["energy", "momentum", "buoyancy", "tracer"]
+    print(f"Removing fields from {input_path}")
+
+    with h5py.File(input_path, "r") as src_file:
+        with h5py.File(output_path, "w") as dst_file:
+
+            def copy_attr(src_attr, dst_attr):
+                for attr_name, attr_value in src_attr.items():
+                    dst_attr[attr_name] = attr_value
+
+            # Copy root attributes
+            copy_attr(src_file.attrs, dst_file.attrs)
+
+            # Recursively copy all groups and datasets
+            def copy_group(src_group, dst_group):
+                for name, item in src_group.items():
+                    if isinstance(item, h5py.Group):
+                        new_group = dst_group.create_group(name)
+                        # Create new group and copy its attributes
+                        copy_attr(item.attrs, new_group.attrs)
+                        # Recursively copy contents of the group
+                        copy_group(item, new_group)
+
+                    elif isinstance(item, h5py.Dataset):
+                        if name in fields_to_remove:
+                            print(f"Removing {name} from {input_path}")
+                            continue
+                        # Get the dataset data
+                        data = item[()]
+                        # Copy dataset and its attributes
+                        new_dataset = dst_group.create_dataset(name, data=data)
+                        copy_attr(item.attrs, new_dataset.attrs)
+
+            # Start copying from root group
+            copy_group(src_file, dst_file)
 
 
 if __name__ == "__main__":
@@ -306,19 +363,26 @@ if __name__ == "__main__":
         "/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets/euler_multi_quadrants_periodicBC/data/train"
     )
     dataset_dir = base_path
-    # dataset = Path("shear_flow")
-    # dataset_dir = base_path / dataset
+
+    test_file = dataset_dir / "euler_multi_quadrants_periodicBC_gamma_1.76_Ar_-180.hdf5"
+    new_name = test_file.parent / f"{test_file.stem}_new.hdf5"
+    process_hdf5(test_file, new_name, swap=False)
 
     # make a safety copy of the whole directory and its contents
     # print(f"Copying {dataset_dir} to {dataset_dir.parent / f'{dataset_dir.stem}_copy'}")
     # shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
 
-    swap = False
+    # swap = False
 
-    for file in list(dataset_dir.glob("**/*.hdf5")):
-        new_name = file.parent / f"{file.stem}_new.hdf5"
-        process_hdf5(file, new_name, swap)
-        # remove old file
-        file.unlink()
-        # rename new file
-        new_name.rename(file)
+    # for file in list(dataset_dir.glob("**/*.hdf5")):
+    #     if "new" in file.stem:
+    #         print("Skipping", file)
+    #         continue
+    #     new_name = file.parent / f"{file.stem}_new.hdf5"
+    #     skipped = process_hdf5(file, new_name, swap)
+    #     if skipped:
+    #         continue
+    #     # remove old file
+    #     file.unlink()
+    #     # rename new file
+    #     new_name.rename(file)
