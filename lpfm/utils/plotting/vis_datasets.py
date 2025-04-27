@@ -1,16 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+from collections import OrderedDict
 from lpfm.data.phys_dataset import PhysicsDataset
 
 # Dictionary mapping field names to colormap names
-FIELD_COLORS = {
-    "pressure": "plasma",
-    "density": "cividis",
-    "temperature": "hot",
-    "velocity_x": "viridis",
-    "velocity_y": "viridis",
-}
+FIELD_COLORS = OrderedDict(
+    [
+        ("pressure", "plasma"),
+        ("density", "cividis"),
+        ("temperature", "hot"),
+        ("velocity_x", "viridis"),
+        ("velocity_y", "viridis"),
+    ]
+)
 
 datasets = [
     "cooled_object_pipe_flow_air",
@@ -42,14 +45,17 @@ def sample_to_image(
     sample = sample.transpose(0, 2, 1, 3)
 
     for i, (field, cmap) in enumerate(FIELD_COLORS.items()):
-        vmin = sample[..., i].min()
-        vmax = sample[..., i].max()
+        vmin = np.nanmin(sample[..., i])
+        vmax = np.nanmax(sample[..., i])
         for time_step in range(sample.shape[0]):
-            fig, ax = plt.subplots(figsize=(10, 10))
+            fig, ax = plt.subplots(figsize=(10, 5))
             ax.imshow(sample[time_step, ..., i], cmap=cmap, vmin=vmin, vmax=vmax)
             ax.axis("off")
+            # Remove all padding and margins
+            fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
+            fig.tight_layout(pad=0)
             fig_path = save_path / f"{field}_{time_step}.png"
-            fig.savefig(fig_path, dpi=300, bbox_inches="tight")
+            fig.savefig(fig_path, dpi=300, bbox_inches="tight", pad_inches=0)
             plt.close()
 
     return sample
