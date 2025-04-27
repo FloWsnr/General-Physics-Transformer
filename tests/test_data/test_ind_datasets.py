@@ -8,6 +8,7 @@ import torch
 from pathlib import Path
 from torch.utils.data import DataLoader
 from lpfm.data.phys_dataset import PhysicsDataset
+import random
 
 
 def test_rayleigh_benard_dataset():
@@ -15,20 +16,22 @@ def test_rayleigh_benard_dataset():
     path = Path("data/datasets/rayleigh_benard/data/train")
     include_field_names = {
         "t0_fields": ["pressure", "density", "temperature"],
-        "t1_fields": ["buoyancy"],
+        "t1_fields": ["velocity"],
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    # Call the method - parent returns (time, h, w, c) with c=[pressure, buoyancy]
-    x, y = dataset[1]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 5 channels (pressure, density, temperature, velocities)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocities)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # Verify we don't have NaN values (which could happen in temperature calculation)
-    assert not torch.isnan(x).any()
-    assert not torch.isnan(y).any()
+        # Verify we don't have NaN values (which could happen in temperature calculation)
+        assert not torch.isnan(x).any()
+        assert not torch.isnan(y).any()
 
 
 def test_shear_flow_dataset():
@@ -40,16 +43,18 @@ def test_shear_flow_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the density and temperature are zero
-    assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
-    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        # check that the density and temperature are zero
+        assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+        assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
 
 def test_turbulent_radiative_dataset():
@@ -61,16 +66,18 @@ def test_turbulent_radiative_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    # Call the method - parent returns (time, h, w, c) with c=[pressure, density, velocity]
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 4 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 4 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the temperature is zero
-    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
-    assert torch.allclose(y[:, :, :, 2], torch.zeros_like(y[:, :, :, 2]))
+        # check that the temperature is zero
+        assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        assert torch.allclose(y[:, :, :, 2], torch.zeros_like(y[:, :, :, 2]))
 
 
 def test_euler_dataset():
@@ -82,16 +89,18 @@ def test_euler_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    # Call the method - parent returns (time, h, w, c) with c=[pressure, density, velocity]
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 4 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 4 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the temperature is zero
-    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
-    assert torch.allclose(y[:, :, :, 2], torch.zeros_like(y[:, :, :, 2]))
+        # check that the temperature is zero
+        assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        assert torch.allclose(y[:, :, :, 2], torch.zeros_like(y[:, :, :, 2]))
 
 
 def test_cylinder_pipe_flow_water_dataset():
@@ -103,16 +112,18 @@ def test_cylinder_pipe_flow_water_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the density and temperature are zero
-    assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
-    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        # check that the density and temperature are zero
+        assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+        assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
 
 def test_cylinder_pipe_flow_water_dataset_with_dataloader():
@@ -148,16 +159,18 @@ def test_cylinder_sym_flow_water_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the density and temperature are zero
-    assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
-    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        # check that the density and temperature are zero
+        assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+        assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
 
 def test_object_periodic_flow_water_dataset():
@@ -169,16 +182,18 @@ def test_object_periodic_flow_water_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the density and temperature are zero
-    assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
-    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        # check that the density and temperature are zero
+        assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+        assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
 
 def test_object_sym_flow_air_dataset():
@@ -190,16 +205,18 @@ def test_object_sym_flow_air_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    # Call the method - parent returns (time, h, w, c) with c=[pressure, velocity]
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the density and temperature are zero
-    assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
-    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        # check that the density and temperature are zero
+        assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+        assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
 
 def test_object_sym_flow_water_dataset():
@@ -211,15 +228,18 @@ def test_object_sym_flow_water_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the density and temperature are zero
-    assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
-    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        # check that the density and temperature are zero
+        assert torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+        assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
 
 def test_heated_flow_dataset():
@@ -231,15 +251,18 @@ def test_heated_flow_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the density and temperature are not zero
-    assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
-    assert not torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        # check that the density and temperature are not zero
+        assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+        assert not torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
 
 def test_cooled_flow_dataset():
@@ -251,15 +274,18 @@ def test_cooled_flow_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the density and temperature are not zero
-    assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
-    assert not torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        # check that the density and temperature are not zero
+        assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+        assert not torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
 
 def test_rayleigh_benard_obs_dataset():
@@ -271,15 +297,18 @@ def test_rayleigh_benard_obs_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the density and temperature are not zero
-    assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
-    assert not torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        # check that the density and temperature are not zero
+        assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+        assert not torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
 
 def test_twophase_flow_dataset():
@@ -291,15 +320,18 @@ def test_twophase_flow_dataset():
     }
     dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
 
-    x, y = dataset[0]
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
 
-    # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
-    assert x.shape == (1, 256, 128, 5)
-    assert y.shape == (1, 256, 128, 5)
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
-    # check that the density is not zero and temperature is zero
-    assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
-    assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+        # check that the density is not zero and temperature is zero
+        assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+        assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
 
 if __name__ == "__main__":
