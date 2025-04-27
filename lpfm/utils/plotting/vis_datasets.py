@@ -47,6 +47,7 @@ def sample_to_image(
     for i, (field, cmap) in enumerate(FIELD_COLORS.items()):
         vmin = np.nanmin(sample[..., i])
         vmax = np.nanmax(sample[..., i])
+        print(f"Field: {field}, vmin: {vmin}, vmax: {vmax}")
         for time_step in range(sample.shape[0]):
             fig, ax = plt.subplots(figsize=(10, 5))
             ax.imshow(sample[time_step, ..., i], cmap=cmap, vmin=vmin, vmax=vmax)
@@ -60,6 +61,11 @@ def sample_to_image(
 
     return sample
 
+
+include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
 
 def main():
     base_path = Path("data/datasets")
@@ -76,11 +82,12 @@ def main():
             n_steps_input=4,
             dt_stride=10,
             nan_to_zero=False,
+            include_field_names=include_field_names,
         )
 
         save_path = dataset_path.parents[1] / "images"
         save_path.mkdir(parents=True, exist_ok=True)
-        sample = get_dataset_sample(dataset, 0)
+        sample = get_dataset_sample(dataset, 10)
         sample_to_image(sample, save_path)
 
 
