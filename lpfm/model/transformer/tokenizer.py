@@ -114,7 +114,6 @@ class Detokenizer(nn.Module):
                 out_channels=out_channels,
                 dim_embed=dim_embed,
                 overlap=overlap,
-                img_size=img_size,
             )
         elif self.mode == "conv_net":
             self.detokenizer = ConvNetDetokenizer(
@@ -215,15 +214,11 @@ class LinearDetokenizer(nn.Module):
         out_channels: int,
         dim_embed: int,
         overlap: int = 0,
-        img_size: Optional[tuple] = None,
     ):
         super().__init__()
 
         if overlap % 2 != 0:
             raise ValueError(f"Overlap must be an even number, got {overlap}")
-
-        if img_size is None:
-            raise ValueError("img_size must be provided")
 
         # Stride
         stride = patch_size
