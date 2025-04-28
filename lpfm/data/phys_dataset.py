@@ -137,13 +137,11 @@ class SuperDataset:
     def __init__(
         self,
         datasets: dict[str, PhysicsDataset],
-        out_shape: tuple[int, int],
         max_samples_per_ds: Optional[int] = None,
         seed: Optional[int] = None,
     ):
         self.datasets = list(datasets.values())
         self.dataset_names = list(datasets.keys())
-        self.out_shape = out_shape
         self.max_samples_per_ds = max_samples_per_ds
 
         # Initialize random number generator

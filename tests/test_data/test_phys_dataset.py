@@ -68,11 +68,11 @@ class TestSuperDataset:
         )
 
         datasets = {"dataset1": dataset1, "dataset2": dataset2}
-        super_dataset = SuperDataset(datasets, (32, 16))
+        super_dataset = SuperDataset(datasets)
         assert len(super_dataset) == len(dataset1) + len(dataset2)
         x, y = super_dataset[0]
-        assert x.shape == (1, 32, 16, 6)
-        assert y.shape == (1, 32, 16, 6)
+        assert x.shape == (1, 32, 32, 6)
+        assert y.shape == (1, 32, 32, 6)
 
     def test_random_sampling_length(self, dummy_datapath: Path):
         """Test that SuperDataset has correct length when using max_samples_per_ds."""
@@ -89,7 +89,6 @@ class TestSuperDataset:
         max_samples = 5
         super_dataset = SuperDataset(
             datasets,
-            out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=42,
         )
@@ -112,7 +111,6 @@ class TestSuperDataset:
         max_samples = 5
         super_dataset = SuperDataset(
             datasets,
-            out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=42,
         )
@@ -148,7 +146,6 @@ class TestSuperDataset:
         max_samples = 5
         super_dataset = SuperDataset(
             datasets,
-            out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=42,
         )
@@ -156,7 +153,6 @@ class TestSuperDataset:
         # Create another SuperDataset with the same seed
         super_dataset2 = SuperDataset(
             datasets,
-            out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=42,
         )
@@ -182,7 +178,6 @@ class TestSuperDataset:
         max_samples = 5
         super_dataset = SuperDataset(
             datasets,
-            out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=42,
         )
@@ -190,7 +185,6 @@ class TestSuperDataset:
         # Create another SuperDataset with a different seed
         super_dataset3 = SuperDataset(
             datasets,
-            out_shape=(32, 32),
             max_samples_per_ds=max_samples,
             seed=43,
         )
