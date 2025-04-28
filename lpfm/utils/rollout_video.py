@@ -14,6 +14,7 @@ def create_field_video(
     prediction: np.ndarray,
     output_path: Path,
     title: str = "Field",
+    fps: int = 1,
 ) -> None:
     """Create a video visualization of the physical field over time.
 
@@ -27,6 +28,8 @@ def create_field_video(
         Path where the output video will be saved
     title : str, optional
         Title prefix for the video, by default "Field"
+    fps : int, optional
+        Frames per second for the video, by default 30
     """
     channel_names = ["p", "rho", "T", "u", "v"]
     for channel, name in enumerate(channel_names):
@@ -62,5 +65,5 @@ def create_field_video(
         # Save as GIF
         vid_path = output_path / f"{title}_{name}.gif"
         print(f"Writing {len(frames)} frames to {vid_path}")
-        iio.imwrite(vid_path, frames, fps=1)
+        iio.imwrite(vid_path, frames, fps=fps)
         print(f"Animation saved to {vid_path}")
