@@ -31,8 +31,8 @@ def _get_cosine_lr_scheduler(
 def get_lr_scheduler(
     optimizer: torch.optim.Optimizer,
     lrs_config: dict,
-    total_updates: int,
-    total_updates_trained: int = 0,
+    total_batches: int,
+    total_batches_trained: int = 0,
 ) -> optim.lr_scheduler.SequentialLR:
     """Create a learning rate scheduler.
     Options are only linear warmup or linear warmup followed by cosine annealing.
@@ -43,17 +43,17 @@ def get_lr_scheduler(
         Optimizer for training
     lrs_config : dict
         Learning rate scheduler configuration
-    total_updates : int
-        Total number of updates for training
-    total_updates_trained : int
-        Total number of updates trained so far
+    total_batches : int
+        Total number of batches for training
+    total_batches_trained : int
+        Total number of batches trained so far
     Returns
     -------
     optim.lr_scheduler.SequentialLR
         Learning rate scheduler
     """
     learning_rate = optimizer.param_groups[0]["lr"]
-    total_updates_remaining = total_updates - total_updates_trained
+    total_updates_remaining = total_batches - total_batches_trained
 
     first_stage = lrs_config["first_stage"]
     stages = [first_stage]

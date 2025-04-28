@@ -40,6 +40,7 @@ from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
 from lpfm.utils.logger import get_logger
 from lpfm.model.transformer.loss_fns import NMSELoss, RNMSELoss, VMSELoss, RVMSELoss
 from lpfm.run.run_utils import find_last_checkpoint
+from lpfm.run.lr_scheduler import get_lr_scheduler
 
 
 class Trainer:
@@ -69,7 +70,7 @@ class Trainer:
         ################################################################
         ############ Initialize time limit #############################
         ################################################################
-        self.avg_sec_per_epoch = 0
+        self.avg_sec_per_sample = 0
         self.start_time = time.time()
         if "time_limit" in self.config["training"]:
             self.time_limit = self.config["training"]["time_limit"]
@@ -171,49 +172,45 @@ class Trainer:
         ################################################################
         ########### Initialize training parameters ##################
         ################################################################
-        self.total_epochs = self.config["training"]["epochs"]
-        self.epoch = 1
-        self.world_total_batches_trained = 0
-        self.world_total_samples_trained = 0
-
         # NOTE: These are per GPU worker
-        self.batch_size = self.config["training"]["batch_size"]
-        self.train_batches_per_epoch = len(self.train_loader)
-        self.val_batches_per_epoch = len(self.val_loader)
-        self.train_samples_per_epoch = self.train_batches_per_epoch * self.batch_size
-
+        batch_size = self.config["training"]["batch_size"]
         # NOTE: This is across all GPU workers
-        self.world_total_samples = (
-            self.train_samples_per_epoch * self.total_epochs * self.world_size
-        )
-        self.world_total_batches = (
-            self.train_batches_per_epoch * self.total_epochs * self.world_size
-        )
-        self.world_train_batches_per_epoch = (
-            self.train_batches_per_epoch * self.world_size
-        )
-        self.world_val_batches_per_epoch = self.val_batches_per_epoch * self.world_size
-        self.world_train_samples_per_epoch = (
-            self.train_samples_per_epoch * self.world_size
-        )
+        self.batch_size = batch_size * self.world_size
 
-        self.log_msg(f"Training for {self.total_epochs} epochs")
-        self.log_msg(
-            f"Training on {self.world_train_batches_per_epoch} batches per epoch, {self.world_total_batches} batches in total"
+        self.total_batches_trained = 0
+        self.total_samples_trained = 0
+        self.cycle_idx = 0
+
+        self.total_samples = int(float(self.config["training"]["samples"]))
+        self.total_batches = self.total_samples // self.batch_size
+
+        #################################################################
+        ########### Initialize validation parameters ##################
+        #################################################################
+        self.val_samples = int(float(self.config["training"]["num_val_samples"]))
+        # num training samples per validation loop
+        self.val_every_x_samples = int(
+            float(self.config["training"]["val_every_samples"])
         )
-        self.log_msg(
-            f"Training for {self.world_train_samples_per_epoch} samples per epoch, {self.world_total_samples} samples in total"
-        )
-        self.log_msg(
-            f"Validating on {self.world_val_batches_per_epoch} batches per epoch"
-        )
+        self.val_every_x_batches = self.val_every_x_samples // self.batch_size
+        # num validation loops per episode (epoch)
+        self.total_val_batches = self.val_samples // self.batch_size
+
+        ################################################################
+        ########### Log parameters #####################################
+        ################################################################
+        self.log_msg(f"Training for {self.total_samples} samples")
+        self.log_msg(f"Training on {self.batch_size} samples per batch")
+        self.log_msg(f"Validating every {self.val_every_x_samples} samples")
+        self.log_msg(f"Validating on {self.val_samples} samples")
 
         if self.global_rank == 0:
             self.wandb_run.config.update(
                 {
-                    "training/total_samples": self.world_total_samples,
-                    "training/samples_per_epoch": self.world_train_samples_per_epoch,
-                    "training/batches_per_epoch": self.world_train_batches_per_epoch,
+                    "training/total_samples": self.total_samples,
+                    "training/samples_per_batch": self.batch_size,
+                    "training/val_every_samples": self.val_every_x_samples,
+                    "training/num_val_samples": self.val_samples,
                 },
                 allow_val_change=True,
             )
@@ -260,9 +257,8 @@ class Trainer:
             self.scheduler = get_lr_scheduler(
                 optimizer=self.optimizer,
                 lrs_config=lrs_config,
-                current_epoch=self.epoch,
-                total_epochs=self.total_epochs,
-                train_batches_per_epoch=self.train_batches_per_epoch,
+                total_batches=self.total_batches,
+                total_batches_trained=self.total_batches_trained,
             )
         else:
             self.scheduler = None
@@ -304,9 +300,8 @@ class Trainer:
         checkpoint = torch.load(
             checkpoint_path, weights_only=False, map_location=self.device
         )
-        self.epoch = checkpoint["epoch"] + 1
-        self.world_total_samples_trained = checkpoint["samples_trained"]
-        self.world_total_batches_trained = checkpoint["batches_trained"]
+        self.total_samples_trained = checkpoint["samples_trained"]
+        self.total_batches_trained = checkpoint["batches_trained"]
         ##################################################################
         ########## Load model, optimizer, and scheduler ##################
         ##################################################################
@@ -320,20 +315,18 @@ class Trainer:
             self.scheduler = get_lr_scheduler(
                 optimizer=self.optimizer,
                 lrs_config=self.config["training"]["lr_scheduler"],
-                current_epoch=self.epoch,
-                total_epochs=self.total_epochs,
-                train_batches_per_epoch=self.train_batches_per_epoch,
+                total_batches=self.total_batches,
+                total_batches_trained=self.total_batches_trained,
             )
         self.log_msg(
-            f"Restarting training from epoch {self.epoch} with {self.world_total_samples_trained} samples trained"
+            f"Restarting training from {self.total_samples_trained} samples trained"
         )
 
     def save_checkpoint(self, path: Path):
         """Save a checkpoint."""
         checkpoint = {
-            "epoch": self.epoch,
-            "samples_trained": self.world_total_samples_trained,
-            "batches_trained": self.world_total_batches_trained,
+            "samples_trained": self.total_samples_trained,
+            "batches_trained": self.total_batches_trained,
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
             "config": self.config,
@@ -396,21 +389,25 @@ class Trainer:
         else:
             return self.optimizer.param_groups[0]["lr"]
 
-    def train_epoch(self) -> float:
-        """Train the model for one epoch.
+    def train_for_x_samples(self, num_samples: int) -> float:
+        """Train the model for a given number of samples.
 
         Parameters
         ----------
+        num_samples : int
+            Number of samples to train for
+
         Returns
         -------
         float
-            Average training loss for the epoch
+            Average training loss for the samples
         """
         self.model.train()
 
         if self.ddp_enabled:
-            self.train_loader.sampler.set_epoch(self.epoch)
-        train_losses_per_epoch = {
+            self.train_loader.sampler.set_epoch(self.cycle_idx)
+
+        loss_per_cycle = {
             "total-MAE": torch.tensor(0.0, device=self.device),
             "total-MSE": torch.tensor(0.0, device=self.device),
             "total-RMSE": torch.tensor(0.0, device=self.device),
@@ -420,7 +417,15 @@ class Trainer:
             "total-RVMSE": torch.tensor(0.0, device=self.device),
         }
 
-        for batch_idx, batch in enumerate(self.train_loader, start=1):
+        samples_trained = 0
+        batches_trained = 0
+        train_iter = iter(self.train_loader)
+        while samples_trained < num_samples:
+            try:
+                batch = next(train_iter)
+            except StopIteration:
+                train_iter = iter(self.train_loader)
+                batch = next(train_iter)
             x, target = batch
             x = x.to(self.device)
             target = target.to(self.device)
@@ -469,31 +474,30 @@ class Trainer:
                 # average the losses across all GPUs
                 log_losses = self._reduce_all_losses(log_losses)
             for loss_name, log_loss in log_losses.items():
-                train_losses_per_epoch[f"total-{loss_name}"] += log_loss
+                loss_per_cycle[f"total-{loss_name}"] += log_loss
 
             ############################################################
             # Log training progress ####################################
             ############################################################
-            self.world_total_samples_trained += self.batch_size * self.world_size
-            self.world_total_batches_trained += self.world_size
+            samples_trained += self.batch_size
+            batches_trained += 1
+            self.total_samples_trained += self.batch_size
+            self.total_batches_trained += 1
             self.log_msg(
                 "Training - Total: "
-                f"Epoch {self.epoch}/{self.total_epochs}, "
-                f"total batches {self.world_total_batches_trained}/{self.world_total_batches}, "
-                f"total samples {self.world_total_samples_trained}/{self.world_total_samples}"
-            )
-            world_batch_idx = batch_idx * self.world_size
-            world_samples_per_batch = self.batch_size * world_batch_idx
-            self.log_msg(
-                f"Training - Epoch: Batch (all GPUs): {world_batch_idx}/{self.world_train_batches_per_epoch}, "
-                f"Samples (all GPUs): {world_samples_per_batch}/{self.world_train_samples_per_epoch}, "
+                f"total samples {self.total_samples_trained}/{self.total_samples}, "
+                f"total batches {self.total_batches_trained}/{self.total_batches}, "
                 f"LR: {lr:.2e}"
+            )
+            self.log_msg(
+                f"Training - Cycle: "
+                f"Samples: {samples_trained}/{self.val_every_x_samples}, "
             )
             ############################################################
             # Log losses ###############################################
             ############################################################
             wandb_log_losses = {}
-            log_string = "Training - Epoch: "
+            log_string = "Training - Batch: "
             for loss_name, loss in log_losses.items():
                 loss = loss.item()
                 log_string += f"{loss_name}: {loss:.8f}, "
@@ -507,18 +511,13 @@ class Trainer:
             if self.global_rank == 0:
                 self.wandb_run.log(
                     {
-                        "training/total_batches_trained": self.world_total_batches_trained,
-                        "training/total_samples_trained": self.world_total_samples_trained,
-                        "training/total_samples_remaining": self.world_total_samples
-                        - self.world_total_samples_trained,
-                        "training/total_batches_remaining": self.world_total_batches
-                        - self.world_total_batches_trained,
-                        "training/epoch_batch_remaining": self.world_train_batches_per_epoch
-                        - world_batch_idx,
-                        "training/epoch_samples_remaining": self.world_train_samples_per_epoch
-                        - world_samples_per_batch,
+                        "training/total_batches_trained": self.total_batches_trained,
+                        "training/total_samples_trained": self.total_samples_trained,
+                        "training/total_samples_remaining": self.total_samples
+                        - self.total_samples_trained,
+                        "training/total_batches_remaining": self.total_batches
+                        - self.total_batches_trained,
                         "training/learning_rate": lr,
-                        "training/batch_idx": world_batch_idx,
                     },
                     commit=False,
                 )
@@ -528,7 +527,7 @@ class Trainer:
         # Visualize predictions ####################################
         ############################################################
         if self.global_rank == 0:
-            vis_path = self.epoch_dir / "train.png"
+            vis_path = self.val_dir / "train.png"
             try:
                 visualize_predictions(
                     vis_path, x, output, target, num_samples=4, svg=True
@@ -536,7 +535,7 @@ class Trainer:
                 log_predictions_wandb(
                     run=self.wandb_run,
                     image_path=vis_path.parent,
-                    name_prefix=f"epoch_{self.epoch}",
+                    name_prefix=f"samples_{self.total_samples_trained}",
                 )
             except Exception as e:
                 self.log_msg(f"Error visualizing predictions: {e}")
@@ -546,15 +545,15 @@ class Trainer:
         ############################################################
         # Calculate average loss per batch ########################
         ############################################################
-        for loss_name, loss in train_losses_per_epoch.items():
-            train_losses_per_epoch[loss_name] /= self.train_batches_per_epoch
+        for loss_name, loss in loss_per_cycle.items():
+            loss_per_cycle[loss_name] /= batches_trained
 
-        return train_losses_per_epoch
+        return loss_per_cycle
 
     def validate(self) -> float:
         """Validate the model."""
         self.model.eval()
-        val_losses_per_epoch = {
+        loss_per_cycle = {
             "total-MAE": torch.tensor(0.0, device=self.device),
             "total-MSE": torch.tensor(0.0, device=self.device),
             "total-RMSE": torch.tensor(0.0, device=self.device),
@@ -565,10 +564,19 @@ class Trainer:
         }
 
         if self.ddp_enabled:
-            self.val_loader.sampler.set_epoch(self.epoch)
+            self.val_loader.sampler.set_epoch(self.cycle_idx)
 
+        val_iter = iter(self.val_loader)
+        samples_validated = 0
+        batches_validated = 0
         with torch.inference_mode():
-            for batch_idx, batch in enumerate(self.val_loader, start=1):
+            while samples_validated < self.val_samples:
+                try:
+                    batch = next(val_iter)
+                except StopIteration:
+                    val_iter = iter(self.val_loader)
+                    batch = next(val_iter)
+
                 x, target = batch
                 x = x.to(self.device)
                 target = target.to(self.device)
@@ -584,25 +592,20 @@ class Trainer:
                 # Log validation loss
                 log_losses = self._compute_log_metrics(output.detach(), target.detach())
                 log_losses[self.config["training"]["criterion"]] = raw_loss.detach()
-                # Accumulate losses
-                for loss_name, loss in log_losses.items():
-                    val_losses_per_epoch[f"total-{loss_name}"] += loss
+                ###############################################################
+                # Accumulate losses ###########################################
+                ###############################################################
+                if self.ddp_enabled:
+                    # average the losses across all GPUs
+                    log_losses = self._reduce_all_losses(log_losses)
+
+                for loss_name, log_loss in log_losses.items():
+                    loss_per_cycle[f"total-{loss_name}"] += log_loss
 
                 self.log_msg(
-                    "Validation - Total: "
-                    f"Epoch {self.epoch}/{self.total_epochs}, "
-                    f"Batch (all GPUs): {batch_idx * self.world_size}/{self.val_batches_per_epoch * self.world_size}, "
+                    "Validation - Cycle: "
+                    f"Samples: {samples_validated}/{self.val_samples}, "
                 )
-                ############################################################
-                # Log losses ###############################################
-                ############################################################
-                wandb_log_losses = {}
-                log_string = "Validation - Epoch: "
-                for loss_name, loss in log_losses.items():
-                    loss = loss.item()
-                    log_string += f"{loss_name}: {loss:.8f}, "
-                    wandb_log_losses[f"validation-losses/{loss_name}"] = loss
-                self.log_msg(log_string)
                 self.log_msg("")
 
         ############################################################
@@ -610,7 +613,7 @@ class Trainer:
         ############################################################
         if self.global_rank == 0:
             # Visualize predictions
-            vis_path = self.epoch_dir / "val.png"
+            vis_path = self.val_dir / "val.png"
             try:
                 visualize_predictions(
                     vis_path, x, output, target, num_samples=4, svg=True
@@ -618,7 +621,7 @@ class Trainer:
                 log_predictions_wandb(
                     run=self.wandb_run,
                     image_path=vis_path.parent,
-                    name_prefix=f"epoch_{self.epoch}",
+                    name_prefix=f"samples_{self.total_samples_trained}",
                 )
             except Exception as e:
                 self.log_msg(f"Error visualizing predictions: {e}")
@@ -626,26 +629,25 @@ class Trainer:
                 self.log_msg(f"Error args: {e.args}")
 
         # Calculate average loss per batch
-        for loss_name, loss in val_losses_per_epoch.items():
-            val_losses_per_epoch[loss_name] /= self.val_batches_per_epoch
+        for loss_name, loss in loss_per_cycle.items():
+            loss_per_cycle[loss_name] /= batches_validated
 
-        return val_losses_per_epoch
+        return loss_per_cycle
 
     def train(self):
         """Train the model."""
         best_loss = float("inf")
-        epochs = range(self.epoch, self.total_epochs + 1)
-        for epoch in epochs:
+        while self.total_samples_trained < self.total_samples:
+            self.cycle_idx += 1
             start_epoch_time = time.time()
-            self.epoch = epoch
-            self.epoch_dir = self.log_dir / f"epoch_{epoch:04d}"
-            self.epoch_dir.mkdir(parents=True, exist_ok=True)
+            self.val_dir = self.log_dir / f"val_{self.cycle_idx:04d}"
+            self.val_dir.mkdir(parents=True, exist_ok=True)
             ######################################################################
             ########### Training ###############################################
             ######################################################################
             self.log_msg("=" * 100)
-            self.log_msg(f"Training: Training epoch {epoch}")
-            train_losses = self.train_epoch()
+            self.log_msg(f"Training - train on next {self.val_every_x_samples} samples")
+            train_losses = self.train_for_x_samples(self.val_every_x_samples)
             self.log_msg("=" * 100)
             log_string = "Training - Losses: "
             for loss_name, loss in train_losses.items():
@@ -656,19 +658,21 @@ class Trainer:
                 train_losses_wandb = {
                     f"training-summary/{k}": v for k, v in train_losses.items()
                 }
-                train_losses_wandb["training-summary/epoch"] = epoch
+                train_losses_wandb["training-summary/samples_trained"] = (
+                    self.total_samples_trained
+                )
                 self.wandb_run.log(train_losses_wandb, commit=True)
             ######################################################################
             ########### Save checkpoint ########################################
             ######################################################################
             if self.global_rank == 0:
-                self.save_checkpoint(path=self.epoch_dir / "checkpoint.pth")
+                self.save_checkpoint(path=self.val_dir / "checkpoint.pth")
             if self.ddp_enabled:
                 dist.barrier()
             ######################################################################
             ########### Validation ###############################################
             ######################################################################
-            self.log_msg(f"Validation: Validating epoch {epoch}")
+            self.log_msg("Validation")
             val_losses = self.validate()
             self.log_msg("=" * 100)
             # Log all other losses for both training and validation
@@ -681,25 +685,31 @@ class Trainer:
                 val_losses_wandb = {
                     f"validation-summary/{k}": v for k, v in val_losses.items()
                 }
-                val_losses_wandb["validation-summary/epoch"] = epoch
+                val_losses_wandb["validation-summary/samples_trained"] = (
+                    self.total_samples_trained
+                )
                 self.wandb_run.log(val_losses_wandb, commit=True)
+
             ############################################################
             # Calculate average time per epoch #########################
             ############################################################
             duration = time.time() - start_epoch_time
-            self.log_msg(f"Summary: Epoch {epoch} took {duration / 60:.2f} minutes")
-            self.avg_sec_per_epoch = (
-                self.avg_sec_per_epoch * (self.epoch - 1) + duration
-            ) / self.epoch
+            self.log_msg(f"Summary: Training cycle took {duration / 60:.2f} minutes")
+            self.avg_sec_per_cycle = (
+                self.avg_sec_per_cycle * (self.cycle_idx - 1) + duration
+            ) / self.cycle_idx
+
             self.log_msg(
-                f"Summary: Average time per epoch: {self.avg_sec_per_epoch / 60:.2f} minutes"
+                f"Summary: Average time per cycle: {self.avg_sec_per_cycle / 60:.2f} minutes"
             )
             ############################################################
             # Calculate time remaining #################################
             ############################################################
-            proj_time_remaining = self.avg_sec_per_epoch * (
-                self.total_epochs - self.epoch
-            )
+            remaining_cycles = (
+                self.total_samples - self.total_samples_trained
+            ) // self.val_every_x_samples
+
+            proj_time_remaining = self.avg_sec_per_cycle * remaining_cycles
             self.log_msg(
                 f"Summary: Projected time remaining: {proj_time_remaining / 60:.2f} minutes"
             )
@@ -709,9 +719,9 @@ class Trainer:
             if self.global_rank == 0:
                 self.wandb_run.log(
                     {
-                        "summary/epoch": epoch,
-                        "summary/minutes_per_epoch": duration / 60,
-                        "summary/avg_minutes_per_epoch": self.avg_sec_per_epoch / 60,
+                        "summary/cycle_idx": self.cycle_idx,
+                        "summary/minutes_per_cycle": duration / 60,
+                        "summary/avg_minutes_per_cycle": self.avg_sec_per_cycle / 60,
                         "summary/projected_minutes_remaining": proj_time_remaining / 60,
                     },
                     commit=True,
@@ -728,14 +738,14 @@ class Trainer:
                     self.log_msg(f"Model saved with loss: {best_loss:.8f}")
 
             ############################################################
-            # Shut down if time limit is set and next epoch would exceed it
+            # Shut down if time limit is set and next cycle would exceed it
             ############################################################
             if self.time_limit is not None:
                 time_passed = time.time() - self.start_time
                 time_remaining = self.time_limit - time_passed
-                if time_remaining < self.avg_sec_per_epoch:
+                if time_remaining < self.avg_sec_per_cycle:
                     self.log_msg(
-                        "Summary: Next epoch would exceed time limit, shutting down"
+                        "Summary: Next cycle would exceed time limit, shutting down"
                     )
                     break
 
@@ -746,129 +756,6 @@ class Trainer:
             self.wandb_run.finish()
         if self.ddp_enabled:
             dist.destroy_process_group()
-
-
-def get_lr_scheduler(
-    optimizer: torch.optim.Optimizer,
-    lrs_config: dict,
-    current_epoch: int,
-    total_epochs: int,
-    train_batches_per_epoch: int,
-) -> optim.lr_scheduler.SequentialLR:
-    """Create a learning rate scheduler.
-    Options are only linear warmup or linear warmup followed by cosine annealing.
-
-    Parameters
-    ----------
-    optimizer : torch.optim.Optimizer
-        Optimizer for training
-    current_epoch : int
-        Current epoch of training
-    total_epochs : int
-        Total number of training epochs
-    train_batches_per_epoch : int
-        Number of training batches per epoch
-
-    Returns
-    -------
-    optim.lr_scheduler.SequentialLR
-        Learning rate scheduler
-    """
-    learning_rate = optimizer.param_groups[0]["lr"]
-    first_stage = lrs_config["first_stage"]
-    second_stage = lrs_config["second_stage"]
-    third_stage = lrs_config["third_stage"] if "third_stage" in lrs_config else None
-
-    ############################################################
-    ###### Get batches for each stage #########################
-    ############################################################
-    milestones = []
-    total_batches = (total_epochs - current_epoch) * train_batches_per_epoch
-    first_stage_batches = first_stage["num_batches"]
-    second_stage_batches = second_stage["num_batches"]
-    if third_stage is not None:
-        third_stage_batches = third_stage["num_batches"]
-    else:
-        third_stage_batches = 0
-
-    if second_stage_batches == -1:
-        second_stage_batches = total_batches - first_stage_batches - third_stage_batches
-
-    first_milestone = first_stage_batches
-    milestones.append(first_milestone)
-    if third_stage is not None:
-        # only add the second stage milestone if there is a third stage
-        second_milestone = first_milestone + second_stage_batches
-        milestones.append(second_milestone)
-
-    ############################################################
-    schedulers = []
-    ############################################################
-    ###### First stage #########################################
-    ############################################################
-    first_stage_name = first_stage["name"]
-    if first_stage_name == "LinearLR":
-        first_stage_scheduler = optim.lr_scheduler.LinearLR(
-            optimizer,
-            start_factor=first_stage["start_factor"],
-            end_factor=first_stage["end_factor"],
-            total_iters=first_stage_batches,
-        )
-        schedulers.append(first_stage_scheduler)
-    else:
-        raise ValueError(f"Scheduler {first_stage_name} not supported for first stage")
-
-    ############################################################
-    ###### Second stage ########################################
-    ############################################################
-    second_stage_name = second_stage["name"]
-    if second_stage_name == "CosineAnnealingLR":
-        second_stage_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer,
-            T_max=second_stage_batches,
-            eta_min=float(second_stage["end_factor"]) * learning_rate,
-        )
-        schedulers.append(second_stage_scheduler)
-    elif second_stage_name == "LinearLR":
-        second_stage_scheduler = optim.lr_scheduler.LinearLR(
-            optimizer,
-            start_factor=1,
-            end_factor=second_stage["end_factor"],
-            total_iters=second_stage_batches,
-        )
-        schedulers.append(second_stage_scheduler)
-
-    else:
-        raise ValueError(
-            f"Scheduler {second_stage_name} not supported for second stage"
-        )
-
-    ############################################################
-    ###### Third stage #########################################
-    ############################################################
-    if third_stage is not None:
-        third_stage_name = third_stage["name"]
-        if third_stage_name == "LinearLR":
-            third_stage_scheduler = optim.lr_scheduler.LinearLR(
-                optimizer,
-                start_factor=second_stage["end_factor"],
-                end_factor=third_stage["end_factor"],
-                total_iters=third_stage_batches,
-            )
-            schedulers.append(third_stage_scheduler)
-        else:
-            raise ValueError(
-                f"Scheduler {third_stage_name} not supported for third stage"
-            )
-
-    # agument the last scheduler with the remaining epochs
-    scheduler = optim.lr_scheduler.SequentialLR(
-        optimizer,
-        schedulers=schedulers,
-        milestones=milestones,
-    )
-
-    return scheduler
 
 
 def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
