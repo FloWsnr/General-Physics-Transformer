@@ -7,6 +7,8 @@ from pathlib import Path
 import numpy as np
 from itertools import cycle
 from typing import Literal
+from collections import OrderedDict
+
 
 # Load the CVT style
 white_style = Path(__file__).parent / "white.mplstyle"
@@ -53,6 +55,31 @@ class BasePlotter:
 
         self.color_cycler = cycle(
             [color1, color2, color3, color4, color5, color6, color7]
+        )
+
+        self.field_params = OrderedDict(
+            {
+                "pressure": {
+                    "color": color1,
+                    "symbol": symbol1,
+                },
+                "density": {
+                    "color": color3,
+                    "symbol": symbol2,
+                },
+                "temperature": {
+                    "color": color4,
+                    "symbol": symbol3,
+                },
+                "velocity_x": {
+                    "color": color2,
+                    "symbol": symbol4,
+                },
+                "velocity_y": {
+                    "color": color5,
+                    "symbol": symbol5,
+                },
+            }
         )
 
         self.alpha = 0.2  # transparency of error region
@@ -365,7 +392,7 @@ class BasePlotter:
 
         self.fig.savefig(path)
 
-    def plot(self):
+    def show_figure(self):
         plt.show()
 
     def legend(self, title=None, loc="upper left", frameon=True):
