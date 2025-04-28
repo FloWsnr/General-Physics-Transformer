@@ -16,18 +16,19 @@ FIELD_COLORS = OrderedDict(
 )
 
 datasets = [
-    "cooled_object_pipe_flow_air",
-    "heated_object_pipe_flow_air",
-    "object_sym_flow_air",
-    "object_sym_flow_water",
-    "object_periodic_flow_water",
-    "cylinder_sym_flow_water",
-    "cylinder_pipe_flow_water",
-    "euler_multi_quadrants_periodicBC",
-    "turbulent_radiative_layer_2D",
-    "rayleigh_benard",
-    "shear_flow",
-    "twophase_flow",
+    # "cooled_object_pipe_flow_air",
+    # "heated_object_pipe_flow_air",
+    # "object_sym_flow_air",
+    # "object_sym_flow_water",
+    # "object_periodic_flow_water",
+    # "cylinder_sym_flow_water",
+    # "cylinder_pipe_flow_water",
+    # "euler_multi_quadrants_periodicBC",
+    # "turbulent_radiative_layer_2D",
+    # "rayleigh_benard",
+    # "shear_flow",
+    # "twophase_flow",
+    "rayleigh_benard_obstacle",
 ]
 
 
