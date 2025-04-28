@@ -78,23 +78,32 @@ def crop_hdf5(
 
 if __name__ == "__main__":
     base_path = Path(
-        r"C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\data\datasets\cooled_object_pipe_flow_air\data\test"
+        r"/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
     )
-    dataset_dir = base_path
 
-    # make a safety copy of the whole directory and its contents
-    # print(f"Copying {dataset_dir} to {dataset_dir.parent / f'{dataset_dir.stem}_copy'}")
-    # shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
+    dataset_names = [
+        "cylinder_sym_flow_water",
+        "cylinder_pipe_flow_water",
+        "object_periodic_flow_water",
+        "object_sym_flow_water",
+        "object_sym_flow_air",
+        "heated_object_pipe_flow_air",
+        "cooled_object_pipe_flow_air",
+    ]
+    for dataset_name in dataset_names:
+        dataset_dir = base_path / dataset_name
 
-    swap = False
+        # make a safety copy of the whole directory and its contents
+        # print(f"Copying {dataset_dir} to {dataset_dir.parent / f'{dataset_dir.stem}_copy'}")
+        # shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
 
-    for file in list(dataset_dir.glob("**/*.hdf5")):
-        if "new" in file.stem:
-            print("Skipping", file)
-            continue
-        new_name = file.parent / f"{file.stem}_new.hdf5"
-        crop_hdf5(file, new_name)
-        # remove old file
-        # file.unlink()
-        # rename new file
-        # new_name.rename(file)
+        for file in list(dataset_dir.glob("**/*.hdf5")):
+            if "new" in file.stem:
+                print("Skipping", file)
+                continue
+            new_name = file.parent / f"{file.stem}_new.hdf5"
+            crop_hdf5(file, new_name)
+            # remove old file
+            file.unlink()
+            # rename new file
+            new_name.rename(file)
