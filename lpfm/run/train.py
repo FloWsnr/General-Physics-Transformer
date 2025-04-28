@@ -70,7 +70,7 @@ class Trainer:
         ################################################################
         ############ Initialize time limit #############################
         ################################################################
-        self.avg_sec_per_sample = 0
+        self.avg_sec_per_cycle = 0
         self.start_time = time.time()
         if "time_limit" in self.config["training"]:
             self.time_limit = self.config["training"]["time_limit"]
@@ -188,6 +188,9 @@ class Trainer:
         ########### Initialize validation parameters ##################
         #################################################################
         self.val_samples = int(float(self.config["training"]["num_val_samples"]))
+        if self.val_samples == -1:
+            self.val_samples = len(self.val_loader) * self.batch_size
+
         # num training samples per validation loop
         self.val_every_x_samples = int(
             float(self.config["training"]["val_every_samples"])
@@ -485,13 +488,15 @@ class Trainer:
             self.total_batches_trained += 1
             self.log_msg(
                 "Training - Total: "
-                f"total samples {self.total_samples_trained}/{self.total_samples}, "
-                f"total batches {self.total_batches_trained}/{self.total_batches}, "
+                f"Samples: {self.total_samples_trained}/{self.total_samples}, "
+                f"Batches: {self.total_batches_trained}/{self.total_batches}, "
                 f"LR: {lr:.2e}"
             )
             self.log_msg(
                 f"Training - Cycle: "
                 f"Samples: {samples_trained}/{self.val_every_x_samples}, "
+                f"Batches: {batches_trained}/{self.val_every_x_batches}, "
+                f"LR: {lr:.2e}"
             )
             ############################################################
             # Log losses ###############################################
@@ -535,7 +540,7 @@ class Trainer:
                 log_predictions_wandb(
                     run=self.wandb_run,
                     image_path=vis_path.parent,
-                    name_prefix=f"samples_{self.total_samples_trained}",
+                    name_prefix=f"cycle_{self.cycle_idx}",
                 )
             except Exception as e:
                 self.log_msg(f"Error visualizing predictions: {e}")
@@ -602,6 +607,14 @@ class Trainer:
                 for loss_name, log_loss in log_losses.items():
                     loss_per_cycle[f"total-{loss_name}"] += log_loss
 
+                ####################################################
+                # Update cycle index #################################
+                ####################################################
+                samples_validated += self.batch_size
+                batches_validated += 1
+                ####################################################
+                # Log validation progress ##########################
+                ####################################################
                 self.log_msg(
                     "Validation - Cycle: "
                     f"Samples: {samples_validated}/{self.val_samples}, "
@@ -621,7 +634,7 @@ class Trainer:
                 log_predictions_wandb(
                     run=self.wandb_run,
                     image_path=vis_path.parent,
-                    name_prefix=f"samples_{self.total_samples_trained}",
+                    name_prefix=f"cycle_{self.cycle_idx}",
                 )
             except Exception as e:
                 self.log_msg(f"Error visualizing predictions: {e}")
