@@ -17,8 +17,8 @@ class NMSELoss(nn.Module):
         Dimensions to reduce over, by default (1, 2, 3)
         which is time, height, width
 
-    reduce: bool, optional
-        Whether to reduce the loss over the dimensions, by default True
+    return_scalar: bool, optional
+        Whether to return a scalar loss, by default True
 
     Attributes
     ----------
@@ -26,7 +26,7 @@ class NMSELoss(nn.Module):
         Dimensions to reduce over
     """
 
-    def __init__(self, dims=(1, 2, 3), reduce=True):
+    def __init__(self, dims=(1, 2, 3), return_scalar=True):
         """Initialize NMSE loss.
 
         Parameters
@@ -36,7 +36,7 @@ class NMSELoss(nn.Module):
         """
         super().__init__()
         self.dims = dims
-        self.reduce = reduce
+        self.return_scalar = return_scalar
 
     def forward(self, pred, target):
         """Calculate the normalized mean square error.
@@ -59,7 +59,7 @@ class NMSELoss(nn.Module):
         target_norm = target.pow(2).mean(self.dims, keepdim=True) + 1e-6
         # Calculate normalized MSE
         nmse = residuals.pow(2).mean(self.dims, keepdim=True) / target_norm
-        if self.reduce:
+        if self.return_scalar:
             return nmse.mean()
         return nmse
 
@@ -72,8 +72,8 @@ class VMSELoss(nn.Module):
     dims : tuple, optional
         Dimensions to reduce over, by default (1, 2, 3)
         which is time, height, width
-    reduce: bool, optional
-        Whether to reduce the loss over the dimensions, by default True
+    return_scalar: bool, optional
+        Whether to return a scalar loss, by default True
 
     Attributes
     ----------
@@ -81,17 +81,19 @@ class VMSELoss(nn.Module):
         Dimensions to reduce over
     """
 
-    def __init__(self, dims=(1, 2, 3), reduce=True):
+    def __init__(self, dims=(1, 2, 3), return_scalar=True):
         """Initialize Variance-Normalized MSE loss.
 
         Parameters
         ----------
         dims : tuple, optional
             Dimensions to reduce over, by default (1, 2, 3)
+        return_scalar: bool, optional
+            Whether to return a scalar loss, by default True
         """
         super().__init__()
         self.dims = dims
-        self.reduce = reduce
+        self.return_scalar = return_scalar
 
     def forward(self, pred, target):
         """Calculate the variance-normalized mean square error.
@@ -114,7 +116,7 @@ class VMSELoss(nn.Module):
         norm = torch.std(target, dim=self.dims, keepdim=True) ** 2 + 1e-6
         # Calculate normalized MSE
         nmse = residuals.pow(2).mean(self.dims, keepdim=True) / norm
-        if self.reduce:
+        if self.return_scalar:
             return nmse.mean()
         return nmse
 
@@ -128,8 +130,8 @@ class RNMSELoss(NMSELoss):
         Dimensions to reduce over, by default (1, 2, 3)
         which is time, height, width
 
-    reduce: bool, optional
-        Whether to reduce the loss over the dimensions, by default True
+    return_scalar: bool, optional
+        Whether to return a scalar loss, by default True
 
     Attributes
     ----------
@@ -137,15 +139,17 @@ class RNMSELoss(NMSELoss):
         Dimensions to reduce over
     """
 
-    def __init__(self, dims=(1, 2, 3), reduce=True):
+    def __init__(self, dims=(1, 2, 3), return_scalar=True):
         """Initialize Root NMSE loss.
 
         Parameters
         ----------
         dims : tuple, optional
             Dimensions to reduce over, by default (1, 2, 3)
+        return_scalar: bool, optional
+            Whether to return a scalar loss, by default True
         """
-        super().__init__(dims, reduce)
+        super().__init__(dims, return_scalar)
 
     def forward(self, pred, target):
         """Calculate the root normalized mean square error.
@@ -174,8 +178,8 @@ class RVMSELoss(VMSELoss):
     dims : tuple, optional
         Dimensions to reduce over, by default (1, 2, 3)
 
-    reduce: bool, optional
-        Whether to reduce the loss over the dimensions, by default True
+    return_scalar: bool, optional
+        Whether to return a scalar loss, by default True
 
     Attributes
     ----------
@@ -183,7 +187,7 @@ class RVMSELoss(VMSELoss):
         Dimensions to reduce over
     """
 
-    def __init__(self, dims=(1, 2, 3), reduce=True):
+    def __init__(self, dims=(1, 2, 3), return_scalar=True):
         """Initialize Root Variance-Normalized MSE loss.
 
         Parameters
@@ -191,7 +195,7 @@ class RVMSELoss(VMSELoss):
         dims : tuple, optional
             Dimensions to reduce over, by default (1, 2, 3)
         """
-        super().__init__(dims, reduce)
+        super().__init__(dims, return_scalar)
 
     def forward(self, pred, target):
         """Calculate the root variance-normalized mean square error.
