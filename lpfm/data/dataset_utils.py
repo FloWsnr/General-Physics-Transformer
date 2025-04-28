@@ -69,19 +69,19 @@ def get_dataloader(
     """
     seed = train_config["seed"]
     datasets = get_datasets(data_config, split)
-    train_super_dataset = SuperDataset(
+    super_dataset = SuperDataset(
         datasets,
         max_samples_per_ds=data_config["max_samples_per_ds"],
     )
 
     if is_distributed:
-        sampler = DistributedSampler(train_super_dataset, seed=seed)
+        sampler = DistributedSampler(super_dataset, seed=seed)
     else:
         generator = torch.Generator()
         generator.manual_seed(seed)
-        sampler = RandomSampler(train_super_dataset, generator=generator)
+        sampler = RandomSampler(super_dataset, generator=generator)
     dataloader = DataLoader(
-        dataset=train_super_dataset,
+        dataset=super_dataset,
         batch_size=train_config["batch_size"],
         collate_fn=collate_fn,
         num_workers=train_config["num_workers"],
