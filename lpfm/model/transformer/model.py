@@ -71,7 +71,7 @@ def get_model(model_config: dict):
         mlp_dim=lpfm_config.mlp_dim,
         num_heads=lpfm_config.num_heads,
         num_layers=lpfm_config.num_layers,
-        att_mode=transformer_config["att_mode"],
+        att_mode=transformer_config.get("att_mode", "full"),
         pos_enc_mode=transformer_config["pos_enc_mode"],
         img_size=model_config["img_size"],
         patch_size=transformer_config["patch_size"],

@@ -5,14 +5,19 @@ import numpy as np
 
 
 class LossVsTimePlotter(BasePlotter):
-    def __init__(self, color: Literal["white", "black"] = "white"):
+    def __init__(
+        self,
+        x_ticks: list[int],
+        y_ticks: list[float],
+        color: Literal["white", "black"] = "white",
+    ):
         super().__init__(color)
 
         self.setup_figure(
-            x_ticks=[0, 250, 500],
-            y_ticks=[0, 0.005, 0.01],
+            x_ticks=x_ticks,
+            y_ticks=y_ticks,
             x_label="Time",
-            y_label="Loss",
+            y_label="NMSE",
         )
 
     def plot(self, mean_loss: torch.Tensor, std_loss: torch.Tensor):

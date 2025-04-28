@@ -6,6 +6,7 @@ Evaluate the model on each dataset.
 from pathlib import Path
 import torch
 import yaml
+import numpy as np
 
 try:
     from yaml import CLoader as Loader
@@ -161,7 +162,7 @@ def avererage_predictions(
     return torch.mean(losses, dim=0), torch.std(losses, dim=0)
 
 
-def plot_loss(mean_loss: torch.Tensor, std_loss: torch.Tensor):
+def plot_loss(mean_loss: torch.Tensor, std_loss: torch.Tensor) -> LossVsTimePlotter:
     """Plot the loss for each channel.
     x=timestep, y=loss
 
@@ -172,77 +173,96 @@ def plot_loss(mean_loss: torch.Tensor, std_loss: torch.Tensor):
     std_loss : torch.Tensor
         The standard deviation of the loss for each channel and timestep
     """
-    plotter = LossVsTimePlotter(color="white")
+    min_loss = torch.min(mean_loss).item()
+    max_loss = torch.max(mean_loss).item()
+    time_steps = mean_loss.shape[0]
+    x_ticks = [0, time_steps // 2, time_steps]
+    y_ticks = [0, max_loss * 0.5, max_loss]
+    plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks, color="white")
     plotter.plot(mean_loss, std_loss)
     plotter.legend(title="Fields", loc="upper right")
-    plotter.show_figure()
-    plotter.close()
+    return plotter
 
 
 def main():
+    model_list = [
+        "ti-main-run-single-0006",
+        "ti-main-run-single-0007",
+        "ti-main-run-single-0008",
+        "ti-main-run-single-0009",
+        "ti-main-run-single-0010",
+        "ti-main-run-single-0011",
+        "ti-main-run-single-0012",
+        "ti-main-run-single-0013",
+    ]
+
+    base_path = Path("C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs")
     results_dir = Path(
         "C:/Users/zsa8rk/sciebo/01_Research/LPFM/figures/model_eval/nextstep_prediction"
     )
     results_dir.mkdir(exist_ok=True, parents=True)
-
     dt = 1
     num_samples = 10
-    base_path = Path("C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs")
-    model_path = base_path / "ti-main-run-single-0009"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    config = load_config(model_path)
-    model_config = config["model"]
-    model = load_model(model_path / "best_model.pth", device, model_config)
+    for model_name in model_list:
+        logger.info(f"Computing average losses for {model_name}")
+        model_path = base_path / model_name
 
-    data_config = config["data"]
-    data_config["full_trajectory_mode"] = True
-    data_config["max_rollout_steps"] = 500
-    data_config["dt_stride"] = dt
+        config = load_config(model_path)
+        model_config = config["model"]
+        model = load_model(model_path / "best_model.pth", device, model_config)
 
-    data_config["datasets"] = ["cylinder_sym_flow_water"]
+        data_config = config["data"]
+        data_config["full_trajectory_mode"] = True
+        data_config["max_rollout_steps"] = 500
+        data_config["dt_stride"] = dt
 
-    datasets: dict = get_datasets(
-        data_config,
-        split="test",
-    )
+        # data_config["datasets"] = ["cylinder_sym_flow_water"]
 
-    for dataset_name, dataset in datasets.items():
-        # logger.info(f"Computing average loss for {dataset_name}")
-        # mean_loss, std_loss = avererage_predictions(
-        #     model, dataset, device, num_samples=num_samples
-        # )
-        # logger.info(f"Finished computing average loss for {dataset_name}")
-
-        # plot_loss(mean_loss, std_loss)
-
-        #########################################################
-        # Create video of the next step prediction
-        #########################################################
-
-        next_step_predictions, full_traj, _ = next_step_prediction(
-            model, dataset, device, traj_idx=0
+        datasets: dict = get_datasets(
+            data_config,
+            split="test",
         )
-        # rotate x and y axis
-        next_step_predictions = next_step_predictions.permute(0, 2, 1, 3)
-        full_traj = full_traj.permute(0, 2, 1, 3)
 
-        next_step_predictions = next_step_predictions.cpu().numpy()
-        full_traj = full_traj.cpu().numpy()
+        for dataset_name, dataset in datasets.items():
+            logger.info(f"  Computing average loss for {dataset_name}")
+            mean_loss, std_loss = avererage_predictions(
+                model, dataset, device, num_samples=num_samples
+            )
+            logger.info(f"  Finished computing average loss for {dataset_name}")
 
-        # Create videos for both actual and predicted trajectories
-        output_dir = results_dir / "videos"
-        output_dir.mkdir(exist_ok=True)
+            plotter = plot_loss(mean_loss, std_loss)
+            save_path = results_dir / f"{model_name}_{dataset_name}_loss_dt{dt}.png"
+            plotter.save_figure(save_path)
 
-        # Create video of the ground truth and the predicted trajectory
-        logger.info("Creating video of next step prediction")
-        create_field_video(
-            full_traj,
-            next_step_predictions,
-            output_dir,
-            f"{dataset_name}_next_step_dt{dt}",
-            fps=1,
-        )
+            #########################################################
+            # Create video of the next step prediction
+            #########################################################
+
+            # next_step_predictions, full_traj, _ = next_step_prediction(
+            #     model, dataset, device, traj_idx=0
+            # )
+            # # rotate x and y axis
+            # next_step_predictions = next_step_predictions.permute(0, 2, 1, 3)
+            # full_traj = full_traj.permute(0, 2, 1, 3)
+
+            # next_step_predictions = next_step_predictions.cpu().numpy()
+            # full_traj = full_traj.cpu().numpy()
+
+            # # Create videos for both actual and predicted trajectories
+            # output_dir = results_dir / "videos"
+            # output_dir.mkdir(exist_ok=True)
+
+            # # Create video of the ground truth and the predicted trajectory
+            # logger.info("Creating video of next step prediction")
+            # create_field_video(
+            #     full_traj,
+            #     next_step_predictions,
+            #     output_dir,
+            #     f"{dataset_name}_next_step_dt{dt}",
+            #     fps=1,
+            # )
 
 
 if __name__ == "__main__":
