@@ -143,18 +143,31 @@ class SuperDataset:
         self.datasets = list(datasets.values())
         self.dataset_names = list(datasets.keys())
         self.max_samples_per_ds = max_samples_per_ds
+        self.seed = seed
 
         # Initialize random number generator
         self.rng = torch.Generator()
         if seed is not None:
             self.rng.manual_seed(seed)
 
-        # Generate random indices for each dataset if max_samples_per_ds is specified
+        # Generate initial random indices
+        self.reshuffle()
+
+    def reshuffle(self):
+        """Reshuffle the indices for each dataset.
+
+        This should be called at the start of each epoch to ensure
+        a new random subset of samples is used.
+
+        """
         self.dataset_indices = []
         for dataset in self.datasets:
-            if max_samples_per_ds is not None and len(dataset) > max_samples_per_ds:
+            if (
+                self.max_samples_per_ds is not None
+                and len(dataset) > self.max_samples_per_ds
+            ):
                 indices = torch.randperm(len(dataset), generator=self.rng)[
-                    :max_samples_per_ds
+                    : self.max_samples_per_ds
                 ]
                 self.dataset_indices.append(indices)
             else:
@@ -162,8 +175,8 @@ class SuperDataset:
 
         # Calculate lengths based on either max_samples_per_ds or full dataset length
         self.lengths = [
-            min(max_samples_per_ds, len(dataset))
-            if max_samples_per_ds is not None
+            min(self.max_samples_per_ds, len(dataset))
+            if self.max_samples_per_ds is not None
             else len(dataset)
             for dataset in self.datasets
         ]

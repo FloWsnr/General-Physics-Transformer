@@ -194,3 +194,110 @@ class TestSuperDataset:
             torch.equal(super_dataset[i][0], super_dataset3[i][0])
             for i in range(len(super_dataset))
         )
+
+    def test_reshuffle_changes_samples(self, dummy_datapath: Path):
+        """Test that reshuffle() changes the samples being returned."""
+        # Create two identical datasets
+        dataset1 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+        dataset2 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
+        max_samples = 5
+        super_dataset = SuperDataset(
+            datasets,
+            max_samples_per_ds=max_samples,
+            seed=42,
+        )
+
+        # Get initial samples
+        initial_samples = []
+        for i in range(len(super_dataset)):
+            x, _ = super_dataset[i]
+            initial_samples.append(x)
+
+        # Reshuffle and get new samples
+        super_dataset.reshuffle()
+        new_samples = []
+        for i in range(len(super_dataset)):
+            x, _ = super_dataset[i]
+            new_samples.append(x)
+
+        # Verify we got different samples after reshuffle
+        assert not all(
+            torch.equal(s1, s2) for s1, s2 in zip(initial_samples, new_samples)
+        )
+
+    def test_reshuffle_with_same_seed(self, dummy_datapath: Path):
+        """Test that reshuffle() with same seed produces same sequence."""
+        # Create two identical datasets
+        dataset1 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+        dataset2 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
+        max_samples = 5
+        super_dataset = SuperDataset(
+            datasets,
+            max_samples_per_ds=max_samples,
+            seed=42,
+        )
+
+        # Get samples after first reshuffle
+        super_dataset.reshuffle()
+        first_reshuffle_samples = []
+        for i in range(len(super_dataset)):
+            x, _ = super_dataset[i]
+            first_reshuffle_samples.append(x)
+
+        # Get samples after second reshuffle
+        super_dataset.reshuffle()
+        second_reshuffle_samples = []
+        for i in range(len(super_dataset)):
+            x, _ = super_dataset[i]
+            second_reshuffle_samples.append(x)
+
+        # Verify we got different samples between reshuffles
+        assert not all(
+            torch.equal(s1, s2)
+            for s1, s2 in zip(first_reshuffle_samples, second_reshuffle_samples)
+        )
+
+    def test_reshuffle_without_max_samples(self, dummy_datapath: Path):
+        """Test that reshuffle() works correctly when max_samples_per_ds is None."""
+        # Create two identical datasets
+        dataset1 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+        dataset2 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
+        super_dataset = SuperDataset(
+            datasets,
+            max_samples_per_ds=None,
+            seed=42,
+        )
+
+        # Get initial samples
+        initial_samples = []
+        for i in range(len(super_dataset)):
+            x, _ = super_dataset[i]
+            initial_samples.append(x)
+
+        # Reshuffle and get new samples
+        super_dataset.reshuffle()
+        new_samples = []
+        for i in range(len(super_dataset)):
+            x, _ = super_dataset[i]
+            new_samples.append(x)
+
+        # Verify we got the same samples (since max_samples_per_ds is None)
+        assert all(torch.equal(s1, s2) for s1, s2 in zip(initial_samples, new_samples))
