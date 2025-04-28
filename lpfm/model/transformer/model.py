@@ -1,5 +1,6 @@
-from typing import Optional
+from typing import Optional, Literal
 from dataclasses import dataclass
+
 import torch
 import torch.nn as nn
 
@@ -108,11 +109,11 @@ class PhysicsTransformer(nn.Module):
         Number of attention heads.
     num_layers: int
         Number of attention blocks.
-    pos_enc_mode: str
+    pos_enc_mode: Literal["rope", "absolute"] = "rope"
         Position encoding mode. Can be "rope" or "absolute".
     patch_size: tuple[int, int, int]
         Patch size for spatial-temporal embeddings. (time, height, width)
-    att_mode: str
+    att_mode: Literal["full", "full_causal"] = "full"
         Attention mode. Can be "full" or "full_causal".
     img_size: tuple[int, int, int]
         Incoming image size (time, height, width)
@@ -123,9 +124,9 @@ class PhysicsTransformer(nn.Module):
     ########### Tokenizer parameters ###############################
     ################################################################
 
-    tokenizer_mode: str = "linear"
+    tokenizer_mode: Literal["linear", "non_linear"] = "linear"
         Tokenizer mode. Can be "linear" or "non_linear".
-    detokenizer_mode: str = "linear"
+    detokenizer_mode: Literal["linear", "non_linear"] = "linear"
         Detokenizer mode. Can be "linear" or "non_linear".
     tokenizer_net_channels: list[int] = None
         Number of channels in the tokenizer conv_net.
@@ -153,13 +154,13 @@ class PhysicsTransformer(nn.Module):
         mlp_dim: int,
         num_heads: int,
         num_layers: int,
-        pos_enc_mode: str,
+        pos_enc_mode: Literal["rope", "absolute"],
         patch_size: tuple[int, int, int],
         img_size: tuple[int, int, int],
         use_derivatives: bool = False,
-        att_mode: str = "full",
-        tokenizer_mode: str = "linear",
-        detokenizer_mode: str = "linear",
+        att_mode: Literal["full", "full_causal"] = "full",
+        tokenizer_mode: Literal["linear", "non_linear"] = "linear",
+        detokenizer_mode: Literal["linear", "non_linear"] = "linear",
         tokenizer_overlap: int = 0,
         detokenizer_overlap: int = 0,
         tokenizer_net_channels: Optional[list[int]] = None,
