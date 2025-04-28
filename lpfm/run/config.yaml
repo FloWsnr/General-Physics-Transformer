@@ -1,14 +1,14 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: ti-test-run-0002
+  id: ti-main-run-single-0014
   tags:
     - LPFM-Ti
     - SingleDataset
-    - TestRun
+    - MainRun
   log_model: gradients # log :all", "parameters" or "gradients" or null
   log_interval: 10
-  notes: "test run with new sample based training"
+  notes: "main run with single dataset"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -51,7 +51,7 @@ training:
   val_every_samples: 10000 # number of samples between validation runs
   num_val_samples: 1000 # number of samples to validate on, if -1, validate on all samples
   
-  num_workers: 6 # number of workers for dataloader per GPU
+  num_workers: 8 # number of workers for dataloader per GPU
   prefetch_factor: 2 # how many batches to prefetch for each worker
   grad_clip: 1.0 # gradient clipping
   optimizer:
@@ -100,7 +100,7 @@ data:
     # - cylinder_sym_flow_water
     # - cylinder_pipe_flow_water
     # - object_periodic_flow_water
-    - object_sym_flow_water
+    # - object_sym_flow_water
     # - object_sym_flow_air
 
     # - heated_object_pipe_flow_air
