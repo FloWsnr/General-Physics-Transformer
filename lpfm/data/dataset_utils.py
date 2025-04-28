@@ -71,7 +71,6 @@ def get_dataloader(
     datasets = get_datasets(data_config, split)
     train_super_dataset = SuperDataset(
         datasets,
-        out_shape=data_config["out_shape"],
         max_samples_per_ds=data_config["max_samples_per_ds"],
     )
 
@@ -137,6 +136,8 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
     # Check if all dataset names in the list are in the dictionary
     missing_datasets = [name for name in dataset_list if name not in datasets]
     if missing_datasets:
-        print(f"Warning: The following datasets were not found: {', '.join(missing_datasets)}")
+        print(
+            f"Warning: The following datasets were not found: {', '.join(missing_datasets)}"
+        )
 
     return datasets

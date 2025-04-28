@@ -25,14 +25,12 @@ def main():
         "object_sym_flow_water",
         "object_sym_flow_air",
         "heated_object_pipe_flow_air",
-        "cooled_object_pipe_flow_air",
-        "rayleigh_benard_obstacle",
     ]
-    idx = range(6, 6 + len(datasets))
+    idx = range(8, 8 + len(datasets))
 
-    for id in idx:
+    for id, dataset in zip(idx, datasets):
         config["wandb"]["id"] = wandb_id + f"{id:04d}"
-        config["data"]["datasets"] = [datasets[id]]
+        config["data"]["datasets"] = [dataset]
         run_sweep(config)
 
 
