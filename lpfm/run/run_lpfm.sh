@@ -12,8 +12,9 @@
 #SBATCH --nodes=1
 
 ### How many CPU cores to use
-#SBATCH --ntasks-per-node=96
-#SBATCH --exclusive
+##SBATCH --ntasks-per-node=96
+#SBATCH --ntasks-per-node=48
+##SBATCH --exclusive
 
 ### How much memory per core
 #SBATCH --mem-per-cpu=5200
@@ -23,11 +24,11 @@
 #SBATCH --mail-user=zsa8rk@virginia.edu
 
 ### Maximum runtime per task
-#SBATCH --time=24:00:00
-##SBATCH --time=00:30:00
+##SBATCH --time=24:00:00
+#SBATCH --time=01:00:00
 
 ### set number of GPUs per task
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:2
 
 ### create time series, i.e. 100 jobs one after another. Each runs for 24 hours
 ##SBATCH --array=1-10%1
@@ -57,23 +58,23 @@ conda activate lpfm
 # debug mode
 # debug=true
 # Set up paths
-python_exec="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/train.py"
-log_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs"
-data_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
-config_file="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/config.yaml"
+base_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model"
+python_exec="${base_dir}/lpfm/run/train.py"
+log_dir="${base_dir}/logs"
+data_dir="${base_dir}/data/datasets"
+config_file="${base_dir}/lpfm/run/config.yaml"
 # sim_name (same as wandb id)
-# sim_name="ti-main-run-all-0002"
-sim_name="ti-main-run-all-0002"
+sim_name="ti-test-run-new_data-0001"
 nnodes=1
-ngpus_per_node=4
+ngpus_per_node=2
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
 # use a checkpoint to continue training with a new config file (learning rate, etc.)
-new_training_from_checkpoint=true
+new_training_from_checkpoint=false
 
 # NOTE: set cuda visible devices, MUST be consecutive numbers
 # USE ONLY FOR DEBUGGING, non-slurm jobs
-# export CUDA_VISIBLE_DEVICES=1
+# export CUDA_VISIBLE_DEVICES=0,1
 
 ######### Multi-Node Setup #########
 # rdzv_id=$SLURM_JOB_ID
@@ -95,7 +96,7 @@ fi
 mkdir -p $sim_dir
 
 # copy the slurm script to the sim_dir
-cp /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/lpfm/run/run_lpfm.sh $sim_dir
+cp ${base_dir}/lpfm/run/run_lpfm.sh $sim_dir
 
 if [ "$new_training_from_checkpoint" = true ]; then
     # overwrite the config file in the sim_dir
@@ -104,10 +105,11 @@ if [ "$new_training_from_checkpoint" = true ]; then
     echo "Using checkpoint to continue training with new config file..."
 else
     # Try to find config file in sim_dir
-    config_file="${sim_dir}/config.yaml"
-    if [ -f "$config_file" ]; then
+    restart_config_file="${sim_dir}/config.yaml"
+    if [ -f "$restart_config_file" ]; then
     echo "Config file found in $sim_dir, attempting restart..."
         restart=true
+        config_file=$restart_config_file
     else
         echo "No config file found in $sim_dir, starting new training..."
         # copy config file to sim_dir
@@ -145,4 +147,4 @@ fi
 torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args
 
 # move the output file to the sim_dir
-mv /hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs/slrm_logs/train_lpfm_${SLURM_JOB_ID}.out $sim_dir
+mv ${log_dir}/slrm_logs/train_lpfm_${SLURM_JOB_ID}.out $sim_dir
