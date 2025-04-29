@@ -32,32 +32,43 @@ def swap_velocity_components(data: np.ndarray) -> np.ndarray:
     return data
 
 
-def interpolate_data(data: np.ndarray, target_shape: tuple[int, int]) -> np.ndarray:
+def interpolate_data(
+    data: np.ndarray, target_shape: tuple[int, int], time_varying: bool = True
+) -> np.ndarray:
     """Interpolate the data to the target grid."""
-    # data is of shape (traj, t, h, w) or (traj, t, h, w, c)
-    if data.ndim == 4:
-        traj, t, h, w = data.shape
-    elif data.ndim == 5:
-        traj, t, h, w, c = data.shape
-
     data = torch.from_numpy(data)
-    if data.ndim == 5:
-        data_r = rearrange(data, "traj t h w c -> (traj t) c h w")
-        interpolated_data = torch.nn.functional.interpolate(
-            data_r, size=target_shape, mode="bicubic", align_corners=False
-        )
+    if time_varying:
+        # data is of shape (traj, t, h, w) or (traj, t, h, w, c)
+        if data.ndim == 4:
+            traj, t, h, w = data.shape
+        elif data.ndim == 5:
+            traj, t, h, w, c = data.shape
+
+        if data.ndim == 5:
+            data_r = rearrange(data, "traj t h w c -> (traj t) c h w")
+            interpolated_data = torch.nn.functional.interpolate(
+                data_r, size=target_shape, mode="bicubic", align_corners=False
+            )
+        else:
+            interpolated_data = torch.nn.functional.interpolate(
+                data, size=target_shape, mode="bicubic", align_corners=False
+            )
+
+        if data.ndim == 5:
+            interpolated_data = rearrange(
+                interpolated_data,
+                "(traj t) c h w -> traj t h w c",
+                traj=traj,
+                t=t,
+            )
     else:
+        # data is of shape (traj, h, w)
+        # add channel dimension
+        data = rearrange(data, "traj h w -> traj 1 h w")
         interpolated_data = torch.nn.functional.interpolate(
             data, size=target_shape, mode="bicubic", align_corners=False
         )
-
-    if data.ndim == 5:
-        interpolated_data = rearrange(
-            interpolated_data,
-            "(traj t) c h w -> traj t h w c",
-            traj=traj,
-            t=t,
-        )
+        interpolated_data = interpolated_data.squeeze(1)
     return interpolated_data.numpy()
 
 
@@ -66,6 +77,7 @@ def transform_fn_data(
     data: np.ndarray,
     target_shape: tuple[int, int],
     swap: bool = False,
+    time_varying: bool = True,
 ) -> np.ndarray:
     """Transform the data."""
 
@@ -76,7 +88,7 @@ def transform_fn_data(
                 data = swap_axes(data)
                 if field_name == "velocity":
                     data = swap_velocity_components(data)
-            data = interpolate_data(data, target_shape)
+            data = interpolate_data(data, target_shape, time_varying)
 
     return data
 
@@ -218,12 +230,34 @@ def convert_momentum_to_vel(
     dset.attrs["time_varying"] = True
 
 
+def make_density_time_varying(t0_group: h5py.Group, num_time: int):
+    """Make the density time varying."""
+    # assumes that the density is already interpolated to the target shape
+
+    # get the density dataset
+    density_dataset = t0_group["density"]
+    # get the data
+    density_data = density_dataset[()]
+    # expand the density time axis
+    density_data = np.expand_dims(density_data, axis=1)
+    # repeat the density data for each time step
+    density_data = np.repeat(density_data, num_time, axis=1)
+    # delete the density dataset
+    del t0_group["density"]
+    # create a new dataset
+    dset = t0_group.create_dataset("density", data=density_data)
+    dset.attrs["dim_varying"] = [True, True]
+    dset.attrs["sample_varying"] = True
+    dset.attrs["time_varying"] = True
+
+
 def process_hdf5(
     input_path: Path,
     output_path: Path,
     swap: bool = False,
     conv_buoyancy: bool = False,
     conv_momentum: bool = False,
+    conv_density: bool = False,
 ):
     """Copy HDF5 file contents to a new file
 
@@ -298,8 +332,11 @@ def process_hdf5(
                         else:
                             # Get the dataset data
                             data = item[()]
+                            time_varying = item.attrs["time_varying"]
                             # Apply transformation if provided
-                            data = transform_fn_data(name, data, target_shape, swap)
+                            data = transform_fn_data(
+                                name, data, target_shape, swap, time_varying
+                            )
                             # Copy dataset and its attributes
                             new_dataset = dst_group.create_dataset(name, data=data)
                             copy_attr(item.attrs, new_dataset.attrs)
@@ -321,6 +358,9 @@ def process_hdf5(
             if conv_buoyancy:
                 print("Adding buoyancy dataset")
                 convert_buoyancy_to_rho(t0_group, target_shape)
+            if conv_density:
+                print("Making density time varying")
+                make_density_time_varying(t0_group, num_time)
             print("Adding missing datasets")
             add_missing_datasets(t0_group, num_traj, num_time, target_shape)
 
@@ -368,13 +408,13 @@ def remove_fields_hdf5(
 
 if __name__ == "__main__":
     base_path = Path(
-        "/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets/euler_multi_quadrants_periodicBC/data/train"
+        "/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets/acoustic_scattering_inclusions"
     )
     dataset_dir = base_path
 
-    # make a safety copy of the whole directory and its contents
-    print(f"Copying {dataset_dir} to {dataset_dir.parent / f'{dataset_dir.stem}_copy'}")
-    shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
+    # # make a safety copy of the whole directory and its contents
+    # print(f"Copying {dataset_dir} to {dataset_dir.parent / f'{dataset_dir.stem}_copy'}")
+    # shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
 
     swap = False
 
@@ -383,7 +423,15 @@ if __name__ == "__main__":
             print("Skipping", file)
             continue
         new_name = file.parent / f"{file.stem}_new.hdf5"
-        process_hdf5(file, new_name, swap, conv_buoyancy=False, conv_momentum=False)
+        process_hdf5(
+            file,
+            new_name,
+            swap,
+            conv_buoyancy=False,
+            conv_momentum=False,
+            conv_density=True,
+        )
+        # break
         # remove old file
         file.unlink()
         # rename new file
