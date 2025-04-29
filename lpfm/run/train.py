@@ -10,7 +10,7 @@ from pathlib import Path
 import time
 import argparse
 import platform
-
+from dataclasses import dataclass
 import wandb
 import wandb.wandb_run
 import yaml
@@ -39,8 +39,18 @@ from lpfm.model.transformer.model import get_model
 from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
 from lpfm.utils.logger import get_logger
 from lpfm.model.transformer.loss_fns import NMSELoss, RNMSELoss, VMSELoss, RVMSELoss
-from lpfm.run.run_utils import find_last_checkpoint
+from lpfm.run.run_utils import find_last_checkpoint, human_format
 from lpfm.run.lr_scheduler import get_lr_scheduler
+
+
+@dataclass
+class HumanReadableState:
+    total_samples: str
+    total_batches: str
+    val_every_x_samples: str
+    val_every_x_batches: str
+    val_samples: str
+    val_batches: str
 
 
 class Trainer:
@@ -197,15 +207,27 @@ class Trainer:
         )
         self.val_every_x_batches = self.val_every_x_samples // self.batch_size
         # num validation loops per episode (epoch)
-        self.total_val_batches = self.val_samples // self.batch_size
+        self.val_batches = self.val_samples // self.batch_size
 
+        self.h_log_state = HumanReadableState(
+            total_samples=human_format(self.total_samples),
+            total_batches=human_format(self.total_batches),
+            val_every_x_samples=human_format(self.val_every_x_samples),
+            val_every_x_batches=human_format(self.val_every_x_batches),
+            val_samples=human_format(self.val_samples),
+            val_batches=human_format(self.val_batches),
+        )
         ################################################################
         ########### Log parameters #####################################
         ################################################################
-        self.log_msg(f"Training for {self.total_samples} samples")
+        self.log_msg(f"Training for {self.h_log_state.total_samples} samples")
+        self.log_msg(f"Training for {self.h_log_state.total_batches} batches")
         self.log_msg(f"Training on {self.batch_size} samples per batch")
-        self.log_msg(f"Validating every {self.val_every_x_samples} samples")
-        self.log_msg(f"Validating on {self.val_samples} samples")
+        self.log_msg(
+            f"Training with {self.config['training']['num_workers']} workers per GPU"
+        )
+        self.log_msg(f"Validating every {self.h_log_state.val_every_x_samples} samples")
+        self.log_msg(f"Validating on {self.h_log_state.val_samples} samples")
 
         if self.global_rank == 0:
             self.wandb_run.config.update(
@@ -486,16 +508,26 @@ class Trainer:
             batches_trained += 1
             self.total_samples_trained += self.batch_size
             self.total_batches_trained += 1
+            # convert to human readable
+            s_cycle_trained_human = human_format(samples_trained)
+            b_cycle_trained_human = human_format(batches_trained)
+            s_cycle_human = self.h_log_state.val_every_x_samples
+            b_cycle_human = self.h_log_state.val_every_x_batches
+
+            s_total_trained_human = human_format(self.total_samples_trained)
+            b_total_trained_human = human_format(self.total_batches_trained)
+            s_total_human = self.h_log_state.total_samples
+            b_total_human = self.h_log_state.total_batches
             self.log_msg(
                 "Training - Total: "
-                f"Samples: {self.total_samples_trained}/{self.total_samples}, "
-                f"Batches: {self.total_batches_trained}/{self.total_batches}, "
+                f"Samples: {s_total_trained_human}/{s_total_human}, "
+                f"Batches: {b_total_trained_human}/{b_total_human}, "
                 f"LR: {lr:.2e}"
             )
             self.log_msg(
                 f"Training - Cycle: "
-                f"Samples: {samples_trained}/{self.val_every_x_samples}, "
-                f"Batches: {batches_trained}/{self.val_every_x_batches}, "
+                f"Samples: {s_cycle_trained_human}/{s_cycle_human}, "
+                f"Batches: {b_cycle_trained_human}/{b_cycle_human}, "
                 f"LR: {lr:.2e}"
             )
             ############################################################
@@ -615,9 +647,14 @@ class Trainer:
                 ####################################################
                 # Log validation progress ##########################
                 ####################################################
+                s_cycle_validated_human = human_format(samples_validated)
+                b_cycle_validated_human = human_format(batches_validated)
+                s_cycle_human = self.h_log_state.val_samples
+                b_cycle_human = self.h_log_state.val_batches
                 self.log_msg(
                     "Validation - Cycle: "
-                    f"Samples: {samples_validated}/{self.val_samples}, "
+                    f"Samples: {s_cycle_validated_human}/{s_cycle_human}, "
+                    f"Batches: {b_cycle_validated_human}/{b_cycle_human}, "
                 )
                 self.log_msg("")
 

@@ -1,4 +1,6 @@
+import os
 from pathlib import Path
+from lpfm.utils.logger import get_logger
 
 
 def find_last_checkpoint(sim_dir: Path) -> Path:
@@ -41,3 +43,23 @@ def find_last_checkpoint(sim_dir: Path) -> Path:
             return None
 
     return checkpoint_path
+
+
+def human_format(num: int | float) -> str:
+    """Format a number with SI prefixes (K, M, B).
+
+    Parameters
+    ----------
+    num : int or float
+        The number to format.
+
+    Returns
+    -------
+    str
+        Formatted string with SI prefix.
+    """
+    for unit in ["", "K", "M", "B", "T"]:
+        if abs(num) < 1000:
+            return f"{num:.2f}{unit}"
+        num /= 1000
+    return f"{num:.2f}P"
