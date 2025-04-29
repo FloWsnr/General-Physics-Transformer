@@ -36,7 +36,7 @@
 ### Set the time limit for the job, allows for graceful shutdown
 ### Should be lower than the time limit of the partition
 ### Format: HH:MM:SS
-time_limit="24:00:00"
+time_limit="01:00:00"
 
 #####################################################################################
 ############################# Setup #################################################
@@ -62,9 +62,9 @@ base_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model"
 python_exec="${base_dir}/lpfm/run/train.py"
 log_dir="${base_dir}/logs"
 data_dir="${base_dir}/data/datasets"
-config_file="${base_dir}/lpfm/run/config.yaml"
+base_config_file="${base_dir}/lpfm/run/config.yaml"
 # sim_name (same as wandb id)
-sim_name="ti-test-run-new_data-0001"
+sim_name="ti-test-run-new_data-0005-512-high-lr"
 nnodes=1
 ngpus_per_node=2
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
@@ -99,8 +99,9 @@ mkdir -p $sim_dir
 cp ${base_dir}/lpfm/run/run_lpfm.sh $sim_dir
 
 if [ "$new_training_from_checkpoint" = true ]; then
-    # overwrite the config file in the sim_dir
-    cp $config_file $sim_dir
+    # copy a new config file to the sim_dir and use it as the config file
+    config_file="${sim_dir}/$(date +%Y%m%d)_config.yaml"
+    cp $base_config_file $config_file
     restart=false
     echo "Using checkpoint to continue training with new config file..."
 else
@@ -108,12 +109,14 @@ else
     restart_config_file="${sim_dir}/config.yaml"
     if [ -f "$restart_config_file" ]; then
     echo "Config file found in $sim_dir, attempting restart..."
+        # if the config file is found, use it as the config file
         restart=true
         config_file=$restart_config_file
     else
         echo "No config file found in $sim_dir, starting new training..."
-        # copy config file to sim_dir
-        cp $config_file $sim_dir
+        # copy the base config file to sim_dir and use it as the config file
+        cp $base_config_file $sim_dir
+        config_file="${sim_dir}/config.yaml"
         restart=false
     fi
 fi
