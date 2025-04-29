@@ -161,13 +161,14 @@ def handle_boundary_conditions(
 
 
 def convert_buoyancy_to_rho(t0_group: h5py.Group, target_shape: tuple[int, int]):
-    """Add the buoyancy dataset."""
+    """Convert the buoyancy dataset to density and temperature."""
 
     # get the buoyancy dataset
     buoyancy_dataset = t0_group["buoyancy"]
     # get the data
     data = buoyancy_dataset[()]
     # interpolate the data
+    print("   Interpolating buoyancy")
     density_data = interpolate_data(data, target_shape)
 
     dset = t0_group.create_dataset("density", data=density_data)
@@ -178,6 +179,7 @@ def convert_buoyancy_to_rho(t0_group: h5py.Group, target_shape: tuple[int, int])
     # get the pressure dataset
     pressure_dataset = t0_group["pressure"]
     # get the data
+    print("   Converting pressure to temperature")
     p_data = pressure_dataset[()]
     temp_data = p_data / density_data
 
@@ -196,7 +198,7 @@ def convert_momentum_to_vel(
     t0_group: h5py.Group,
     target_shape: tuple[int, int],
 ):
-    """Add the momentum dataset."""
+    """Convert the momentum dataset to velocity."""
 
     # interpolate the data
     print("   Interpolating momentum")
@@ -286,6 +288,12 @@ def process_hdf5(
                             continue
                         elif name == "momentum":
                             print("Skipping momentum")
+                            continue
+                        elif name == "buoyancy":
+                            print("Skipping buoyancy")
+                            continue
+                        elif name == "tracer":
+                            print("Skipping tracer")
                             continue
                         else:
                             # Get the dataset data
