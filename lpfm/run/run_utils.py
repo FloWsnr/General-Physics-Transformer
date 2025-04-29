@@ -1,6 +1,4 @@
-import os
 from pathlib import Path
-from lpfm.utils.logger import get_logger
 
 
 def find_last_checkpoint(sim_dir: Path) -> Path:
