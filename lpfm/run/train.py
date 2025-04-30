@@ -10,6 +10,7 @@ from pathlib import Path
 import time
 import argparse
 import platform
+import math
 from dataclasses import dataclass
 import wandb
 import wandb.wandb_run
@@ -44,7 +45,7 @@ from lpfm.run.lr_scheduler import get_lr_scheduler
 
 
 @dataclass
-class HumanReadableState:
+class LogState:
     total_samples: str
     total_batches: str
     val_every_x_samples: str
@@ -209,7 +210,7 @@ class Trainer:
         # num validation loops per episode (epoch)
         self.val_batches = self.val_samples // self.batch_size
 
-        self.h_log_state = HumanReadableState(
+        self.h_log_state = LogState(
             total_samples=human_format(self.total_samples),
             total_batches=human_format(self.total_batches),
             val_every_x_samples=human_format(self.val_every_x_samples),
@@ -757,11 +758,13 @@ class Trainer:
             ############################################################
             # Calculate time remaining #################################
             ############################################################
-            remaining_cycles = (
+            rem_cycles = (
                 self.total_samples - self.total_samples_trained
-            ) // self.val_every_x_samples
+            ) / self.val_every_x_samples
+            # round up to nearest integer
+            rem_cycles = math.ceil(rem_cycles)
 
-            proj_time_remaining = self.avg_sec_per_cycle * remaining_cycles
+            proj_time_remaining = self.avg_sec_per_cycle * rem_cycles
             self.log_msg(
                 f"Summary: Projected time remaining: {proj_time_remaining / 60:.2f} minutes"
             )
