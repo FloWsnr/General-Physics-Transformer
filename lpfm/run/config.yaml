@@ -1,11 +1,11 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: ti-resource-benchmark-0012
+  id: ti-main-run-all-0005
   tags:
     - LPFM-Ti
-    - SingleDataset
-    - TestRun
+    - AllDatasets
+    - MainRun
   log_model: gradients # log :all", "parameters" or "gradients" or null
   log_interval: 10
   notes: "test run with single dataset to check speed"
@@ -46,17 +46,17 @@ training:
   tf32: true # use tf32 for faster matrix multiplications
   amp: true # use automatic mixed precision training
   seed: 42
-  batch_size: 512 # batch size per GPU
-  samples: 2e5 # number of samples to use for training
-  val_every_samples: 1e5 # number of samples between validation runs
-  val_frac_samples: 1 # fraction of samples to validate on (1 = all val samples)
+  batch_size: 256 # batch size per GPU
+  samples: 100e6 # number of samples to use for training
+  val_every_samples: 1e6 # number of samples between validation runs
+  val_frac_samples: 0.5 # fraction of samples to validate on (1 = all val samples)
   
-  num_workers: 4 # number of workers for dataloader per GPU
+  num_workers: 16 # number of workers for dataloader per GPU
   prefetch_factor: 2 # how many batches to prefetch for each worker
   grad_clip: 1.0 # gradient clipping
   optimizer:
     name: AdamW # optimizer name (Adam, AdamW)
-    learning_rate: 1e-4
+    learning_rate: 1e-3
     weight_decay: 0.01
     betas: [0.9, 0.999]
     # name: AdaptAdamW # AdaptAdamW or AdamW
@@ -71,15 +71,15 @@ training:
   criterion: NMSE # MSE or NMSE or MAE
 
   lr_scheduler:
-    # first_stage:
-      # name: LinearLR # linear warmup scheduler
-      # start_factor: 0.001
-      # end_factor: 1.0
-      # num_updates: 300 # number of updates for linear warmup
     first_stage:
-      name: CosineAnnealingLR # cosine annealing scheduler
-      num_updates: -1 # num batches for cosine annealing, -1 means use all remaining batches
-      end_factor: 0.01 # percentage of initial learning rate to use as minimum learning rate
+      name: LinearLR # linear warmup scheduler
+      start_factor: 0.001
+      end_factor: 1.0
+      num_updates: 300 # number of updates for linear warmup
+    # first_stage:
+    #   name: CosineAnnealingLR # cosine annealing scheduler
+    #   num_updates: -1 # num batches for cosine annealing, -1 means use all remaining batches
+    #   end_factor: 0.01 # percentage of initial learning rate to use as minimum learning rate
       # name: LinearLR # linear 
       # end_factor: 0.0001
       # num_updates: -1 # number of batches for for second stage, -1 means use all remaining batches
@@ -97,22 +97,22 @@ data:
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
-    # - cylinder_sym_flow_water
-    # - cylinder_pipe_flow_water
-    # - object_periodic_flow_water
+    - cylinder_sym_flow_water
+    - cylinder_pipe_flow_water
+    - object_periodic_flow_water
     - object_sym_flow_water
-    # - object_sym_flow_air
+    - object_sym_flow_air
 
-    # - heated_object_pipe_flow_air
-    # - cooled_object_pipe_flow_air
-    # - rayleigh_benard_obstacle
+    - heated_object_pipe_flow_air
+    - cooled_object_pipe_flow_air
+    - rayleigh_benard_obstacle
     
-    # - twophase_flow
+    - twophase_flow
 
-    # - rayleigh_benard
-    # - shear_flow
-    # - euler_multi_quadrants_periodicBC
-    # - acoustic_scattering_inclusions
+    - rayleigh_benard
+    - shear_flow
+    - euler_multi_quadrants_periodicBC
+    - acoustic_scattering_inclusions
 
     # For testing
     # - turbulent_radiative_layer_2D
