@@ -172,16 +172,14 @@ def handle_boundary_conditions(
         sub_group.create_dataset("mask", data=data["mask"])
 
 
-def convert_buoyancy_to_rho(t0_group: h5py.Group, target_shape: tuple[int, int]):
+def convert_buoyancy_to_rho(
+    buoyancy: np.ndarray, t0_group: h5py.Group, target_shape: tuple[int, int]
+):
     """Convert the buoyancy dataset to density and temperature."""
 
-    # get the buoyancy dataset
-    buoyancy_dataset = t0_group["buoyancy"]
-    # get the data
-    data = buoyancy_dataset[()]
     # interpolate the data
     print("   Interpolating buoyancy")
-    density_data = interpolate_data(data, target_shape)
+    density_data = interpolate_data(buoyancy, target_shape)
 
     dset = t0_group.create_dataset("density", data=density_data)
     dset.attrs["dim_varying"] = [True, True]
@@ -199,9 +197,6 @@ def convert_buoyancy_to_rho(t0_group: h5py.Group, target_shape: tuple[int, int])
     dset.attrs["dim_varying"] = [True, True]
     dset.attrs["sample_varying"] = True
     dset.attrs["time_varying"] = True
-
-    # delete the buoyancy dataset
-    del t0_group["buoyancy"]
 
 
 def convert_momentum_to_vel(
@@ -357,7 +352,8 @@ def process_hdf5(
                 convert_momentum_to_vel(momentum, t1_group, t0_group, target_shape)
             if conv_buoyancy:
                 print("Adding buoyancy dataset")
-                convert_buoyancy_to_rho(t0_group, target_shape)
+                buoyancy = src_file["t0_fields"]["buoyancy"][()]
+                convert_buoyancy_to_rho(buoyancy, t0_group, target_shape)
             if conv_density:
                 print("Making density time varying")
                 make_density_time_varying(t0_group, num_time)
@@ -406,17 +402,108 @@ def remove_fields_hdf5(
             copy_group(src_file, dst_file)
 
 
+settings = {
+    "acoustic_scattering_inclusions": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": True,
+    },
+    "rayleigh_benard": {
+        "swap": False,
+        "conv_buoyancy": True,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+    "shear_flow": {
+        "swap": True,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+    "euler_multi_quadrants_periodicBC": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": True,
+        "conv_density": False,
+    },
+    "turbulent_radiative_layer_2D": {
+        "swap": True,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+    "cylinder_sym_flow_water": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+    "cylinder_pipe_flow_water": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+    "object_periodic_flow_water": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+    "object_sym_flow_air": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+    "object_sym_flow_water": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+    "twophase_flow": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+    "heated_object_pipe_flow_air": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+    "cooled_object_pipe_flow_air": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+    "rayleigh_benard_obstacle": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
+}
+
 if __name__ == "__main__":
     base_path = Path(
-        "/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets/acoustic_scattering_inclusions"
+        "/scratch/zsa8rk/datasets"
     )
-    dataset_dir = base_path
+    dataset_name = "shear_flow"
+    dataset_dir = base_path / dataset_name
+
+    swap = settings[dataset_name]["swap"]
+    conv_buoyancy = settings[dataset_name]["conv_buoyancy"]
+    conv_momentum = settings[dataset_name]["conv_momentum"]
+    conv_density = settings[dataset_name]["conv_density"]
 
     # # make a safety copy of the whole directory and its contents
     # print(f"Copying {dataset_dir} to {dataset_dir.parent / f'{dataset_dir.stem}_copy'}")
     # shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
-
-    swap = False
 
     for file in list(dataset_dir.glob("**/*.hdf5")):
         if "new" in file.stem:
@@ -427,9 +514,9 @@ if __name__ == "__main__":
             file,
             new_name,
             swap,
-            conv_buoyancy=False,
-            conv_momentum=False,
-            conv_density=True,
+            conv_buoyancy=conv_buoyancy,
+            conv_momentum=conv_momentum,
+            conv_density=conv_density,
         )
         # break
         # remove old file
