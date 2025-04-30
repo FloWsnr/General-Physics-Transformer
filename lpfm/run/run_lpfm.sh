@@ -16,16 +16,13 @@
 ##SBATCH --ntasks-per-node=48
 #SBATCH --exclusive
 
-### How much memory per core
-#SBATCH --mem-per-cpu=5200
-
 ### Mail notification configuration
 #SBATCH --mail-type=NONE
 #SBATCH --mail-user=zsa8rk@virginia.edu
 
 ### Maximum runtime per task
-##SBATCH --time=24:00:00
-#SBATCH --time=01:00:00
+#SBATCH --time=24:00:00
+##SBATCH --time=01:00:00
 
 ### set number of GPUs per task
 #SBATCH --gres=gpu:4
@@ -36,7 +33,7 @@
 ### Set the time limit for the job, allows for graceful shutdown
 ### Should be lower than the time limit of the partition
 ### Format: HH:MM:SS
-time_limit="01:00:00"
+time_limit="24:00:00"
 
 #####################################################################################
 ############################# Setup #################################################
@@ -64,8 +61,8 @@ log_dir="${base_dir}/logs"
 data_dir="${base_dir}/data/datasets"
 base_config_file="${base_dir}/lpfm/run/config.yaml"
 # sim_name (same as wandb id)
-#sim_name="ti-main-run-all-0002"
-sim_name="ti-test-run-new_data-0006-512-higher-lr"
+sim_name="ti-main-run-all-0003"
+# sim_name="ti-test-run-new_data-0006-512-higher-lr"
 nnodes=1
 ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus

@@ -228,6 +228,7 @@ class Trainer:
         )
         self.log_msg(f"Validating every {self.h_log_state.val_every_x_samples} samples")
         self.log_msg(f"Validating on {self.h_log_state.val_samples} samples")
+        self.log_msg(f"Running {self.config['training']['num_workers']} dataloader workers per GPU")
 
         if self.global_rank == 0:
             self.wandb_run.config.update(
