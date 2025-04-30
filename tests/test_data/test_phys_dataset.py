@@ -56,6 +56,19 @@ def test_physics_dataset_variable_dT_stride(dummy_datapath: Path):
     assert y.shape == (2, 32, 32, 6)
 
 
+def test_physics_dataset_nan_to_zero(dummy_datapath: Path):
+    dataset = PhysicsDataset(
+        dummy_datapath.parent,
+        n_steps_input=2,
+        n_steps_output=2,
+        nan_to_zero=True,
+    )
+
+    x, y = dataset[0]
+    assert not torch.any(torch.isnan(x))
+    assert not torch.any(torch.isnan(y))
+
+
 class TestSuperDataset:
     """Tests for the SuperDataset class."""
 
