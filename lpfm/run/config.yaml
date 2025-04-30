@@ -1,7 +1,7 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: ti-main-run-all-0002
+  id: ti-resource-benchmark-0012
   tags:
     - LPFM-Ti
     - SingleDataset
@@ -47,16 +47,16 @@ training:
   amp: true # use automatic mixed precision training
   seed: 42
   batch_size: 512 # batch size per GPU
-  samples: 1e6 # number of samples to use for training
-  val_every_samples: 2e5 # number of samples between validation runs
-  num_val_samples: 1e4 # number of samples to validate on, if -1, validate on all samples
+  samples: 2e5 # number of samples to use for training
+  val_every_samples: 1e5 # number of samples between validation runs
+  val_frac_samples: 1 # fraction of samples to validate on (1 = all val samples)
   
-  num_workers: 16 # number of workers for dataloader per GPU
+  num_workers: 4 # number of workers for dataloader per GPU
   prefetch_factor: 2 # how many batches to prefetch for each worker
   grad_clip: 1.0 # gradient clipping
   optimizer:
     name: AdamW # optimizer name (Adam, AdamW)
-    learning_rate: 5e-3
+    learning_rate: 1e-4
     weight_decay: 0.01
     betas: [0.9, 0.999]
     # name: AdaptAdamW # AdaptAdamW or AdamW
@@ -71,12 +71,12 @@ training:
   criterion: NMSE # MSE or NMSE or MAE
 
   lr_scheduler:
+    # first_stage:
+      # name: LinearLR # linear warmup scheduler
+      # start_factor: 0.001
+      # end_factor: 1.0
+      # num_updates: 300 # number of updates for linear warmup
     first_stage:
-      name: LinearLR # linear warmup scheduler
-      start_factor: 0.001
-      end_factor: 1.0
-      num_updates: 300 # number of updates for linear warmup
-    second_stage:
       name: CosineAnnealingLR # cosine annealing scheduler
       num_updates: -1 # num batches for cosine annealing, -1 means use all remaining batches
       end_factor: 0.01 # percentage of initial learning rate to use as minimum learning rate
@@ -100,7 +100,7 @@ data:
     # - cylinder_sym_flow_water
     # - cylinder_pipe_flow_water
     # - object_periodic_flow_water
-    # - object_sym_flow_water
+    - object_sym_flow_water
     # - object_sym_flow_air
 
     # - heated_object_pipe_flow_air
@@ -112,7 +112,7 @@ data:
     # - rayleigh_benard
     # - shear_flow
     # - euler_multi_quadrants_periodicBC
-    - acoustic_scattering_inclusions
+    # - acoustic_scattering_inclusions
 
     # For testing
     # - turbulent_radiative_layer_2D

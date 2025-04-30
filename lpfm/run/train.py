@@ -198,10 +198,9 @@ class Trainer:
         #################################################################
         ########### Initialize validation parameters ##################
         #################################################################
-        self.val_samples = int(float(self.config["training"]["num_val_samples"]))
-        if self.val_samples == -1:
-            self.val_samples = len(self.val_loader) * self.batch_size
-
+        frac_val_samples = float(self.config["training"]["val_frac_samples"])
+        total_val_samples = len(self.val_loader) * self.batch_size
+        self.val_samples = int(frac_val_samples * total_val_samples)
         # num training samples per validation loop
         self.val_every_x_samples = int(
             float(self.config["training"]["val_every_samples"])
