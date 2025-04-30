@@ -236,6 +236,7 @@ class Trainer:
                     "training/samples_per_batch": self.batch_size,
                     "training/val_every_samples": self.val_every_x_samples,
                     "training/num_val_samples": self.val_samples,
+                    "training/slurm_id": os.environ.get("SLURM_JOB_ID", ""),
                 },
                 allow_val_change=True,
             )
@@ -296,7 +297,7 @@ class Trainer:
                 self.model,
                 criterion=self.criterion,
                 log=self.config["wandb"]["log_model"],
-                log_freq=100,
+                log_freq=self.val_every_x_batches,
             )
 
     def log_msg(self, msg: str):
