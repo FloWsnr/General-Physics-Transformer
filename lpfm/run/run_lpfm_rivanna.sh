@@ -20,7 +20,7 @@
 
 ### set number of GPUs per task (v100, a100, h200)
 ##SBATCH --gres=gpu:a100:4
-#SBATCH --gres=gpu:a6000:1
+#SBATCH --gres=gpu:a6000:2
 ##SBATCH --constraint=a100_80gb
 ## SBATCH -C gpupod # use pod gpus...
 
@@ -34,7 +34,7 @@
 ### Set the time limit for the job, allows for graceful shutdown
 ### Should be lower than the time limit of the partition
 ### Format: HH:MM:SS
-time_limit="24:00:00"
+time_limit="01:00:00"
 
 #####################################################################################
 ############################# Setup #################################################
@@ -59,9 +59,9 @@ base_config_file="${base_dir}/lpfm/run/config.yaml"
 data_dir="/scratch/zsa8rk/datasets"
 # sim_name (same as wandb id)
 # sim_name="ti-main-run-all-0002"
-sim_name="ti-test-run-rivanna-0001"
+sim_name="ti-test-run-rivanna-0003"
 nnodes=1
-ngpus_per_node=1
+ngpus_per_node=2
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
 # use a checkpoint to continue training with a new config file (learning rate, etc.)
