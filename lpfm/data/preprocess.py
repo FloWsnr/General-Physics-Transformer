@@ -327,7 +327,7 @@ def process_hdf5(
                         else:
                             # Get the dataset data
                             data = item[()]
-                            time_varying = item.attrs["time_varying"]
+                            time_varying = item.attrs["time_varying"] if "time_varying" in item.attrs else False
                             # Apply transformation if provided
                             data = transform_fn_data(
                                 name, data, target_shape, swap, time_varying
@@ -400,6 +400,66 @@ def remove_fields_hdf5(
 
             # Start copying from root group
             copy_group(src_file, dst_file)
+
+def split_hdf5(
+    input_path: Path,
+    output_path: Path,
+    num_splits: int = 2,
+):
+    """Split the HDF5 file into two files with half of the trajectories in each file.
+    """
+
+    field_names = ["pressure", "temperature", "density", "velocity"]
+
+    def copy_attr(src_attr, dst_attr):
+        for attr_name, attr_value in src_attr.items():
+            dst_attr[attr_name] = attr_value
+        
+    print(f"Splitting {input_path} into {num_splits} files")
+
+    with h5py.File(input_path, "r") as src_file:
+
+        num_traj = src_file.attrs["n_trajectories"]
+        num_traj_per_file = num_traj // num_splits
+        split_idx = [0]
+        for split in range(1, num_splits):
+            split_idx.append(num_traj_per_file * split)
+        split_idx.append(num_traj)
+
+        for split in range(num_splits):
+            num_traj = split_idx[split+1] - split_idx[split]
+            dst_file_path = output_path.parent / f"{output_path.stem}_{split}.hdf5"
+            print(f"Creating {dst_file_path}")
+
+            with h5py.File(dst_file_path, "w") as dst_file:
+                # Copy root attributes to both files
+                copy_attr(src_file.attrs, dst_file.attrs)
+                # set num trajectories
+                dst_file.attrs["n_trajectories"] = num_traj
+
+                # Recursively copy all groups and datasets
+                def copy_group(src_group, dst_group):
+                    for name, item in src_group.items():
+                        if isinstance(item, h5py.Group):
+                            new_group = dst_group.create_group(name)
+                            # Create new group and copy its attributes
+                            copy_attr(item.attrs, new_group.attrs)
+                            # Recursively copy contents of the group
+                            copy_group(item, new_group)
+
+                        elif isinstance(item, h5py.Dataset):
+                            # Get the dataset data
+                            data = item[()]
+                            if name in field_names:
+                                start_idx = split_idx[split]
+                                end_idx = split_idx[split+1]
+                                data = data[start_idx:end_idx,...]
+                            # Copy dataset and its attributes
+                            new_dataset = dst_group.create_dataset(name, data=data)
+                            copy_attr(item.attrs, new_dataset.attrs)
+
+                # Start copying from root group
+                copy_group(src_file, dst_file)
 
 
 settings = {
@@ -493,8 +553,8 @@ if __name__ == "__main__":
     base_path = Path(
         "/scratch/zsa8rk/datasets"
     )
-    dataset_name = "shear_flow"
-    dataset_dir = base_path / dataset_name
+    dataset_name = "euler_multi_quadrants_periodicBC"
+    dataset_dir = base_path / dataset_name / "data" / "train"
 
     swap = settings[dataset_name]["swap"]
     conv_buoyancy = settings[dataset_name]["conv_buoyancy"]
@@ -505,21 +565,26 @@ if __name__ == "__main__":
     # print(f"Copying {dataset_dir} to {dataset_dir.parent / f'{dataset_dir.stem}_copy'}")
     # shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
 
+    # for file in list(dataset_dir.glob("**/*.hdf5")):
+    #     if "new" in file.stem:
+    #         print("Skipping", file)
+    #         continue
+    #     new_name = file.parent / f"{file.stem}_new.hdf5"
+    #     process_hdf5(
+    #         file,
+    #         new_name,
+    #         swap,
+    #         conv_buoyancy=conv_buoyancy,
+    #         conv_momentum=conv_momentum,
+    #         conv_density=conv_density,
+    #     )
+        # # break
+        # # remove old file
+        # file.unlink()
+        # # rename new file
+        # new_name.rename(file)
+
     for file in list(dataset_dir.glob("**/*.hdf5")):
-        if "new" in file.stem:
-            print("Skipping", file)
-            continue
-        new_name = file.parent / f"{file.stem}_new.hdf5"
-        process_hdf5(
-            file,
-            new_name,
-            swap,
-            conv_buoyancy=conv_buoyancy,
-            conv_momentum=conv_momentum,
-            conv_density=conv_density,
-        )
+        new_name = file.parent / f"{file.stem}.hdf5"
+        split_hdf5(file, new_name, num_splits=8)
         # break
-        # remove old file
-        file.unlink()
-        # rename new file
-        new_name.rename(file)
