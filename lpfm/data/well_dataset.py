@@ -864,43 +864,5 @@ class WellDataset(Dataset):
     def __len__(self):
         return self.len
 
-    def to_xarray(self, backend: Literal["numpy", "dask"] = "dask"):
-        """Export the dataset to an Xarray Dataset by stacking all HDF5 files as Xarray datasets
-        along the existing 'sample' dimension.
-
-        Args:
-            backend: 'numpy' for eager loading, 'dask' for lazy loading.
-
-        Returns:
-            xarray.Dataset:
-                The stacked Xarray Dataset.
-
-        Examples:
-            To convert a dataset and plot the pressure for 5 different times for a single trajectory:
-            >>> ds = dataset.to_xarray()
-            >>> ds.pressure.isel(sample=0, time=[0, 10, 20, 30, 40]).plot(col='time', col_wrap=5)
-        """
-
-        import xarray as xr
-
-        datasets = []
-        total_samples = 0
-        for file_idx in range(len(self.files_paths)):
-            if self.files[file_idx] is None:
-                self._open_file(file_idx)
-            ds = hdf5_to_xarray(self.files[file_idx], backend=backend)
-            # Ensure 'sample' dimension is always present
-            if "sample" not in ds.sizes:
-                ds = ds.expand_dims("sample")
-            # Adjust the 'sample' coordinate
-            if "sample" in ds.coords:
-                n_samples = ds.sizes["sample"]
-                ds = ds.assign_coords(sample=ds.coords["sample"] + total_samples)
-                total_samples += n_samples
-            datasets.append(ds)
-
-        combined_ds = xr.concat(datasets, dim="sample")
-        return combined_ds
-
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}: {self.data_path}>"
