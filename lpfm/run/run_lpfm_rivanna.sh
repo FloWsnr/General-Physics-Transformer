@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ### Task name
-#SBATCH --account=zsa8rk
+#SBATCH --account=sds_baek_energetic
 
 ### Output file
 #SBATCH --output=/home/zsa8rk/Coding/Large-Physics-Foundation-Model/logs/slrm_logs/train_lpfm_%j.out
@@ -20,7 +20,7 @@
 
 ### set number of GPUs per task (v100, a100, h200)
 ##SBATCH --gres=gpu:a100:4
-#SBATCH --gres=gpu:a6000:2
+#SBATCH --gres=gpu:a6000:1
 ##SBATCH --constraint=a100_80gb
 ## SBATCH -C gpupod # use pod gpus...
 
@@ -40,10 +40,6 @@ time_limit="24:00:00"
 ############################# Setup #################################################
 #####################################################################################
 
-# Load modules
-module purge
-module load CUDA/12.6.0
-
 # activate conda environment
 export CONDA_ROOT=$HOME/miniforge3
 source $CONDA_ROOT/etc/profile.d/conda.sh
@@ -59,13 +55,13 @@ conda activate lpfm
 base_dir="/home/zsa8rk/Coding/Large-Physics-Foundation-Model"
 python_exec="${base_dir}/lpfm/run/train.py"
 log_dir="${base_dir}/logs"
-config_file="${base_dir}/lpfm/run/config.yaml"
+base_config_file="${base_dir}/lpfm/run/config.yaml"
 data_dir="/scratch/zsa8rk/datasets"
 # sim_name (same as wandb id)
 # sim_name="ti-main-run-all-0002"
-sim_name="ti-test-run-0003"
+sim_name="ti-test-run-rivanna-0001"
 nnodes=1
-ngpus_per_node=2
+ngpus_per_node=1
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
 # use a checkpoint to continue training with a new config file (learning rate, etc.)
@@ -98,20 +94,24 @@ mkdir -p $sim_dir
 cp ${base_dir}/lpfm/run/run_lpfm.sh $sim_dir
 
 if [ "$new_training_from_checkpoint" = true ]; then
-    # overwrite the config file in the sim_dir
-    cp $config_file $sim_dir
+    # copy a new config file to the sim_dir and use it as the config file
+    config_file="${sim_dir}/$(date +%Y%m%d)_config.yaml"
+    cp $base_config_file $config_file
     restart=false
     echo "Using checkpoint to continue training with new config file..."
 else
     # Try to find config file in sim_dir
-    config_file="${sim_dir}/config.yaml"
-    if [ -f "$config_file" ]; then
+    restart_config_file="${sim_dir}/config.yaml"
+    if [ -f "$restart_config_file" ]; then
     echo "Config file found in $sim_dir, attempting restart..."
+        # if the config file is found, use it as the config file
         restart=true
+        config_file=$restart_config_file
     else
         echo "No config file found in $sim_dir, starting new training..."
-        # copy config file to sim_dir
-        cp $config_file $sim_dir
+        # copy the base config file to sim_dir and use it as the config file
+        cp $base_config_file $sim_dir
+        config_file="${sim_dir}/config.yaml"
         restart=false
     fi
 fi
