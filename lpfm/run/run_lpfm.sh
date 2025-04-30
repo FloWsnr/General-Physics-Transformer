@@ -12,9 +12,9 @@
 #SBATCH --nodes=1
 
 ### How many CPU cores to use
-##SBATCH --ntasks-per-node=96
-#SBATCH --ntasks-per-node=48
-##SBATCH --exclusive
+#SBATCH --ntasks-per-node=96
+##SBATCH --ntasks-per-node=48
+#SBATCH --exclusive
 
 ### How much memory per core
 #SBATCH --mem-per-cpu=5200
@@ -28,7 +28,7 @@
 #SBATCH --time=01:00:00
 
 ### set number of GPUs per task
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:4
 
 ### create time series, i.e. 100 jobs one after another. Each runs for 24 hours
 ##SBATCH --array=1-10%1
@@ -64,9 +64,10 @@ log_dir="${base_dir}/logs"
 data_dir="${base_dir}/data/datasets"
 base_config_file="${base_dir}/lpfm/run/config.yaml"
 # sim_name (same as wandb id)
-sim_name="ti-test-run-new_data-0005-512-high-lr"
+#sim_name="ti-main-run-all-0002"
+sim_name="ti-test-run-new_data-0006-512-higher-lr"
 nnodes=1
-ngpus_per_node=2
+ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
 # use a checkpoint to continue training with a new config file (learning rate, etc.)
