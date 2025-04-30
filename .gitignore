@@ -1,6 +1,6 @@
 data/datasets/*
 data/raw_comsol/*
-
+compressed_data.tar.gz
 model_checkpoints/*
 logs/*
 wandb/*
