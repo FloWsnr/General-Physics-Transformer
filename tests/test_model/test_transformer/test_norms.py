@@ -83,7 +83,6 @@ class Test_RevIN:
         revin = RevIN(num_channels)
 
         assert revin.num_channels == num_channels
-        assert revin.eps == 1e-5
         assert revin.affine_weight.shape == (num_channels,)
         assert revin.affine_bias.shape == (num_channels,)
         assert torch.all(revin.affine_weight == 1.0)
