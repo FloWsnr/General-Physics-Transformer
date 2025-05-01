@@ -55,27 +55,27 @@ training:
   prefetch_factor: 2 # how many batches to prefetch for each worker
   grad_clip: 1.0 # gradient clipping
   optimizer:
-    name: AdamW # optimizer name (Adam, AdamW)
-    learning_rate: 1e-3
-    weight_decay: 0.01
-    betas: [0.9, 0.999]
+    # name: AdamW # optimizer name (Adam, AdamW)
+    # learning_rate: 1e-3
+    # weight_decay: 0.01
+    # betas: [0.9, 0.999]
     # name: AdaptAdamW # AdaptAdamW or AdamW
     # weight_decay: 0.01
     # betas: [0.9, 0.999]
     # learning_rate: 1
-    #name: Prodigy
-    #learning_rate: 1
-    #weight_decay: 0.01
-    #slice_p: 1
-    #betas: [0.9, 0.999]
+    name: Prodigy
+    learning_rate: 1
+    weight_decay: 0.01
+    slice_p: 1
+    betas: [0.9, 0.999]
   criterion: NMSE # MSE or NMSE or MAE
 
-  lr_scheduler:
-    first_stage:
-      name: LinearLR # linear warmup scheduler
-      start_factor: 0.001
-      end_factor: 1.0
-      num_updates: 300 # number of updates for linear warmup
+  # lr_scheduler:
+  #   first_stage:
+  #     name: LinearLR # linear warmup scheduler
+  #     start_factor: 0.001
+  #     end_factor: 1.0
+  #     num_updates: 300 # number of updates for linear warmup
     # first_stage:
     #   name: CosineAnnealingLR # cosine annealing scheduler
     #   num_updates: -1 # num batches for cosine annealing, -1 means use all remaining batches
