@@ -51,6 +51,11 @@ class PhysicsDataset(WellDataset):
     nan_to_zero: bool
         Whether to replace NaNs with 0
         By default True
+    geom_num: Optional[float]
+        Number which encodes the geometry (wall, obstacle, etc.) of the domain.
+        If provided, the geometry will be concatenated
+        to the input and output fields as additional channels.
+        By default None
     """
 
     def __init__(
@@ -67,6 +72,7 @@ class PhysicsDataset(WellDataset):
         full_trajectory_mode: bool = False,
         max_rollout_steps: int = 10000,
         nan_to_zero: bool = True,
+        geom_num: Optional[float] = None,
     ):
         if isinstance(dt_stride, list):
             min_dt_stride = dt_stride[0]
@@ -90,6 +96,7 @@ class PhysicsDataset(WellDataset):
             max_rollout_steps=max_rollout_steps,
         )
         self.nan_to_zero = nan_to_zero
+        self.geom_num = geom_num
 
     def __len__(self):
         return super().__len__()
@@ -99,15 +106,15 @@ class PhysicsDataset(WellDataset):
         x = data["input_fields"]
         y = data["output_fields"]
 
+        if self.geom_num is not None:
+            geom_mask_x = x[..., 0] == self.geom_num
+            geom_mask_y = y[..., 0] == self.geom_num
+            x = torch.concatenate([x, geom_mask_x[..., None]], dim=-1)
+            y = torch.concatenate([y, geom_mask_y[..., None]], dim=-1)
+
         if self.nan_to_zero:
-            # we don't want to always use 0 as the default value, because this will bias the model
-            # instead, we use the mean of the data (time, height, width)
-            # mean = torch.nanmean(x, dim=(0, 1, 2), keepdim=True)
             x = torch.nan_to_num(x, 0)
             y = torch.nan_to_num(y, 0)
-            # x = torch.where(torch.isnan(x), mean, x)
-            # y = torch.where(torch.isnan(y), mean, y)
-
         return x, y
 
 

@@ -69,6 +69,17 @@ def test_physics_dataset_nan_to_zero(dummy_datapath: Path):
     assert not torch.any(torch.isnan(y))
 
 
+def test_physics_dataset_geom_num(dummy_datapath: Path):
+    dataset = PhysicsDataset(
+        dummy_datapath.parent,
+        n_steps_input=2,
+        n_steps_output=2,
+        geom_num=1,
+    )
+    x, y = dataset[0]
+    assert x.shape == (2, 32, 32, 7)
+    assert y.shape == (2, 32, 32, 7)
+
 class TestSuperDataset:
     """Tests for the SuperDataset class."""
 
