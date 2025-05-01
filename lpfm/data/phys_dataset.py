@@ -66,15 +66,8 @@ class PhysicsDataset(WellDataset):
     nan_to_zero: bool
         Whether to replace NaNs with 0
         By default True
-    geom_num: Optional[float]
-        Number which encodes the geometry (wall, obstacle, etc.) of the domain.
-        If provided, the geometry will be concatenated
-        to the input and output fields as additional channels.
-        The geometry is encoded as a binary mask, 
-        where 0s represent the geometry and 1s represent the fluid.
-        By default None
-    post_transform: Optional[Callable]
-        Transform function to apply to x and y, e.g. to convert zeros to other values.
+    zero_field_value: Optional[float]
+        Value to replace zero channels with
         By default None
     """
 
