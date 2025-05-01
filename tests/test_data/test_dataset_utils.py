@@ -1,7 +1,7 @@
 import torch
 from pathlib import Path
 
-from lpfm.data.dataset_utils import collate_fn, get_rng_transforms
+from lpfm.data.dataset_utils import collate_fn, get_rng_transforms, zero_field_to_value
 from lpfm.data.phys_dataset import PhysicsDataset
 
 
@@ -13,13 +13,24 @@ def test_physics_dataset_collate_fn(dummy_datapath: Path):
     assert collated[1].shape == (2, 4, 32, 32, 6)
 
 
+def test_zero_field_to_value():
+    x = torch.zeros(2, 32, 32, 6)
+    
+    # make some channels non-zero
+    x[..., :3] = 2.0
+    x = zero_field_to_value(x, 1.0)
+    # check that the non-zero channels are unchanged
+    assert torch.all(x[..., :3] == 2.0)
+    # check that the zero channels are replaced with 1.0
+    assert torch.all(x[..., 3:] == 1.0)
+
 def test_rng_transforms(dummy_datapath: Path):
     # Create a dataset
     dataset_t = PhysicsDataset(
         dummy_datapath.parent,
         n_steps_input=1,
         n_steps_output=1,
-        transform=get_rng_transforms(p_flip=1.0),
+        transform=get_rng_transforms(p_flip=0.9),
     )
 
     dataset_nt = PhysicsDataset(

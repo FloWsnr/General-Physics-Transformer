@@ -20,6 +20,19 @@ def get_rng_transforms(p_flip: float) -> Compose:
         ]
     )
 
+def zero_field_to_value(x: torch.Tensor, value: float) -> torch.Tensor:
+    """Find channels which are all zeros and replace them with a given value.
+    
+    Parameters
+    ----------
+    x : torch.Tensor
+        Input tensor of shape (T, H, W, C)
+    value : float
+        Value to replace the zero channels with
+    """
+    zero_channels = torch.all(x == 0, dim=(0, 1, 2), keepdim=False)
+    x[...,zero_channels] = value
+    return x
 
 def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
     """Collate function for the dataset.

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Callable
 from pathlib import Path
 
 import torch
@@ -58,6 +58,9 @@ class PhysicsDataset(WellDataset):
         The geometry is encoded as a binary mask, 
         where 0s represent the geometry and 1s represent the fluid.
         By default None
+    post_transform: Optional[Callable]
+        Transform function to apply to x and y, e.g. to convert zeros to other values.
+        By default None
     """
 
     def __init__(
@@ -75,6 +78,7 @@ class PhysicsDataset(WellDataset):
         max_rollout_steps: int = 10000,
         nan_to_zero: bool = True,
         geom_num: Optional[float] = None,
+        post_transform: Optional[Callable] = None,
     ):
         if isinstance(dt_stride, list):
             min_dt_stride = dt_stride[0]
@@ -99,6 +103,7 @@ class PhysicsDataset(WellDataset):
         )
         self.nan_to_zero = nan_to_zero
         self.geom_num = geom_num
+        self.post_transform = post_transform
 
     def __len__(self):
         return super().__len__()
@@ -117,6 +122,9 @@ class PhysicsDataset(WellDataset):
         if self.nan_to_zero:
             x = torch.nan_to_num(x, 0)
             y = torch.nan_to_num(y, 0)
+        if self.post_transform is not None:
+            x = self.post_transform(x)
+            y = self.post_transform(y)
         return x, y
 
 
