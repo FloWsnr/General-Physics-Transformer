@@ -90,8 +90,8 @@ fi
 # create the sim_dir if it doesn't exist
 mkdir -p $sim_dir
 
-# copy the slurm script to the sim_dir
-cp ${base_dir}/lpfm/run/run_lpfm.sh $sim_dir
+# copy the slurm script to the sim_dir with .sh suffix
+cp "$0" "${sim_dir}/slurm_script.sh"
 
 if [ "$new_training_from_checkpoint" = true ]; then
     # copy a new config file to the sim_dir and use it as the config file

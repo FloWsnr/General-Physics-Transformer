@@ -63,7 +63,7 @@ log_dir="${base_dir}/logs"
 data_dir="${base_dir}/data/datasets"
 base_config_file="${base_dir}/lpfm/run/config.yaml"
 # sim_name (same as wandb id)
-sim_name="ti-main-run-all-0005"
+sim_name="ti-main-run-all-0007"
 # sim_name="ti-test-run-new_data-0006-512-higher-lr"
 nnodes=1
 ngpus_per_node=4
@@ -95,8 +95,8 @@ fi
 # create the sim_dir if it doesn't exist
 mkdir -p $sim_dir
 
-# copy the slurm script to the sim_dir
-cp "$0" $sim_dir
+# copy the slurm script to the sim_dir with .sh suffix
+cp "$0" "${sim_dir}/slurm_script.sh"
 
 if [ "$new_training_from_checkpoint" = true ]; then
     # copy a new config file to the sim_dir and use it as the config file
