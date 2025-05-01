@@ -20,20 +20,6 @@ def get_rng_transforms(p_flip: float) -> Compose:
         ]
     )
 
-def zero_field_to_value(x: torch.Tensor, value: float) -> torch.Tensor:
-    """Find channels which are all zeros and replace them with a given value.
-    
-    Parameters
-    ----------
-    x : torch.Tensor
-        Input tensor of shape (T, H, W, C)
-    value : float
-        Value to replace the zero channels with
-    """
-    zero_channels = torch.all(x == 0, dim=(0, 1, 2), keepdim=False)
-    x[...,zero_channels] = value
-    return x
-
 def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
     """Collate function for the dataset.
 
@@ -129,6 +115,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
     n_steps_input = data_config["n_steps_input"]
     n_steps_output = data_config["n_steps_output"]
     dt_stride = data_config["dt_stride"]
+    zero_field_value = data_config["zero_field_value"]
 
     datasets = {}
     dataset_list: list[str] = data_config["datasets"].copy()
@@ -143,6 +130,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
             include_field_names=include_field_names,
+            zero_field_value=zero_field_value,
         )
         datasets[dataset_name] = dataset
 

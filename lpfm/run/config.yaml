@@ -94,6 +94,7 @@ data:
   n_steps_input: 4 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
   out_shape: [256, 128] # output shape (usually 256 x 128
+  zero_field_value: 1.0 # value to replace zero channels with
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:

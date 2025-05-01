@@ -2,8 +2,18 @@ import pytest
 from pathlib import Path
 
 import torch
-from lpfm.data.phys_dataset import PhysicsDataset, SuperDataset
+from lpfm.data.phys_dataset import PhysicsDataset, SuperDataset, zero_field_to_value
 
+def test_zero_field_to_value():
+    x = torch.zeros(2, 32, 32, 6)
+    
+    # make some channels non-zero
+    x[..., :3] = 2.0
+    x = zero_field_to_value(x, 1.0)
+    # check that the non-zero channels are unchanged
+    assert torch.all(x[..., :3] == 2.0)
+    # check that the zero channels are replaced with 1.0
+    assert torch.all(x[..., 3:] == 1.0)
 
 def test_physics_dataset(dummy_datapath: Path):
     dataset = PhysicsDataset(dummy_datapath.parent)
@@ -68,17 +78,6 @@ def test_physics_dataset_nan_to_zero(dummy_datapath: Path):
     assert not torch.any(torch.isnan(x))
     assert not torch.any(torch.isnan(y))
 
-
-def test_physics_dataset_geom_num(dummy_datapath: Path):
-    dataset = PhysicsDataset(
-        dummy_datapath.parent,
-        n_steps_input=2,
-        n_steps_output=2,
-        geom_num=1,
-    )
-    x, y = dataset[0]
-    assert x.shape == (2, 32, 32, 7)
-    assert y.shape == (2, 32, 32, 7)
 
 class TestSuperDataset:
     """Tests for the SuperDataset class."""

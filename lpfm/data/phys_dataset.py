@@ -7,6 +7,21 @@ from the_well.data.augmentation import Compose
 from lpfm.data.well_dataset import WellDataset
 
 
+def zero_field_to_value(x: torch.Tensor, value: float) -> torch.Tensor:
+    """Find channels which are all zeros and replace them with a given value.
+    
+    Parameters
+    ----------
+    x : torch.Tensor
+        Input tensor of shape (T, H, W, C)
+    value : float
+        Value to replace the zero channels with
+    """
+    zero_channels = torch.all(x == 0, dim=(0, 1, 2), keepdim=False)
+    x[...,zero_channels] = value
+    return x
+
+
 class PhysicsDataset(WellDataset):
     """Wrapper around the WellDataset.
 
@@ -77,8 +92,7 @@ class PhysicsDataset(WellDataset):
         full_trajectory_mode: bool = False,
         max_rollout_steps: int = 10000,
         nan_to_zero: bool = True,
-        geom_num: Optional[float] = None,
-        post_transform: Optional[Callable] = None,
+        zero_field_value: Optional[float] = None,
     ):
         if isinstance(dt_stride, list):
             min_dt_stride = dt_stride[0]
@@ -102,8 +116,7 @@ class PhysicsDataset(WellDataset):
             max_rollout_steps=max_rollout_steps,
         )
         self.nan_to_zero = nan_to_zero
-        self.geom_num = geom_num
-        self.post_transform = post_transform
+        self.zero_field_value = zero_field_value
 
     def __len__(self):
         return super().__len__()
@@ -113,18 +126,12 @@ class PhysicsDataset(WellDataset):
         x = data["input_fields"]
         y = data["output_fields"]
 
-        if self.geom_num is not None:
-            geom_mask_x = x[..., 0] != self.geom_num
-            geom_mask_y = y[..., 0] != self.geom_num
-            x = torch.concatenate([x, geom_mask_x[..., None]], dim=-1)
-            y = torch.concatenate([y, geom_mask_y[..., None]], dim=-1)
-
         if self.nan_to_zero:
             x = torch.nan_to_num(x, 0)
             y = torch.nan_to_num(y, 0)
-        if self.post_transform is not None:
-            x = self.post_transform(x)
-            y = self.post_transform(y)
+        if self.zero_field_value is not None:
+            x = zero_field_to_value(x, self.zero_field_value)
+            y = zero_field_to_value(y, self.zero_field_value)
         return x, y
 
 
