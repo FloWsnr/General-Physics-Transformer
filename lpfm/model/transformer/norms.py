@@ -93,7 +93,7 @@ class RevLN(nn.Module):
 
 
 class RevIN(nn.Module):
-    def __init__(self, num_channels: int, eps=1e-5):
+    def __init__(self, num_channels: int, dims=(1, 2, 3), eps=1e-5):
         """
         Reversible Instance Normalization for tensors with shape (B, Time, H, W, C).
         Normalizes each channel independently over the Time, Height, and Width dimensions.
@@ -105,12 +105,15 @@ class RevIN(nn.Module):
         ----------
         num_channels : int
             The number of channels
-        eps : float, optional
+        eps : float, optional   
             A value added for numerical stability, by default 1e-5
+        dims : tuple, optional
+            Dimensions to reduce over, by default (1, 2, 3)
         """
         super(RevIN, self).__init__()
         self.num_channels = num_channels
         self.eps = eps
+        self.dims = dims
         # initialize RevIN params: (C,)
         self.affine_weight = nn.Parameter(torch.ones(self.num_channels))
         self.affine_bias = nn.Parameter(torch.zeros(self.num_channels))
@@ -140,12 +143,18 @@ class RevIN(nn.Module):
             raise NotImplementedError
         return x
 
+    def _nanvar(self, x, mean):
+        # calculate the variance of x, ignoring NaNs
+        x = x - mean
+        x = x.pow(2)
+        x = torch.nanmean(x, dim=self.dims, keepdim=True)
+        return x
+
     def _get_statistics(self, x):
         # For (B, T, H, W, C), reduce over time, height, width dimensions (1, 2, 3)
-        dim2reduce = (1, 2, 3)
-        self.mean = torch.mean(x, dim=dim2reduce, keepdim=True)
+        self.mean = torch.mean(x, dim=self.dims, keepdim=True)
         self.stdev = torch.sqrt(
-            torch.var(x, dim=dim2reduce, keepdim=True, unbiased=False) + self.eps
+            self._nanvar(x, self.mean) + self.eps
         )
 
     def _normalize(self, x):
