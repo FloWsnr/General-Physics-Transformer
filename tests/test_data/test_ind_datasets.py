@@ -333,6 +333,22 @@ def test_twophase_flow_dataset():
         assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
         assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
+@pytest.mark.skip(reason="Takes too long to run")
+def test_twophase_flow_dataset_full_integrity():
+    """Test TwophaseFlowDataset returns correct tensor shapes and field order."""
+    path = Path("data/datasets/twophase_flow/data/train")
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
+
+    # Test 4 random indices
+    for i in range(len(dataset)):
+        print(f"Testing index {i}")
+        x, y = dataset[i]
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
 
 if __name__ == "__main__":
-    test_twophase_flow_dataset()
+    test_twophase_flow_dataset_full_integrity()
