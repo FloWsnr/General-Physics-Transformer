@@ -55,6 +55,8 @@ class PhysicsDataset(WellDataset):
         Number which encodes the geometry (wall, obstacle, etc.) of the domain.
         If provided, the geometry will be concatenated
         to the input and output fields as additional channels.
+        The geometry is encoded as a binary mask, 
+        where 0s represent the geometry and 1s represent the fluid.
         By default None
     """
 
@@ -107,8 +109,8 @@ class PhysicsDataset(WellDataset):
         y = data["output_fields"]
 
         if self.geom_num is not None:
-            geom_mask_x = x[..., 0] == self.geom_num
-            geom_mask_y = y[..., 0] == self.geom_num
+            geom_mask_x = x[..., 0] != self.geom_num
+            geom_mask_y = y[..., 0] != self.geom_num
             x = torch.concatenate([x, geom_mask_x[..., None]], dim=-1)
             y = torch.concatenate([y, geom_mask_y[..., None]], dim=-1)
 
