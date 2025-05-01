@@ -12,12 +12,13 @@ FIELD_COLORS = OrderedDict(
         ("temperature", "hot"),
         ("velocity_x", "viridis"),
         ("velocity_y", "viridis"),
+        ("velocity_mag", "viridis"),
     ]
 )
 
 datasets = [
     # "cooled_object_pipe_flow_air",
-    # "heated_object_pipe_flow_air",
+    "heated_object_pipe_flow_air",
     # "object_sym_flow_air",
     # "object_sym_flow_water",
     # "object_periodic_flow_water",
@@ -28,7 +29,8 @@ datasets = [
     # "rayleigh_benard",
     # "shear_flow",
     # "twophase_flow",
-    "rayleigh_benard_obstacle",
+    # "rayleigh_benard_obstacle",
+    # "acoustic_scattering_inclusions",
 ]
 
 
@@ -44,6 +46,8 @@ def sample_to_image(
     # sample is a tensor of shape (T, H, W, C)
     # transpose W and H
     sample = sample.transpose(0, 2, 1, 3)
+    vel_mag = np.linalg.norm(sample[..., -2:], axis=-1)
+    sample = np.concatenate([sample, vel_mag[..., None]], axis=-1)
 
     for i, (field, cmap) in enumerate(FIELD_COLORS.items()):
         vmin = np.nanmin(sample[..., i])
@@ -88,7 +92,7 @@ def main():
 
         save_path = dataset_path.parents[1] / "images"
         save_path.mkdir(parents=True, exist_ok=True)
-        sample = get_dataset_sample(dataset, 10)
+        sample = get_dataset_sample(dataset, 10050)
         sample_to_image(sample, save_path)
 
 
