@@ -102,10 +102,11 @@ class PhysicsDataset(WellDataset):
         if self.nan_to_zero:
             # we don't want to always use 0 as the default value, because this will bias the model
             # instead, we use the mean of the data (time, height, width)
-            mean_x = torch.nanmean(x, dim=(0, 1, 2), keepdim=True)
-            x = torch.where(torch.isnan(x), mean_x, x)
-            mean_y = torch.nanmean(y, dim=(0, 1, 2), keepdim=True)
-            y = torch.where(torch.isnan(y), mean_y, y)
+            # mean = torch.nanmean(x, dim=(0, 1, 2), keepdim=True)
+            x = torch.nan_to_num(x, 0)
+            y = torch.nan_to_num(y, 0)
+            # x = torch.where(torch.isnan(x), mean, x)
+            # y = torch.where(torch.isnan(y), mean, y)
 
         return x, y
 
