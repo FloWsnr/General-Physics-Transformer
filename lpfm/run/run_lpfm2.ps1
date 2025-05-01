@@ -27,7 +27,7 @@ $log_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs"
 $data_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\data\datasets"
 $config_file = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\lpfm\run\config.yaml"
 # $config_file = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs\ti-main-run-single-0004\config_cooldown.yaml"
-$sim_name = "ti-main-run-single-0005"
+$sim_name = "ti-cyl-sym-flow-0001"
 $new_training_from_checkpoint = $false
 
 # sim directory
@@ -57,14 +57,16 @@ if ($new_training_from_checkpoint) {
     Copy-Item -Path $config_file -Destination $sim_dir
     $restart = $false
     Write-Host "Using checkpoint to continue training with new config file..."
-} else {
+}
+else {
     # Try to find config file in sim_dir
     $restart_config_file = Join-Path $sim_dir "config.yaml"
     if (Test-Path $restart_config_file) {
         Write-Host "Config file found in $sim_dir, attempting restart..."
         $restart = $true
         $config_file = $restart_config_file
-    } else {
+    }
+    else {
         Write-Host "No config file found in $sim_dir, starting new training..."
         # copy config file to sim_dir
         Copy-Item -Path $config_file -Destination $sim_dir
