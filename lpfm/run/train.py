@@ -700,6 +700,7 @@ class Trainer:
             ########### Training ###############################################
             ######################################################################
             self.log_msg("=" * 100)
+            self.log_msg(f"Training - Cycle {self.cycle_idx}")
             self.log_msg(f"Training - train on next {self.val_every_x_samples} samples")
             train_losses = self.train_for_x_samples(self.val_every_x_samples)
             self.log_msg("=" * 100)

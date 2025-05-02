@@ -19,7 +19,7 @@ def find_last_checkpoint(sim_dir: Path) -> Path:
 
     # Find all directories that match the pattern "epoch_XXXX"
     epoch_dirs = [
-        d for d in sim_dir.iterdir() if d.is_dir() and d.name.startswith("epoch_")
+        d for d in sim_dir.iterdir() if d.is_dir() and d.name.startswith("val_")
     ]
 
     if len(epoch_dirs) == 0:
