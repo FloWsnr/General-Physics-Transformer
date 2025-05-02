@@ -80,6 +80,7 @@ def eval_on_dataset(
 
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4)
     for i, (x, target) in enumerate(loader):
+        print(f"   Evaluating on {i}th batch")
         x = x.to(device)
         target = target.to(device)
         y = model(x)
@@ -91,12 +92,18 @@ def eval_on_dataset(
         loss_vel_x = torch.mean(loss[..., 3], dim=(1, 2, 3))
         loss_vel_y = torch.mean(loss[..., 4], dim=(1, 2, 3))
 
+
         # convert batches to list
         loss_pressure = loss_pressure.tolist()
         loss_density = loss_density.tolist()
         loss_temperature = loss_temperature.tolist()
         loss_vel_x = loss_vel_x.tolist()
         loss_vel_y = loss_vel_y.tolist()
+        display_large_losses(loss_pressure, target[..., 0], y[..., 0], name=f"{dataset.metadata.dataset_name}_pressure")
+        display_large_losses(loss_density, target[..., 1], y[..., 1], name=f"{dataset.metadata.dataset_name}_density")
+        display_large_losses(loss_temperature, target[..., 2], y[..., 2], name=f"{dataset.metadata.dataset_name}_temperature")
+        display_large_losses(loss_vel_x, target[..., 3], y[..., 3], name=f"{dataset.metadata.dataset_name}_vel_x")
+        display_large_losses(loss_vel_y, target[..., 4], y[..., 4], name=f"{dataset.metadata.dataset_name}_vel_y")
 
         losses["pressure"].extend(loss_pressure)
         losses["density"].extend(loss_density)
@@ -109,12 +116,31 @@ def eval_on_dataset(
     return losses
 
 
-def export_large_losses(losses, target, y):
+def display_large_losses(loss: list, target: torch.Tensor, y: torch.Tensor, name: str):
     """Export the largest losses to a file."""
-    # get the indices of the largest losses
-    indices = torch.argsort(losses, descending=True)
-    # export the largest losses
-    torch.save({"losses": losses[indices], "target": target[indices], "y": y[indices]}, "large_losses.pth")
+    # target and y are of shape (batch_size, 1, H, W)
+
+    # find losses above 10
+    indices = [i for i, l in enumerate(loss) if l > 10]
+    if len(indices) == 0:
+        print(f"   No large losses for {name}")
+        return
+    target_large = target[indices,0,...].squeeze()
+    y_large = y[indices,0,...].squeeze()
+    # convert to numpy
+    target_large = target_large.cpu().numpy()
+    y_large = y_large.cpu().numpy()
+    
+    # make a figure with 2 cols, target and y
+    fig, axs = plt.subplots(2, 1, figsize=(10, 5))
+    axs[0].imshow(target_large)
+    axs[1].imshow(y_large)
+    # add a title to the figure
+    fig.suptitle(f"Large Losses: {name}")
+    fig.savefig(f"large_losses_{name}.png")
+    plt.close()
+
+    print(f"   Saved large losses to {name}.png")
 
 
 def main():
