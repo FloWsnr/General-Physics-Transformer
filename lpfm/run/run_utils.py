@@ -1,13 +1,16 @@
 from pathlib import Path
 
 
-def find_last_checkpoint(sim_dir: Path) -> Path:
+def find_last_checkpoint(sim_dir: Path, best_model: bool) -> Path:
     """Find the last epoch directory in the simulation directory.
 
     Parameters
     ----------
     sim_dir : Path
         Path to the simulation directory
+
+    best_model : bool
+        Whether to use the best model for potential restart or the last checkpoint
 
     Returns
     -------
@@ -16,6 +19,13 @@ def find_last_checkpoint(sim_dir: Path) -> Path:
     """
     if not sim_dir.exists():
         raise FileNotFoundError(f"Simulation directory {sim_dir} does not exist")
+
+    if best_model:
+        checkpoint_path = sim_dir / "best_model.pth"
+        if checkpoint_path.exists():
+            return checkpoint_path
+        else:
+            return None
 
     # Find all directories that match the pattern "epoch_XXXX"
     epoch_dirs = [
