@@ -310,17 +310,17 @@ class Trainer:
         self,
         checkpoint_path: Path,
         restart: bool = False,
-        new_training_from_checkpoint: bool = False,
+        new_training: bool = False,
     ):
         """Restart training from a checkpoint."""
 
         # can be either a restart or a new training from checkpoint
         # check xor for both false or both true
-        if (restart and new_training_from_checkpoint) or (
-            not restart and not new_training_from_checkpoint
+        if (restart and new_training) or (
+            not restart and not new_training
         ):
             raise ValueError(
-                "Invalid combination of restart and new_training_from_checkpoint"
+                "Invalid combination of restart and new_training"
             )
 
         self.log_msg(f"Loading checkpoint from {checkpoint_path}")
@@ -339,7 +339,7 @@ class Trainer:
             self.grad_scaler.load_state_dict(checkpoint["grad_scaler_state_dict"])
         if self.scheduler is not None and restart:
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-        elif self.scheduler is not None and new_training_from_checkpoint:
+        elif self.scheduler is not None and new_training:
             self.scheduler = get_lr_scheduler(
                 optimizer=self.optimizer,
                 lrs_config=self.config["training"]["lr_scheduler"],
@@ -898,7 +898,8 @@ def main(
     config_path: Path,
     log_dir: Path | None,
     restart: bool,
-    new_training_from_checkpoint: bool,
+    new_training: bool,
+    best_model: bool,
     sim_name: str | None,
     data_dir: Path | None,
     time_limit: str | None,
@@ -938,9 +939,9 @@ def main(
     if sim_name is not None:
         config["wandb"]["id"] = sim_name
 
-    if restart or new_training_from_checkpoint:
+    if restart or new_training:
         checkpoint_dir = config["logging"]["log_dir"] / config["wandb"]["id"]
-        checkpoint_path = find_last_checkpoint(checkpoint_dir)
+        checkpoint_path = find_last_checkpoint(checkpoint_dir, best_model)
         if checkpoint_path is None:
             if global_rank == 0:
                 print("No checkpoint found, starting from scratch")
@@ -961,7 +962,7 @@ def main(
         trainer.load_checkpoint(
             checkpoint_path=checkpoint_path,
             restart=restart,
-            new_training_from_checkpoint=new_training_from_checkpoint,
+            new_training=new_training,
         )
     trainer.save_config()
     trainer.train()
@@ -983,7 +984,8 @@ if __name__ == "__main__":
     default_data_dir = Path("data/datasets")
     default_time_limit = None
     default_restart = False
-    default_new_training_from_checkpoint = False
+    default_new_training = False
+    default_best_model = False
 
     ############################################################
     ########### Parse arguments ################################
@@ -996,9 +998,14 @@ if __name__ == "__main__":
         "--restart", action=argparse.BooleanOptionalAction, default=default_restart
     )
     parser.add_argument(
-        "--new_training_from_checkpoint",
+        "--new_training",
         action=argparse.BooleanOptionalAction,
-        default=default_new_training_from_checkpoint,
+        default=default_new_training,
+    )
+    parser.add_argument(
+        "--best_model",
+        action=argparse.BooleanOptionalAction,
+        default=default_best_model,
     )
     parser.add_argument("--sim_name", type=str, default=default_sim_name)
     parser.add_argument("--data_dir", type=str, default=default_data_dir)
@@ -1015,7 +1022,8 @@ if __name__ == "__main__":
     data_dir = args.data_dir
     time_limit = args.time_limit
     restart = args.restart
-    new_training_from_checkpoint = args.new_training_from_checkpoint
+    new_training = args.new_training
+    best_model = args.best_model
 
     main(
         config_path=config_path,
@@ -1023,7 +1031,8 @@ if __name__ == "__main__":
         sim_name=sim_name,
         data_dir=data_dir,
         restart=restart,
-        new_training_from_checkpoint=new_training_from_checkpoint,
+        new_training=new_training,
+        best_model=best_model,
         time_limit=time_limit,
         global_rank=global_rank,
         local_rank=local_rank,
