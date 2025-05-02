@@ -14,7 +14,7 @@ except ImportError:
     from yaml import Loader
 
 import torch
-
+import matplotlib.pyplot as plt
 from lpfm.model.transformer.model import get_model
 from lpfm.data.dataset_utils import get_datasets
 from lpfm.data.phys_dataset import PhysicsDataset
@@ -65,6 +65,7 @@ def eval_on_dataset(
     device: torch.device,
     num_samples: int = 100,
 ) -> dict:
+    print(f"   Evaluating on {num_samples} samples")
     criterion = NMSELoss(return_scalar=False)
 
     losses = {
@@ -75,7 +76,8 @@ def eval_on_dataset(
         "vel_y": [],
     }
 
-    for i in range(num_samples):
+    samples = torch.randint(0, len(dataset), (num_samples,))
+    for i in samples:
         x, target = dataset[i]
         x = x.to(device)
         target = target.to(device)
@@ -101,21 +103,35 @@ def eval_on_dataset(
 
 
 def main():
+    num_samples = 100
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    base_path = Path("models/lpfm")
-    config_path = base_path / "config.yaml"
+    base_path = Path("/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs")
+    model_name = "ti-main-run-all-0005"
+    model_path = base_path / model_name
 
-    config = load_config(config_path)
+    config = load_config(model_path)
     data_config = config["data"]
     datasets = get_datasets(data_config, split="train")
 
-    model_path = base_path / "2025-05-01_12-00-00"
     model_config = config["model"]
-    model = load_model(model_path, device, model_config)
+    model = load_model(model_path / "best_model.pth", device, model_config)
 
-    for name, dataset in datasets.items():
-        losses = eval_on_dataset(model, dataset, device, num_samples=100)
-        print(losses)
+    # create plot with all losses
+    # each dataset is a row, the columns are the losses
+    cols = ["pressure", "density", "temperature", "vel_x", "vel_y"]
+    num_cols = len(cols)
+    num_rows = len(datasets)
+    fig, axs = plt.subplots(num_rows, num_cols, figsize=(5 * num_cols, 5 * num_rows))
+
+    for i, (name, dataset) in enumerate(datasets.items()):
+        print(f"Evaluating on {name} dataset")
+        losses = eval_on_dataset(model, dataset, device, num_samples=num_samples)
+        # print(losses)
+        for j, col in enumerate(cols):
+            axs[i, j].plot(losses[col])
+            axs[i, j].set_title(f"{name} {col}")
+    plt.savefig(f"{model_path}/losses.png")
+    plt.close()
 
 
 if __name__ == "__main__":
