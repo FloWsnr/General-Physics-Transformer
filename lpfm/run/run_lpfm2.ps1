@@ -1,6 +1,3 @@
-# Set time limit
-$time_limit = "24:00:00"
-
 #####################################################################################
 ############################# Setup #################################################
 #####################################################################################
@@ -22,13 +19,19 @@ conda activate lpfm
 # $debug = $true
 
 # Set up paths
-$python_exec = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\lpfm\run\train.py"
-$log_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs"
-$data_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\data\datasets"
-$config_file = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\lpfm\run\config.yaml"
-# $config_file = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs\ti-main-run-single-0004\config_cooldown.yaml"
+# Set time limit
+$time_limit = "24:00:00"
+$base_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model"
+$python_exec = "$base_dir\lpfm\run\train.py"
+$log_dir = "$base_dir\logs"
+$data_dir = "$base_dir\data\datasets"
+$base_config_file = "$base_dir\lpfm\run\config.yaml"
 $sim_name = "ti-cyl-sym-flow-0001"
-$new_training_from_checkpoint = $false
+
+# use a checkpoint to continue training with a new config file (learning rate, etc.)
+$new_training = $false
+# use the best model for potential restart
+$best_model = $false
 
 # sim directory
 $sim_dir = Join-Path $log_dir $sim_name
@@ -52,9 +55,10 @@ if (-not (Test-Path $sim_dir)) {
 # copy the script to the sim_dir
 Copy-Item -Path $PSCommandPath -Destination $sim_dir
 
-if ($new_training_from_checkpoint) {
-    # overwrite the config file in the sim_dir
-    Copy-Item -Path $config_file -Destination $sim_dir
+if ($new_training) {
+    # copy a new config file to the sim_dir and use it as the config file
+    $config_file = Join-Path $sim_dir "$(Get-Date -Format 'yyyyMMdd')_config.yaml"
+    Copy-Item -Path $base_config_file -Destination $config_file
     $restart = $false
     Write-Host "Using checkpoint to continue training with new config file..."
 }
@@ -69,7 +73,8 @@ else {
     else {
         Write-Host "No config file found in $sim_dir, starting new training..."
         # copy config file to sim_dir
-        Copy-Item -Path $config_file -Destination $sim_dir
+        Copy-Item -Path $base_config_file -Destination $sim_dir
+        $config_file = Join-Path $sim_dir "config.yaml"
         $restart = $false
     }
 }
@@ -82,27 +87,29 @@ Write-Host "Starting LPFM training..."
 Write-Host "config_file: $config_file"
 Write-Host "sim_dir: $sim_dir"
 Write-Host "restart: $restart"
-Write-Host "new_training_from_checkpoint: $new_training_from_checkpoint"
+Write-Host "new_training: $new_training"
+Write-Host "using best model for restart: $best_model"
 Write-Host "--------------------------------"
 
 # Build the command with proper argument formatting
-$cmd = "python $python_exec"
-$cmd += " --config_file `"$config_file`""
-$cmd += " --sim_name `"$sim_name`""
-$cmd += " --log_dir `"$log_dir`""
-$cmd += " --data_dir `"$data_dir`""
-$cmd += " --time_limit `"$time_limit`""
+$exec_args = "--config_file `"$config_file`""
+$exec_args += " --sim_name `"$sim_name`""
+$exec_args += " --log_dir `"$log_dir`""
+$exec_args += " --data_dir `"$data_dir`""
+$exec_args += " --time_limit `"$time_limit`""
 
-if ($new_training_from_checkpoint) {
-    $cmd += " --new_training_from_checkpoint"
-}
-
-# Add --restart if the restart flag is true
 if ($restart) {
-    $cmd += " --restart"
+    $exec_args += " --restart"
+}
+if ($new_training) {
+    $exec_args += " --new_training"
+}
+if ($best_model) {
+    $exec_args += " --best_model"
 }
 
-# Run the training script
+# Run the training script with torchrun for distributed training
+$cmd = "torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args"
 Invoke-Expression $cmd
 
 # Move the output file to the sim_dir (if it exists)

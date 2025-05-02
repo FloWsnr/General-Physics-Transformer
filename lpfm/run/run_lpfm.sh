@@ -70,7 +70,9 @@ ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
 # use a checkpoint to continue training with a new config file (learning rate, etc.)
-new_training_from_checkpoint=false
+new_training=false
+# use the best model for potential restart
+best_model=false
 
 # NOTE: set cuda visible devices, MUST be consecutive numbers
 # USE ONLY FOR DEBUGGING, non-slurm jobs
@@ -98,7 +100,7 @@ mkdir -p $sim_dir
 # copy the slurm script to the sim_dir with .sh suffix
 cp "$0" "${sim_dir}/slurm_script.sh"
 
-if [ "$new_training_from_checkpoint" = true ]; then
+if [ "$new_training" = true ]; then
     # copy a new config file to the sim_dir and use it as the config file
     config_file="${sim_dir}/$(date +%Y%m%d)_config.yaml"
     cp $base_config_file $config_file
@@ -129,7 +131,8 @@ echo "Starting LPFM training..."
 echo "config_file: $config_file"
 echo "sim_dir: $sim_dir"
 echo "restart: $restart"
-echo "new_training_from_checkpoint: $new_training_from_checkpoint"
+echo "new_training: $new_training"
+echo "using best model for restart: $best_model"
 echo "--------------------------------"
 
 exec_args="--config_file $config_file \
@@ -142,8 +145,11 @@ exec_args="--config_file $config_file \
 if [ "$restart" = true ]; then
     exec_args="$exec_args --restart"
 fi
-if [ "$new_training_from_checkpoint" = true ]; then
-    exec_args="$exec_args --new_training_from_checkpoint"
+if [ "$new_training" = true ]; then
+    exec_args="$exec_args --new_training"
+fi
+if [ "$best_model" = true ]; then
+    exec_args="$exec_args --best_model"
 fi
 
 # Capture Python output and errors in a variable and run the script
