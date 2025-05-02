@@ -14,6 +14,7 @@ except ImportError:
     from yaml import Loader
 
 import torch
+from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from lpfm.model.transformer.model import get_model
 from lpfm.data.dataset_utils import get_datasets
@@ -63,7 +64,8 @@ def eval_on_dataset(
     model: torch.nn.Module,
     dataset: PhysicsDataset,
     device: torch.device,
-    num_samples: int = 100,
+    batch_size: int = 256,
+    num_samples: int = 10,
 ) -> dict:
     print(f"   Evaluating on {num_samples} samples")
     criterion = NMSELoss(return_scalar=False)
@@ -76,34 +78,48 @@ def eval_on_dataset(
         "vel_y": [],
     }
 
-    samples = torch.randint(0, len(dataset), (num_samples,))
-    for i in samples:
-        x, target = dataset[i]
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+    for i, (x, target) in enumerate(loader):
         x = x.to(device)
         target = target.to(device)
-        # add batch dimension
-        x = x.unsqueeze(0)
-        target = target.unsqueeze(0)
         y = model(x)
 
         loss = criterion(y, target)
-        loss_pressure = loss[..., 0].mean().item()
-        loss_density = loss[..., 1].mean().item()
-        loss_temperature = loss[..., 2].mean().item()
-        loss_vel_x = loss[..., 3].mean().item()
-        loss_vel_y = loss[..., 4].mean().item()
+        loss_pressure = torch.mean(loss[..., 0], dim=(1, 2, 3))  # get the loss of each sample, dont average accross batches
+        loss_density = torch.mean(loss[..., 1], dim=(1, 2, 3))
+        loss_temperature = torch.mean(loss[..., 2], dim=(1, 2, 3))
+        loss_vel_x = torch.mean(loss[..., 3], dim=(1, 2, 3))
+        loss_vel_y = torch.mean(loss[..., 4], dim=(1, 2, 3))
 
-        losses["pressure"].append(loss_pressure)
-        losses["density"].append(loss_density)
-        losses["temperature"].append(loss_temperature)
-        losses["vel_x"].append(loss_vel_x)
-        losses["vel_y"].append(loss_vel_y)
+        # convert batches to list
+        loss_pressure = loss_pressure.tolist()
+        loss_density = loss_density.tolist()
+        loss_temperature = loss_temperature.tolist()
+        loss_vel_x = loss_vel_x.tolist()
+        loss_vel_y = loss_vel_y.tolist()
+
+        losses["pressure"].extend(loss_pressure)
+        losses["density"].extend(loss_density)
+        losses["temperature"].extend(loss_temperature)
+        losses["vel_x"].extend(loss_vel_x)
+        losses["vel_y"].extend(loss_vel_y)
+        if i > num_samples:
+            break
 
     return losses
 
 
+def export_large_losses(losses, target, y):
+    """Export the largest losses to a file."""
+    # get the indices of the largest losses
+    indices = torch.argsort(losses, descending=True)
+    # export the largest losses
+    torch.save({"losses": losses[indices], "target": target[indices], "y": y[indices]}, "large_losses.pth")
+
+
 def main():
-    num_samples = 100
+    num_samples = 10
+    batch_size = 128
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     base_path = Path("/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs")
     model_name = "ti-main-run-all-0005"
@@ -125,8 +141,7 @@ def main():
 
     for i, (name, dataset) in enumerate(datasets.items()):
         print(f"Evaluating on {name} dataset")
-        losses = eval_on_dataset(model, dataset, device, num_samples=num_samples)
-        # print(losses)
+        losses = eval_on_dataset(model, dataset, device, num_samples=num_samples, batch_size=batch_size)
         for j, col in enumerate(cols):
             axs[i, j].plot(losses[col])
             axs[i, j].set_title(f"{name} {col}")
