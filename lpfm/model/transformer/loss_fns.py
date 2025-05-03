@@ -4,6 +4,8 @@ By: Florian Wiesner
 Date: 2025-04-25
 """
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
 
@@ -20,23 +22,20 @@ class NMSELoss(nn.Module):
     return_scalar: bool, optional
         Whether to return a scalar loss, by default True
 
-    Attributes
-    ----------
-    dims : tuple
-        Dimensions to reduce over
+    clip_max: float, optional
+        Maximum value for the loss, by default None
     """
 
-    def __init__(self, dims=(1, 2, 3), return_scalar=True):
-        """Initialize NMSE loss.
-
-        Parameters
-        ----------
-        dims : tuple, optional
-            Dimensions to reduce over, by default (1, 2, 3)
-        """
+    def __init__(
+        self,
+        dims: tuple = (1, 2, 3),
+        return_scalar: bool = True,
+        clip_max: Optional[float] = None,
+    ):
         super().__init__()
         self.dims = dims
         self.return_scalar = return_scalar
+        self.clip_max = clip_max
 
     def forward(self, pred, target):
         """Calculate the normalized mean square error.
@@ -61,6 +60,8 @@ class NMSELoss(nn.Module):
         nmse = residuals.pow(2).mean(self.dims, keepdim=True) / target_norm
         if self.return_scalar:
             return nmse.mean()
+        if self.clip_max is not None:
+            nmse = torch.clamp(nmse, max=self.clip_max)
         return nmse
 
 
@@ -72,28 +73,25 @@ class VMSELoss(nn.Module):
     dims : tuple, optional
         Dimensions to reduce over, by default (1, 2, 3)
         which is time, height, width
+
     return_scalar: bool, optional
         Whether to return a scalar loss, by default True
 
-    Attributes
-    ----------
-    dims : tuple
-        Dimensions to reduce over
+    clip_max: float, optional
+        Maximum value for the loss, by default None
     """
 
-    def __init__(self, dims=(1, 2, 3), return_scalar=True):
-        """Initialize Variance-Normalized MSE loss.
-
-        Parameters
-        ----------
-        dims : tuple, optional
-            Dimensions to reduce over, by default (1, 2, 3)
-        return_scalar: bool, optional
-            Whether to return a scalar loss, by default True
-        """
+    def __init__(
+        self,
+        dims: tuple = (1, 2, 3),
+        return_scalar: bool = True,
+        clip_max: Optional[float] = None,
+    ):
+        """Initialize Variance-Normalized MSE loss."""
         super().__init__()
         self.dims = dims
         self.return_scalar = return_scalar
+        self.clip_max = clip_max
 
     def forward(self, pred, target):
         """Calculate the variance-normalized mean square error.
@@ -118,6 +116,8 @@ class VMSELoss(nn.Module):
         nmse = residuals.pow(2).mean(self.dims, keepdim=True) / norm
         if self.return_scalar:
             return nmse.mean()
+        if self.clip_max is not None:
+            nmse = torch.clamp(nmse, max=self.clip_max)
         return nmse
 
 
@@ -133,23 +133,18 @@ class RNMSELoss(NMSELoss):
     return_scalar: bool, optional
         Whether to return a scalar loss, by default True
 
-    Attributes
-    ----------
-    dims : tuple
-        Dimensions to reduce over
+    clip_max: float, optional
+        Maximum value for the loss, by default None
     """
 
-    def __init__(self, dims=(1, 2, 3), return_scalar=True):
-        """Initialize Root NMSE loss.
-
-        Parameters
-        ----------
-        dims : tuple, optional
-            Dimensions to reduce over, by default (1, 2, 3)
-        return_scalar: bool, optional
-            Whether to return a scalar loss, by default True
-        """
-        super().__init__(dims, return_scalar)
+    def __init__(
+        self,
+        dims: tuple = (1, 2, 3),
+        return_scalar: bool = True,
+        clip_max: Optional[float] = None,
+    ):
+        """Initialize Root NMSE loss."""
+        super().__init__(dims, return_scalar, clip_max)
 
     def forward(self, pred, target):
         """Calculate the root normalized mean square error.
@@ -181,21 +176,18 @@ class RVMSELoss(VMSELoss):
     return_scalar: bool, optional
         Whether to return a scalar loss, by default True
 
-    Attributes
-    ----------
-    dims : tuple
-        Dimensions to reduce over
+    clip_max: float, optional
+        Maximum value for the loss, by default None
     """
 
-    def __init__(self, dims=(1, 2, 3), return_scalar=True):
-        """Initialize Root Variance-Normalized MSE loss.
-
-        Parameters
-        ----------
-        dims : tuple, optional
-            Dimensions to reduce over, by default (1, 2, 3)
-        """
-        super().__init__(dims, return_scalar)
+    def __init__(
+        self,
+        dims: tuple = (1, 2, 3),
+        return_scalar: bool = True,
+        clip_max: Optional[float] = None,
+    ):
+        """Initialize Root Variance-Normalized MSE loss."""
+        super().__init__(dims, return_scalar, clip_max)
 
     def forward(self, pred, target):
         """Calculate the root variance-normalized mean square error.
