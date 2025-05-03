@@ -228,7 +228,9 @@ class Trainer:
         )
         self.log_msg(f"Validating every {self.h_log_state.val_every_x_samples} samples")
         self.log_msg(f"Validating on {self.h_log_state.val_samples} samples")
-        self.log_msg(f"Running {self.config['training']['num_workers']} dataloader workers per GPU")
+        self.log_msg(
+            f"Running {self.config['training']['num_workers']} dataloader workers per GPU"
+        )
 
         if self.global_rank == 0:
             self.wandb_run.config.update(
@@ -277,6 +279,7 @@ class Trainer:
             )
         opt_config = self.config["training"]["optimizer"]
         self.optimizer = get_optimizer(self.model, opt_config)
+        self.max_grad_norm = self.config["training"]["grad_clip"]
         ################################################################
         ########### Initialize learning rate scheduler ################
         ################################################################
@@ -317,12 +320,8 @@ class Trainer:
 
         # can be either a restart or a new training from checkpoint
         # check xor for both false or both true
-        if (restart and new_training) or (
-            not restart and not new_training
-        ):
-            raise ValueError(
-                "Invalid combination of restart and new_training"
-            )
+        if (restart and new_training) or (not restart and not new_training):
+            raise ValueError("Invalid combination of restart and new_training")
 
         self.log_msg(f"Loading checkpoint from {checkpoint_path}")
         checkpoint = torch.load(
@@ -475,19 +474,22 @@ class Trainer:
                 # Scale loss, backpropagate, unscale, clip, step, update
                 self.grad_scaler.scale(raw_loss).backward()
                 self.grad_scaler.unscale_(self.optimizer)
-                # Clip gradients to norm 1
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(),
-                    max_norm=self.config["training"]["grad_clip"],
-                )
+                if self.max_grad_norm is not None:
+                    # Clip gradients to norm 1
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(),
+                        max_norm=self.max_grad_norm,
+                    )
                 self.grad_scaler.step(self.optimizer)
                 self.grad_scaler.update()
             else:
                 raw_loss.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(),
-                    max_norm=self.config["training"]["grad_clip"],
-                )
+                if self.max_grad_norm is not None:
+                    # Clip gradients to norm 1
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(),
+                        max_norm=self.max_grad_norm,
+                    )
                 self.optimizer.step()
 
             ############################################################
