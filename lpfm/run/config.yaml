@@ -69,6 +69,7 @@ training:
     slice_p: 1
     betas: [0.9, 0.999]
   criterion: NMSE # MSE or NMSE or MAE
+  loss_clip: 10 # loss clipping due to numerical instabilities
 
   # lr_scheduler:
   #   first_stage:

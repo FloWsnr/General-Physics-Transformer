@@ -246,17 +246,17 @@ class Trainer:
         ########### Initialize loss function and optimizer ###########
         ################################################################
         # all losses which should be computed and logged
+        loss_clip = self.config["training"]["loss_clip"]
         self.loss_fns = {
             "MAE": nn.L1Loss(),
             "MSE": nn.MSELoss(),
             "RMSE": nn.MSELoss(),
-            "NMSE": NMSELoss(),
-            "RNMSE": RNMSELoss(),
-            "VMSE": VMSELoss(),
-            "RVMSE": RVMSELoss(),
+            "NMSE": NMSELoss(clip_max=loss_clip),
+            "RNMSE": RNMSELoss(clip_max=loss_clip),
+            "VMSE": VMSELoss(clip_max=loss_clip),
+            "RVMSE": RVMSELoss(clip_max=loss_clip),
         }
 
-        opt_config = self.config["training"]["optimizer"]
         if self.config["training"]["criterion"] == "MSE":
             self.criterion = self.loss_fns.pop("MSE")
         elif self.config["training"]["criterion"] == "RMSE":
@@ -275,6 +275,7 @@ class Trainer:
             raise ValueError(
                 f"Criterion {self.config['training']['criterion']} not supported"
             )
+        opt_config = self.config["training"]["optimizer"]
         self.optimizer = get_optimizer(self.model, opt_config)
         ################################################################
         ########### Initialize learning rate scheduler ################
