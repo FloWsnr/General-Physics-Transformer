@@ -1,7 +1,7 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: ti-grad-clip-test-0001
+  id: ti-bug-fix-0001
   tags:
     - LPFM-Ti
     - SingleDataset
@@ -50,9 +50,9 @@ training:
   val_every_samples: 200e3 # number of samples between validation runs
   val_frac_samples: 1 # fraction of samples to validate on (1 = all val samples)
   
-  num_workers: 6 # number of workers for dataloader per GPU
+  num_workers: 16 # number of workers for dataloader per GPU
   prefetch_factor: 2 # how many batches to prefetch for each worker
-  grad_clip: null # gradient clipping, use null for no gradient clipping
+  grad_clip: 1.0 # gradient clipping, use null for no gradient clipping
   optimizer:
     # name: AdamW # optimizer name (Adam, AdamW)
     # learning_rate: 1e-3
@@ -94,7 +94,7 @@ data:
   n_steps_input: 4 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
   out_shape: [256, 128] # output shape (usually 256 x 128
-  zero_field_value: 1.0 # value to replace zero channels with
+  zero_field_value: 0 # value to replace zero channels with
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
