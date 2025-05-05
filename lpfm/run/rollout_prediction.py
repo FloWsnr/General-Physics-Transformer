@@ -93,12 +93,19 @@ def rollout_prediction(
     with torch.no_grad():
         for i in range(T):
             output = model(input)
+            # if the output is nan, stop the rollout
+            if torch.isnan(output).any() or torch.isinf(output).any():
+                break
+
             outputs.append(output)
 
             # Update input
             input = torch.cat([input[:, 1:, ...], output], dim=1)
 
     outputs = torch.cat(outputs, dim=1)
+    # remove the last elements of the trajectory to fit the output shape
+    t_output = outputs.shape[1]
+    full_traj = full_traj[:, :t_output, ...]
 
     # loss is still a tensor of shape (B, T, H, W, C), averaged only over H and W
     loss = criterion(outputs, full_traj)
@@ -110,6 +117,10 @@ def rollout_prediction(
     # remove batch dimension
     outputs = outputs.squeeze(0)
     full_traj = full_traj.squeeze(0)
+
+    assert not torch.isinf(outputs).any()
+    assert not torch.isinf(full_traj).any()
+    assert not torch.isinf(loss).any()
 
     return outputs, full_traj, loss
 
@@ -162,12 +173,17 @@ def average_predictions(
         logger.info(f"\tComputing loss for trajectory {traj_idx}")
         _, _, loss = rollout_prediction(model, dataset, device, traj_idx)
         losses.append(loss)
+    # crop the losses to the same length
+    min_length = min(loss.shape[0] for loss in losses)
+    losses = [loss[:min_length] for loss in losses]
     losses = torch.stack(losses, dim=0)
+
+    assert not torch.isnan(losses).any()
     # compute mean and std over the trajectories
     return torch.mean(losses, dim=0), torch.std(losses, dim=0)
 
 
-def plot_loss(mean_loss: torch.Tensor, std_loss: torch.Tensor):
+def plot_loss(mean_loss: torch.Tensor, std_loss: torch.Tensor) -> LossVsTimePlotter:
     """Plot the loss for each channel.
     x=timestep, y=loss
 
@@ -178,11 +194,15 @@ def plot_loss(mean_loss: torch.Tensor, std_loss: torch.Tensor):
     std_loss : torch.Tensor
         The standard deviation of the loss for each channel and timestep
     """
-    plotter = LossVsTimePlotter(color="white")
+    min_loss = torch.min(mean_loss).item()
+    max_loss = torch.max(mean_loss).item()
+    time_steps = mean_loss.shape[0]
+    x_ticks = [0, time_steps // 2, time_steps]
+    y_ticks = [0, max_loss * 0.5, max_loss]
+    plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks, color="white")
     plotter.plot(mean_loss, std_loss)
     plotter.legend(title="Fields", loc="upper right")
-    plotter.show_figure()
-    plotter.close()
+    return plotter
 
 
 def main():
@@ -195,7 +215,7 @@ def main():
     num_samples = 10
 
     base_path = Path("C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs")
-    model_path = base_path / "ti-main-run-single-0009"
+    model_path = base_path / "ti-cyl-sym-flow-0001c"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -208,24 +228,31 @@ def main():
     data_config["max_rollout_steps"] = 300
     data_config["dt_stride"] = dt
 
-    data_config["datasets"] = ["cylinder_sym_flow_water"]
+    # data_config["datasets"] = ["cylinder_sym_flow_water"]
     datasets: dict = get_datasets(
         data_config,
         split="test",
     )
 
     for dataset_name, dataset in datasets.items():
-        logger.info(f"Rolling out prediction for {dataset_name}")
+        # logger.info(f"Rolling out prediction for {dataset_name}")
+        # # Compute average loss over multiple trajectories
+        # mean_loss, std_loss = average_predictions(
+        #     model, dataset, device, num_samples=num_samples
+        # )
+        # logger.info("   Finished computing average loss")
+        # plotter = plot_loss(mean_loss, std_loss)
+        # save_path = results_dir / f"{dataset_name}_loss_dt{dt}.png"
+        # plotter.save_figure(save_path)
 
-        # Compute average loss over multiple trajectories
-        mean_loss, std_loss = average_predictions(
-            model, dataset, device, num_samples=num_samples
-        )
-        plot_loss(mean_loss, std_loss)
-        logger.info("Finished computing average loss")
+        #########################################################
+        # Create video of the rollout prediction
+        #########################################################
 
         # Get predictions for visualization
-        rollout_predictions, full_traj, _ = rollout_prediction(model, dataset, device)
+        rollout_predictions, full_traj, loss = rollout_prediction(
+            model, dataset, device
+        )
         logger.info("Finished rolling out prediction")
 
         # rotate x and y axis
@@ -234,6 +261,7 @@ def main():
 
         rollout_predictions = rollout_predictions.cpu().numpy()
         full_traj = full_traj.cpu().numpy()
+        loss = loss.cpu().numpy()
 
         # Create videos for both actual and predicted trajectories
         output_dir = results_dir / "videos"
@@ -244,9 +272,10 @@ def main():
         create_field_video(
             full_traj,
             rollout_predictions,
+            loss,
             output_dir,
             f"{dataset_name}_rollout_dt{dt}",
-            fps=1,
+            fps=5,
         )
 
 

@@ -12,6 +12,7 @@ from pathlib import Path
 def create_field_video(
     ground_truth: np.ndarray,
     prediction: np.ndarray,
+    loss: np.ndarray,
     output_path: Path,
     title: str = "Field",
     fps: int = 1,
@@ -24,6 +25,8 @@ def create_field_video(
         Ground truth data array of shape (timesteps, height, width, channels)
     prediction : np.ndarray
         Prediction data array of shape (timesteps, height, width, channels)
+    loss : np.ndarray
+        Loss data array of shape (timesteps, channels)
     output_path : Path
         Path where the output video will be saved
     title : str, optional
@@ -49,7 +52,9 @@ def create_field_video(
             im_pred = ax[1].imshow(pred[t, :, :], norm=norm_gt)
 
             ax[0].set_title(f"Ground Truth - {name} (t={t})")
-            ax[1].set_title(f"Prediction - {name} (t={t})")
+            ax[1].set_title(
+                f"Prediction - {name} (t={t}), Loss: {loss[t, channel]:.2f}"
+            )
 
             # add colorbar for each subplot
             fig.colorbar(im_gt, ax=ax[0])
