@@ -5,6 +5,7 @@ Use a trained model to predict the next timesteps of a given input.
 from pathlib import Path
 import torch
 import yaml
+import numpy as np
 
 try:
     from yaml import CLoader as Loader
@@ -78,6 +79,7 @@ def rollout_prediction(
     """
     criterion = NMSELoss(dims=(2, 3), return_scalar=False)
 
+    traj_idx = min(traj_idx, len(dataset) - 1)
     input, full_traj = dataset[traj_idx]
 
     input = input.to(device)
@@ -169,7 +171,9 @@ def average_predictions(
         The averaged loss and standard deviation for each channel and timestep
     """
     losses = []
-    for traj_idx in range(num_samples):
+    # random trajectory indices
+    traj_idxs = np.random.randint(0, len(dataset), size=num_samples)
+    for traj_idx in traj_idxs:
         logger.info(f"\tComputing loss for trajectory {traj_idx}")
         _, _, loss = rollout_prediction(model, dataset, device, traj_idx)
         losses.append(loss)
