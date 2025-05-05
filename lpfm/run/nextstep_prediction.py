@@ -15,6 +15,8 @@ except ImportError:
 
 import matplotlib.pyplot as plt
 
+from torch.amp.grad_scaler import GradScaler
+
 from lpfm.model.transformer.model import get_model
 from lpfm.data.dataset_utils import get_datasets
 from lpfm.data.phys_dataset import PhysicsDataset
@@ -53,6 +55,7 @@ def load_model(
     return model
 
 
+@torch.inference_mode()
 def next_step_prediction(
     model: torch.nn.Module,
     dataset: PhysicsDataset,
@@ -93,12 +96,14 @@ def next_step_prediction(
     B, T, H, W, C = full_traj.shape
 
     outputs = []
-    with torch.no_grad():
+    with torch.autocast(
+        device_type=device.type,
+        dtype=torch.bfloat16,
+    ):
         for i in range(T):  # T-1 because we predict the next step
             # Predict next timestep
             output = model(input)
             outputs.append(output)
-
             # Update input
             input = torch.cat(
                 [input[:, 1:, ...], full_traj[:, i, ...].unsqueeze(1)], dim=1
