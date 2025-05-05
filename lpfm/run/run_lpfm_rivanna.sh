@@ -13,14 +13,14 @@
 #SBATCH --ntasks-per-node=70
 
 ### How much memory in total (MB)
-#SBATCH --mem=600G
+#SBATCH --mem=300G
 
 ### Maximum runtime per task
 #SBATCH --time=24:00:00
 
 ### set number of GPUs per task (v100, a100, h200)
-#SBATCH --gres=gpu:4
-#SBATCH --constraint="a80|a40"
+#SBATCH --gres=gpu:4:a100
+##SBATCH --constraint="a80|a40"
 ## SBATCH -C gpupod # use pod gpus...
 
 
@@ -58,7 +58,7 @@ base_config_file="${base_dir}/lpfm/run/config.yaml"
 data_dir="/scratch/zsa8rk/datasets"
 # sim_name (same as wandb id)
 # sim_name="ti-main-run-all-0002"
-sim_name="ti-main-run-0007-riv-prodigy"
+sim_name="ti-test-run-no-grad-clip"
 nnodes=1
 ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
