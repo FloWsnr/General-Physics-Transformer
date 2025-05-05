@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 
 from lpfm.model.transformer.model import get_model
 from lpfm.data.dataset_utils import get_datasets
-from lpfm.data.phys_dataset import SuperDataset
+from lpfm.data.phys_dataset import PhysicsDataset
 from lpfm.utils.logger import get_logger
 from lpfm.utils.rollout_video import create_field_video
 from lpfm.model.transformer.loss_fns import NMSELoss
@@ -55,7 +55,7 @@ def load_model(
 
 def next_step_prediction(
     model: torch.nn.Module,
-    dataset: SuperDataset,
+    dataset: PhysicsDataset,
     device: torch.device,
     traj_idx: int = 0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -65,7 +65,7 @@ def next_step_prediction(
     ----------
     model : torch.nn.Module
         The model to use for prediction
-    dataset : SuperDataset
+    dataset : PhysicsDataset
         Dataset containing the trajectories
     device : torch.device
         Device to run the model on
@@ -130,7 +130,7 @@ def load_config(model_path: Path) -> dict:
 
 def avererage_predictions(
     model: torch.nn.Module,
-    dataset: SuperDataset,
+    dataset: PhysicsDataset,
     device: torch.device,
     num_samples: int = 10,
 ) -> torch.Tensor:
@@ -140,7 +140,7 @@ def avererage_predictions(
     ----------
     model : torch.nn.Module
         The model to use for prediction
-    dataset : SuperDataset
+    dataset : PhysicsDataset
         Dataset containing the trajectories
     device : torch.device
         Device to run the model on
@@ -219,12 +219,12 @@ def main():
 
         config = load_config(model_path)
         model_config = config["model"]
-        model = load_model(model_path / "best_model.pth", device, model_config)
-        model.eval()
+        model_file = model_path / "val_0029" / "checkpoint.pth"
+        model = load_model(model_file, device, model_config)
 
         data_config = config["data"]
         data_config["full_trajectory_mode"] = True
-        data_config["max_rollout_steps"] = 100
+        data_config["max_rollout_steps"] = 30
         data_config["dt_stride"] = dt
 
         # data_config["datasets"] = ["cylinder_sym_flow_water"]
