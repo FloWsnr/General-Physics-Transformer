@@ -155,7 +155,8 @@ def avererage_predictions(
 
     losses = []
     # random trajectory indices
-    traj_idxs = np.random.randint(0, len(dataset), size=num_samples)
+    indices = np.arange(len(dataset))
+    traj_idxs = np.random.choice(indices, size=num_samples, replace=False)
     for traj_idx in traj_idxs:
         logger.info(f"\tComputing loss for trajectory {traj_idx}")
         _, _, loss = next_step_prediction(model, dataset, device, traj_idx)
