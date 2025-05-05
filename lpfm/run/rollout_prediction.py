@@ -227,7 +227,7 @@ def main():
     config = load_config(model_path)
     model_config = config["model"]
     model = load_model(model_path / "best_model.pth", device, model_config)
-
+    model.eval()
     data_config = config["data"]
     data_config["full_trajectory_mode"] = True
     data_config["max_rollout_steps"] = 300
