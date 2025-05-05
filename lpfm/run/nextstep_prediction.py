@@ -80,6 +80,7 @@ def next_step_prediction(
     criterion = NMSELoss(dims=(2, 3), return_scalar=False)
 
     # get first trajectory
+    traj_idx = min(traj_idx, len(dataset) - 1)
     input, full_traj = dataset[traj_idx]
 
     input = input.to(device)
@@ -153,7 +154,9 @@ def avererage_predictions(
     """
 
     losses = []
-    for traj_idx in range(num_samples):
+    # random trajectory indices
+    traj_idxs = np.random.randint(0, len(dataset), size=num_samples)
+    for traj_idx in traj_idxs:
         logger.info(f"\tComputing loss for trajectory {traj_idx}")
         _, _, loss = next_step_prediction(model, dataset, device, traj_idx)
         losses.append(loss)
@@ -196,18 +199,20 @@ def main():
     #     "ti-main-run-single-0013",
     # ]
 
-    model_list = ["ti-cyl-sym-flow-0001c"]
+    model_list = ["m-main-run-all-0001"]
 
-    base_path = Path("C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs")
-    results_dir = Path(
-        "C:/Users/zsa8rk/sciebo/01_Research/LPFM/figures/model_eval/nextstep_prediction"
-    )
-    results_dir.mkdir(exist_ok=True, parents=True)
+    # base_path = Path("C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs")
+    base_path = Path("/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs")
+    # results_dir = Path(
+    #     "C:/Users/zsa8rk/sciebo/01_Research/LPFM/figures/model_eval/nextstep_prediction"
+    # )
     dt = 1
     num_samples = 10
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     for model_name in model_list:
+        results_dir = base_path / model_name / "nextstep_prediction"
+        results_dir.mkdir(exist_ok=True, parents=True)
         logger.info(f"Computing average losses for {model_name}")
         model_path = base_path / model_name
 
@@ -217,7 +222,7 @@ def main():
 
         data_config = config["data"]
         data_config["full_trajectory_mode"] = True
-        data_config["max_rollout_steps"] = 500
+        data_config["max_rollout_steps"] = 100
         data_config["dt_stride"] = dt
 
         # data_config["datasets"] = ["cylinder_sym_flow_water"]
@@ -243,7 +248,7 @@ def main():
             #########################################################
 
             next_step_predictions, full_traj, loss = next_step_prediction(
-                model, dataset, device, traj_idx=0
+                model, dataset, device, traj_idx=100
             )
             # rotate x and y axis
             next_step_predictions = next_step_predictions.permute(0, 2, 1, 3)
@@ -265,7 +270,7 @@ def main():
                 loss,
                 output_dir,
                 f"{dataset_name}_next_step_dt{dt}",
-                fps=1,
+                fps=2,
             )
 
 
