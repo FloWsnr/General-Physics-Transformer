@@ -124,7 +124,7 @@ class LossEvaluator:
                 loss_pressure,
                 target[..., 0],
                 y[..., 0],
-                name=f"{dataset_name}_pressure",
+                name=f"{dataset_name}_pressure_sample_{i}",
             )
             self.show_large_losses(
                 loss_density,
@@ -201,7 +201,7 @@ class LossEvaluator:
             plt.colorbar(im1, ax=axs[1])
             # add a title to the figure
             fig.suptitle(f"Loss: {loss_list[i]}, target_norm: {target_norm}")
-            fig.savefig(self.base_path / f"large_losses_{name}_{i}.png")
+            fig.savefig(self.base_path / "max_losses" / f"{name}_{i}.png")
             plt.close()
 
             print(f"   Saved large losses to {name}_{i}.png")
@@ -233,8 +233,8 @@ if __name__ == "__main__":
     # set cuda visible devices
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     base_path = Path("/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs")
-    model_name = "ti-main-run-all-0005"
+    model_name = "m-main-run-all-0001"
     loss_evaluator = LossEvaluator(
-        base_path=base_path / model_name, batch_size=128, num_workers=8, num_samples=20
+        base_path=base_path / model_name, batch_size=64, num_workers=8, num_samples=40
     )
     loss_evaluator.main()
