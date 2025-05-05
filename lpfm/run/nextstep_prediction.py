@@ -185,16 +185,18 @@ def plot_loss(mean_loss: torch.Tensor, std_loss: torch.Tensor) -> LossVsTimePlot
 
 
 def main():
-    model_list = [
-        "ti-main-run-single-0006",
-        "ti-main-run-single-0007",
-        "ti-main-run-single-0008",
-        "ti-main-run-single-0009",
-        "ti-main-run-single-0010",
-        "ti-main-run-single-0011",
-        "ti-main-run-single-0012",
-        "ti-main-run-single-0013",
-    ]
+    # model_list = [
+    #     "ti-main-run-single-0006",
+    #     "ti-main-run-single-0007",
+    #     "ti-main-run-single-0008",
+    #     "ti-main-run-single-0009",
+    #     "ti-main-run-single-0010",
+    #     "ti-main-run-single-0011",
+    #     "ti-main-run-single-0012",
+    #     "ti-main-run-single-0013",
+    # ]
+
+    model_list = ["ti-cyl-sym-flow-0001c"]
 
     base_path = Path("C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs")
     results_dir = Path(
@@ -240,29 +242,31 @@ def main():
             # Create video of the next step prediction
             #########################################################
 
-            # next_step_predictions, full_traj, _ = next_step_prediction(
-            #     model, dataset, device, traj_idx=0
-            # )
-            # # rotate x and y axis
-            # next_step_predictions = next_step_predictions.permute(0, 2, 1, 3)
-            # full_traj = full_traj.permute(0, 2, 1, 3)
+            next_step_predictions, full_traj, loss = next_step_prediction(
+                model, dataset, device, traj_idx=0
+            )
+            # rotate x and y axis
+            next_step_predictions = next_step_predictions.permute(0, 2, 1, 3)
+            full_traj = full_traj.permute(0, 2, 1, 3)
 
-            # next_step_predictions = next_step_predictions.cpu().numpy()
-            # full_traj = full_traj.cpu().numpy()
+            next_step_predictions = next_step_predictions.cpu().numpy()
+            full_traj = full_traj.cpu().numpy()
+            loss = loss.cpu().numpy()
 
-            # # Create videos for both actual and predicted trajectories
-            # output_dir = results_dir / "videos"
-            # output_dir.mkdir(exist_ok=True)
+            # Create videos for both actual and predicted trajectories
+            output_dir = results_dir / "videos"
+            output_dir.mkdir(exist_ok=True)
 
-            # # Create video of the ground truth and the predicted trajectory
-            # logger.info("Creating video of next step prediction")
-            # create_field_video(
-            #     full_traj,
-            #     next_step_predictions,
-            #     output_dir,
-            #     f"{dataset_name}_next_step_dt{dt}",
-            #     fps=1,
-            # )
+            # Create video of the ground truth and the predicted trajectory
+            logger.info("Creating video of next step prediction")
+            create_field_video(
+                full_traj,
+                next_step_predictions,
+                loss,
+                output_dir,
+                f"{dataset_name}_next_step_dt{dt}",
+                fps=1,
+            )
 
 
 if __name__ == "__main__":
