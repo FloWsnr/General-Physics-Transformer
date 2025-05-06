@@ -15,8 +15,6 @@ except ImportError:
 
 import matplotlib.pyplot as plt
 
-from torch.amp.grad_scaler import GradScaler
-
 from lpfm.model.transformer.model import get_model
 from lpfm.data.dataset_utils import get_datasets
 from lpfm.data.phys_dataset import PhysicsDataset
@@ -24,151 +22,287 @@ from lpfm.utils.logger import get_logger
 from lpfm.utils.rollout_video import create_field_video
 from lpfm.model.transformer.loss_fns import NMSELoss
 from lpfm.utils.plotting.plot_lossVsTime import LossVsTimePlotter
+from lpfm.run.run_utils import load_stored_model
 
 logger = get_logger(__name__, log_level="INFO")
 
 
-def load_model(
-    model_path: Path, device: torch.device, model_config: dict
-) -> torch.nn.Module:
-    """Load a model from a checkpoint.
+class PhysicsPredictor:
+    """A class for making physics predictions using a trained model.
 
     Parameters
     ----------
     model_path : Path
         Path to the model checkpoint
     device : torch.device
-        Device to load the model to
+        Device to run the model on
     model_config : dict
         Model configuration dictionary
-
-    Returns
-    -------
-    torch.nn.Module
-        Loaded model
+    data_config : dict
+        Data configuration dictionary
     """
-    data = torch.load(model_path, map_location=device, weights_only=False)
-    model = get_model(model_config)
-    model.load_state_dict(data["model_state_dict"], strict=False)
-    model.to(device)
-    model.eval()
-    return model
 
-
-@torch.inference_mode()
-def next_step_prediction(
-    model: torch.nn.Module,
-    dataset: PhysicsDataset,
-    device: torch.device,
-    traj_idx: int = 0,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Next step prediction for a given dataset.
-
-    Parameters
-    ----------
-    model : torch.nn.Module
-        The model to use for prediction
-    dataset : PhysicsDataset
-        Dataset containing the trajectories
-    device : torch.device
-        Device to run the model on
-    traj_idx : int
-        Index of the trajectory to predict
-
-    Returns
-    -------
-    tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-        Tuple containing the predicted outputs, the ground truth, and the loss
-    """
-    criterion = NMSELoss(dims=(2, 3), return_scalar=False)
-
-    # get first trajectory
-    traj_idx = min(traj_idx, len(dataset) - 1)
-    input, full_traj = dataset[traj_idx]
-
-    input = input.to(device)
-    full_traj = full_traj.to(device)
-
-    # add batch dimension
-    input = input.unsqueeze(0)
-    full_traj = full_traj.unsqueeze(0)
-
-    B, T, H, W, C = full_traj.shape
-
-    outputs = []
-    with torch.autocast(
-        device_type=device.type,
-        dtype=torch.bfloat16,
+    def __init__(
+        self,
+        model_path: Path,
+        device: torch.device,
+        model_config: dict,
+        data_config: dict,
+        results_dir: Path,
     ):
-        for i in range(T):  # T-1 because we predict the next step
-            # Predict next timestep
-            output = model(input)
-            outputs.append(output)
-            # Update input
-            input = torch.cat(
-                [input[:, 1:, ...], full_traj[:, i, ...].unsqueeze(1)], dim=1
+        self.device = device
+        self.model = self._load_model(model_path, device, model_config)
+        self.data_config = data_config
+        self.criterion = NMSELoss(dims=(2, 3), return_scalar=False)
+        self.results_dir = results_dir
+        self.results_dir.mkdir(exist_ok=True, parents=True)
+
+        self.datasets = get_datasets(data_config, split="test")
+
+    def _load_model(
+        self, model_path: Path, device: torch.device, model_config: dict
+    ) -> torch.nn.Module:
+        """Load a model from a checkpoint.
+
+        Parameters
+        ----------
+        model_path : Path
+            Path to the model checkpoint
+        device : torch.device
+            Device to load the model to
+        model_config : dict
+            Model configuration dictionary
+
+        Returns
+        -------
+        torch.nn.Module
+            Loaded model
+        """
+        data = load_stored_model(model_path, device, remove_ddp=True)
+        model = get_model(model_config)
+        model.load_state_dict(data["model_state_dict"], strict=True)
+        model.to(device)
+        model.eval()
+        return model
+
+    @torch.inference_mode()
+    def predict(
+        self,
+        dataset: PhysicsDataset,
+        traj_idx: int = 0,
+        rollout: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Make predictions for a given dataset.
+        Can be used for next step prediction or rollout prediction.
+
+        Parameters
+        ----------
+        dataset : PhysicsDataset
+            Dataset containing the trajectories
+        traj_idx : int, optional
+            Index of the trajectory to predict, by default 0
+        rollout : bool, optional
+            Whether to rollout the full trajectory prediction, by default False
+
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+            Tuple containing the predicted outputs,
+            the ground truth, and the loss at each timestep
+        """
+        # get first trajectory
+        traj_idx = min(traj_idx, len(dataset) - 1)
+        input, full_traj = dataset[traj_idx]
+
+        input = input.to(self.device)
+        full_traj = full_traj.to(self.device)
+
+        # add batch dimension
+        input = input.unsqueeze(0)
+        full_traj = full_traj.unsqueeze(0)
+
+        B, T, H, W, C = full_traj.shape
+
+        outputs = []
+        with torch.autocast(
+            device_type=self.device.type,
+            dtype=torch.bfloat16,
+        ):
+            for i in range(T):  # T-1 because we predict the next step
+                # Predict next timestep
+                output = self.model(input)
+                # if the output is nan, stop the rollout
+                if torch.isnan(output).any() or torch.isinf(output).any():
+                    break
+
+                outputs.append(output)
+                # Update input
+                if rollout:
+                    input = torch.cat([input[:, 1:, ...], output], dim=1)
+                else:
+                    input = torch.cat(
+                        [input[:, 1:, ...], full_traj[:, i, ...].unsqueeze(1)], dim=1
+                    )
+
+        outputs = torch.cat(outputs, dim=1)
+
+        # loss is still a tensor of shape (B, T, H, W, C), averaged only over H and W
+        loss = self.criterion(outputs, full_traj)
+        # reduce over H and W
+        loss = torch.mean(loss, dim=(2, 3))  # (B, T, C)
+        # remove batch dimension
+        loss = loss.squeeze(0)  # (T, C)
+
+        # remove batch dimension
+        outputs = outputs.squeeze(0)
+        full_traj = full_traj.squeeze(0)
+
+        # Return predictions and ground truth (excluding first timestep)
+        return outputs, full_traj, loss
+
+    def average_predictions(
+        self,
+        dataset: PhysicsDataset,
+        num_samples: int = 10,
+        rollout: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute multiple predictions and average the losses.
+
+        Parameters
+        ----------
+        dataset : PhysicsDataset
+            Dataset containing the trajectories
+        num_samples : int, optional
+            Number of samples to average over, by default 10
+        rollout : bool, optional
+            Whether to rollout the full trajectory prediction, by default False
+
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            The averaged loss and standard deviation for each channel and timestep
+        """
+        losses = []
+        # random trajectory indices
+        indices = np.arange(len(dataset))
+        traj_idxs = np.random.choice(indices, size=num_samples, replace=False)
+        for traj_idx in traj_idxs:
+            logger.info(f"\tComputing loss for trajectory {traj_idx}")
+            _, _, loss = self.predict(dataset, traj_idx, rollout=rollout)
+            losses.append(loss)
+        losses = torch.stack(losses, dim=0)
+        # compute mean and std over the trajectories
+        return torch.mean(losses, dim=0), torch.std(losses, dim=0)
+
+    def _create_visualization(
+        self,
+        dataset: PhysicsDataset,
+        traj_idx: int,
+        output_dir: Path,
+        title: str,
+        rollout: bool = False,
+        fps: int = 2,
+    ) -> None:
+        """Create visualization of predictions.
+
+        Parameters
+        ----------
+        dataset : PhysicsDataset
+            Dataset containing the trajectories
+        traj_idx : int
+            Index of the trajectory to visualize
+        output_dir : Path
+            Directory to save the visualization
+        title : str
+            Title for the visualization
+        rollout : bool, optional
+            Whether to rollout the full trajectory prediction, by default False
+        fps : int, optional
+            Frames per second for the video, by default 2
+        """
+        next_step_predictions, full_traj, loss = self.predict(
+            dataset, traj_idx, rollout=rollout
+        )
+        # rotate x and y axis
+        next_step_predictions = next_step_predictions.permute(0, 2, 1, 3)
+        full_traj = full_traj.permute(0, 2, 1, 3)
+
+        next_step_predictions = next_step_predictions.cpu().numpy()
+        full_traj = full_traj.cpu().numpy()
+        loss = loss.cpu().numpy()
+
+        # Create videos for both actual and predicted trajectories
+        output_dir.mkdir(exist_ok=True)
+
+        # Create video of the ground truth and the predicted trajectory
+        logger.info("   Creating video of next step prediction")
+        create_field_video(
+            full_traj,
+            next_step_predictions,
+            loss,
+            output_dir,
+            title,
+            fps=fps,
+        )
+
+    def predict_all(
+        self,
+        num_samples: int = 10,
+        fps: int = 2,
+        rollout: bool = False,
+    ):
+        """Predict all datasets."""
+        dt = self.data_config["dt_stride"]
+
+        if rollout:
+            save_dir = self.results_dir / "rollout"
+        else:
+            save_dir = self.results_dir / "nextstep"
+
+        save_dir.mkdir(exist_ok=True, parents=True)
+
+        for dataset_name, dataset in self.datasets.items():
+            logger.info(f"  Computing average loss for {dataset_name}")
+            mean_loss, std_loss = self.average_predictions(
+                dataset, num_samples=num_samples, rollout=rollout
             )
+            logger.info(f"  Finished computing average loss for {dataset_name}")
+            plotter = plot_loss(mean_loss, std_loss)
 
-    outputs = torch.cat(outputs, dim=1)
+            save_path = save_dir / f"{dataset_name}_loss_dt{dt}.png"
+            plotter.save_figure(save_path)
 
-    # loss is still a tensor of shape (B, T, H, W, C), averaged only over H and W
-    loss = criterion(outputs, full_traj)
-    # reduce over H and W
-    loss = torch.mean(loss, dim=(2, 3))  # (B, T, C)
-    # remove batch dimension
-    loss = loss.squeeze(0)  # (T, C)
-
-    # remove batch dimension
-    outputs = outputs.squeeze(0)
-    full_traj = full_traj.squeeze(0)
-
-    # Return predictions and ground truth (excluding first timestep)
-    return outputs, full_traj, loss
+            # Create video of the next step prediction
+            output_dir = save_dir / "videos"
+            self._create_visualization(
+                dataset,
+                traj_idx=100,
+                output_dir=output_dir,
+                title=f"{dataset_name}_next_step_dt{dt}",
+                fps=fps,
+                rollout=rollout,
+            )
 
 
 def load_config(model_path: Path) -> dict:
+    """Load configuration from a yaml file.
+
+    Parameters
+    ----------
+    model_path : Path
+        Path to the model directory containing config.yaml
+
+    Returns
+    -------
+    dict
+        Configuration dictionary
+    """
     config_path = model_path / "config.yaml"
     with open(config_path, "r") as f:
         config = yaml.load(f, Loader=Loader)
     return config
-
-
-def avererage_predictions(
-    model: torch.nn.Module,
-    dataset: PhysicsDataset,
-    device: torch.device,
-    num_samples: int = 10,
-) -> torch.Tensor:
-    """Compute multiple next step predictions and average the losses.
-
-    Parameters
-    ----------
-    model : torch.nn.Module
-        The model to use for prediction
-    dataset : PhysicsDataset
-        Dataset containing the trajectories
-    device : torch.device
-        Device to run the model on
-    num_samples : int
-        Number of samples to average over
-
-    Returns
-    -------
-    torch.Tensor
-        The averaged loss for each channel and timestep
-    """
-
-    losses = []
-    # random trajectory indices
-    indices = np.arange(len(dataset))
-    traj_idxs = np.random.choice(indices, size=num_samples, replace=False)
-    for traj_idx in traj_idxs:
-        logger.info(f"\tComputing loss for trajectory {traj_idx}")
-        _, _, loss = next_step_prediction(model, dataset, device, traj_idx)
-        losses.append(loss)
-    losses = torch.stack(losses, dim=0)
-    # compute mean and std over the trajectories
-    return torch.mean(losses, dim=0), torch.std(losses, dim=0)
 
 
 def plot_loss(mean_loss: torch.Tensor, std_loss: torch.Tensor) -> LossVsTimePlotter:
@@ -194,91 +328,40 @@ def plot_loss(mean_loss: torch.Tensor, std_loss: torch.Tensor) -> LossVsTimePlot
 
 
 def main():
-    # model_list = [
-    #     "ti-main-run-single-0006",
-    #     "ti-main-run-single-0007",
-    #     "ti-main-run-single-0008",
-    #     "ti-main-run-single-0009",
-    #     "ti-main-run-single-0010",
-    #     "ti-main-run-single-0011",
-    #     "ti-main-run-single-0012",
-    #     "ti-main-run-single-0013",
-    # ]
+    model_list = ["ti-cyl-sym-flow-0001c"]
 
-    model_list = ["m-main-run-all-0001"]
-
-    # base_path = Path("C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs")
-    base_path = Path("/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs")
-    # results_dir = Path(
-    #     "C:/Users/zsa8rk/sciebo/01_Research/LPFM/figures/model_eval/nextstep_prediction"
-    # )
+    base_path = Path("C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs")
     dt = 1
     num_samples = 10
+    fps = 2
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     for model_name in model_list:
-        results_dir = base_path / model_name / "nextstep_prediction"
-        results_dir.mkdir(exist_ok=True, parents=True)
-        logger.info(f"Computing average losses for {model_name}")
-        model_path = base_path / model_name
+        results_dir = base_path / model_name
 
-        config = load_config(model_path)
+        config = load_config(results_dir)
         model_config = config["model"]
-        model_file = model_path / "val_0029" / "checkpoint.pth"
-        model = load_model(model_file, device, model_config)
+        model_file = results_dir / "best_model.pth"
 
         data_config = config["data"]
         data_config["full_trajectory_mode"] = True
-        data_config["max_rollout_steps"] = 30
+        data_config["max_rollout_steps"] = 50
         data_config["dt_stride"] = dt
 
-        # data_config["datasets"] = ["cylinder_sym_flow_water"]
+        # data_config["datasets"] = ["cylinder_flow"]
 
-        datasets: dict = get_datasets(
+        predictor = PhysicsPredictor(
+            model_file,
+            device,
+            model_config,
             data_config,
-            split="test",
+            results_dir,
         )
 
-        for dataset_name, dataset in datasets.items():
-            logger.info(f"  Computing average loss for {dataset_name}")
-            mean_loss, std_loss = avererage_predictions(
-                model, dataset, device, num_samples=num_samples
-            )
-            logger.info(f"  Finished computing average loss for {dataset_name}")
-
-            plotter = plot_loss(mean_loss, std_loss)
-            save_path = results_dir / f"{model_name}_{dataset_name}_loss_dt{dt}.png"
-            plotter.save_figure(save_path)
-
-            #########################################################
-            # Create video of the next step prediction
-            #########################################################
-
-            next_step_predictions, full_traj, loss = next_step_prediction(
-                model, dataset, device, traj_idx=100
-            )
-            # rotate x and y axis
-            next_step_predictions = next_step_predictions.permute(0, 2, 1, 3)
-            full_traj = full_traj.permute(0, 2, 1, 3)
-
-            next_step_predictions = next_step_predictions.cpu().numpy()
-            full_traj = full_traj.cpu().numpy()
-            loss = loss.cpu().numpy()
-
-            # Create videos for both actual and predicted trajectories
-            output_dir = results_dir / "videos"
-            output_dir.mkdir(exist_ok=True)
-
-            # Create video of the ground truth and the predicted trajectory
-            logger.info("Creating video of next step prediction")
-            create_field_video(
-                full_traj,
-                next_step_predictions,
-                loss,
-                output_dir,
-                f"{dataset_name}_next_step_dt{dt}",
-                fps=2,
-            )
+        logger.info(f"Predicting {model_name} with rollout")
+        predictor.predict_all(num_samples=num_samples, fps=fps, rollout=True)
+        logger.info(f"Predicting {model_name} without rollout")
+        predictor.predict_all(num_samples=num_samples, fps=fps, rollout=False)
 
 
 if __name__ == "__main__":

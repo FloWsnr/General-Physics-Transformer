@@ -53,7 +53,7 @@ def create_field_video(
 
             ax[0].set_title(f"Ground Truth - {name} (t={t})")
             ax[1].set_title(
-                f"Prediction - {name} (t={t}), Loss: {loss[t, channel]:.2f}"
+                f"Prediction - {name} (t={t})\nLoss: {loss[t, channel]:.6f}"
             )
 
             # add colorbar for each subplot
