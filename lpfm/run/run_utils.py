@@ -25,16 +25,18 @@ def load_stored_model(
     """
     torch.serialization.add_safe_globals([pathlib.PosixPath, pathlib.WindowsPath])
     checkpoint = torch.load(checkpoint_path, weights_only=True, map_location=device)
+    new_state_dict = {}
     if remove_ddp:
         for key, value in checkpoint["model_state_dict"].items():
             # Check if the key starts with 'module._orig_mod.'
             if key.startswith("module._orig_mod."):
                 # Remove the prefix
                 new_key = key.replace("module._orig_mod.", "")
-                checkpoint["model_state_dict"][new_key] = value
+                new_state_dict[new_key] = value
             else:
                 # Keep the key as is
-                checkpoint["model_state_dict"][key] = value
+                new_state_dict[key] = value
+    checkpoint["model_state_dict"] = new_state_dict
     return checkpoint
 
 
