@@ -17,20 +17,20 @@ FIELD_COLORS = OrderedDict(
 )
 
 datasets = [
-    # "cooled_object_pipe_flow_air",
-    "heated_object_pipe_flow_air",
-    # "object_sym_flow_air",
-    # "object_sym_flow_water",
-    # "object_periodic_flow_water",
-    # "cylinder_sym_flow_water",
-    # "cylinder_pipe_flow_water",
-    # "euler_multi_quadrants_periodicBC",
-    # "turbulent_radiative_layer_2D",
-    # "rayleigh_benard",
-    # "shear_flow",
-    # "twophase_flow",
-    # "rayleigh_benard_obstacle",
-    # "acoustic_scattering_inclusions",
+    ("cooled_object_pipe_flow_air", 10),
+    ("heated_object_pipe_flow_air", 10),
+    ("object_sym_flow_air", 10),
+    ("object_sym_flow_water", 10),
+    ("object_periodic_flow_water", 10),
+    ("cylinder_sym_flow_water", 10),
+    ("cylinder_pipe_flow_water", 10),
+    ("euler_multi_quadrants_periodicBC", 10),
+    ("turbulent_radiative_layer_2D", 10),
+    ("rayleigh_benard", 10),
+    ("shear_flow", 10),
+    ("twophase_flow", 10),
+    ("rayleigh_benard_obstacle", 10),
+    ("acoustic_scattering_inclusions", 10),
 ]
 
 
@@ -68,14 +68,15 @@ def sample_to_image(
 
 
 include_field_names = {
-        "t0_fields": ["pressure", "density", "temperature"],
-        "t1_fields": ["velocity"],
-    }
+    "t0_fields": ["pressure", "density", "temperature"],
+    "t1_fields": ["velocity"],
+}
+
 
 def main():
     base_path = Path("data/datasets")
     split = "train"
-    for dataset in datasets:
+    for dataset, traj_idx in datasets:
         print(f"Processing {dataset}")
         dataset_path = base_path / f"{dataset}/data/{split}"
         if not dataset_path.exists():
@@ -92,7 +93,7 @@ def main():
 
         save_path = dataset_path.parents[1] / "images"
         save_path.mkdir(parents=True, exist_ok=True)
-        sample = get_dataset_sample(dataset, 10050)
+        sample = get_dataset_sample(dataset, traj_idx)
         sample_to_image(sample, save_path)
 
 
