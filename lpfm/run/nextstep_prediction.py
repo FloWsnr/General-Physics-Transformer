@@ -266,22 +266,24 @@ class PhysicsPredictor:
 
         for dataset_name, dataset in self.datasets.items():
             logger.info(f"  Computing average loss for {dataset_name}")
+            output_dir = save_dir / f"{dataset_name}"
+            output_dir.mkdir(exist_ok=True, parents=True)
+
             mean_loss, std_loss = self.average_predictions(
                 dataset, num_samples=num_samples, rollout=rollout
             )
             logger.info(f"  Finished computing average loss for {dataset_name}")
             plotter = plot_loss(mean_loss, std_loss)
 
-            save_path = save_dir / f"{dataset_name}_loss_dt{dt}.png"
+            save_path = output_dir / f"loss_dt{dt}.png"
             plotter.save_figure(save_path)
 
             # Create video of the next step prediction
-            output_dir = save_dir / "videos"
             self._create_visualization(
                 dataset,
                 traj_idx=100,
                 output_dir=output_dir,
-                title=f"{dataset_name}_next_step_dt{dt}",
+                title=f"dt{dt}",
                 fps=fps,
                 rollout=rollout,
             )
@@ -329,14 +331,14 @@ def plot_loss(mean_loss: torch.Tensor, std_loss: torch.Tensor) -> LossVsTimePlot
 
 
 def main():
-    model_list = ["ti-cyl-sym-flow-0001c-cooldown"]
+    model_list = ["m-main-run-all-0001"]
 
-    base_path = Path("C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs")
+    base_path = Path("/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs")
     num_samples = 50
     fps = 2
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    for dt in [1, 8]:
+    for dt in [1]:
         for model_name in model_list:
             results_dir = base_path / model_name
 
@@ -359,8 +361,8 @@ def main():
                 results_dir,
             )
 
-            logger.info(f"Predicting {model_name} with rollout")
-            predictor.predict_all(num_samples=num_samples, fps=fps, rollout=True)
+            # logger.info(f"Predicting {model_name} with rollout")
+            # predictor.predict_all(num_samples=num_samples, fps=fps, rollout=True)
             logger.info(f"Predicting {model_name} without rollout")
             predictor.predict_all(num_samples=num_samples, fps=fps, rollout=False)
 
