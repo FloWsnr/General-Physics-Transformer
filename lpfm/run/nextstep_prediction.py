@@ -13,7 +13,6 @@ try:
 except ImportError:
     from yaml import Loader
 
-import matplotlib.pyplot as plt
 
 from lpfm.model.transformer.model import get_model
 from lpfm.data.dataset_utils import get_datasets
