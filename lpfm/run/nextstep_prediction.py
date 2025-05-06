@@ -186,6 +186,8 @@ class PhysicsPredictor:
         losses = []
         # random trajectory indices
         indices = np.arange(len(dataset))
+        if num_samples > len(indices):
+            num_samples = len(indices)
         traj_idxs = np.random.choice(indices, size=num_samples, replace=False)
         for traj_idx in traj_idxs:
             logger.info(f"\tComputing loss for trajectory {traj_idx}")
@@ -315,52 +317,52 @@ def plot_loss(mean_loss: torch.Tensor, std_loss: torch.Tensor) -> LossVsTimePlot
     std_loss : torch.Tensor
         The standard deviation of the loss for each channel and timestep
     """
-    min_loss = torch.min(mean_loss).item()
-    max_loss = torch.max(mean_loss).item()
     time_steps = mean_loss.shape[0]
     x_ticks = [0, time_steps // 2, time_steps]
-    y_ticks = [0, max_loss * 0.5, max_loss]
-    plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks, color="white")
+    y_ticks = [0.001, 0.1, 10]
+    plotter = LossVsTimePlotter(
+        x_ticks=x_ticks, y_ticks=y_ticks, color="white", y_log=True
+    )
     plotter.plot(mean_loss, std_loss)
     plotter.legend(title="Fields", loc="upper right")
     return plotter
 
 
 def main():
-    model_list = ["ti-cyl-sym-flow-0001c"]
+    model_list = ["ti-cyl-sym-flow-0001c-cooldown"]
 
     base_path = Path("C:/Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs")
-    dt = 1
-    num_samples = 10
+    num_samples = 50
     fps = 2
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    for model_name in model_list:
-        results_dir = base_path / model_name
+    for dt in [1, 8]:
+        for model_name in model_list:
+            results_dir = base_path / model_name
 
-        config = load_config(results_dir)
-        model_config = config["model"]
-        model_file = results_dir / "best_model.pth"
+            config = load_config(results_dir)
+            model_config = config["model"]
+            model_file = results_dir / "best_model.pth"
 
-        data_config = config["data"]
-        data_config["full_trajectory_mode"] = True
-        data_config["max_rollout_steps"] = 50
-        data_config["dt_stride"] = dt
+            data_config = config["data"]
+            data_config["full_trajectory_mode"] = True
+            data_config["max_rollout_steps"] = 50
+            data_config["dt_stride"] = dt
 
-        # data_config["datasets"] = ["cylinder_flow"]
+            # data_config["datasets"] = ["cylinder_flow"]
 
-        predictor = PhysicsPredictor(
-            model_file,
-            device,
-            model_config,
-            data_config,
-            results_dir,
-        )
+            predictor = PhysicsPredictor(
+                model_file,
+                device,
+                model_config,
+                data_config,
+                results_dir,
+            )
 
-        logger.info(f"Predicting {model_name} with rollout")
-        predictor.predict_all(num_samples=num_samples, fps=fps, rollout=True)
-        logger.info(f"Predicting {model_name} without rollout")
-        predictor.predict_all(num_samples=num_samples, fps=fps, rollout=False)
+            logger.info(f"Predicting {model_name} with rollout")
+            predictor.predict_all(num_samples=num_samples, fps=fps, rollout=True)
+            logger.info(f"Predicting {model_name} without rollout")
+            predictor.predict_all(num_samples=num_samples, fps=fps, rollout=False)
 
 
 if __name__ == "__main__":

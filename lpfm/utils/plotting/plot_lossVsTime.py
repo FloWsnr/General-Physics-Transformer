@@ -10,6 +10,7 @@ class LossVsTimePlotter(BasePlotter):
         x_ticks: list[int],
         y_ticks: list[float],
         color: Literal["white", "black"] = "white",
+        y_log: bool = False,
     ):
         super().__init__(color)
 
@@ -18,6 +19,7 @@ class LossVsTimePlotter(BasePlotter):
             y_ticks=y_ticks,
             x_label="Time",
             y_label="NMSE",
+            y_log=y_log,
         )
 
     def plot(self, mean_loss: torch.Tensor, std_loss: torch.Tensor):
