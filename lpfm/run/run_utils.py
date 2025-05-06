@@ -1,4 +1,41 @@
+import pathlib
 from pathlib import Path
+
+import torch
+
+
+def load_stored_model(
+    checkpoint_path: Path, device: torch.device, remove_ddp: bool = False
+) -> dict:
+    """Load a checkpoint.
+
+    Parameters
+    ----------
+    checkpoint_path : Path
+        Path to the checkpoint
+    device : torch.device
+        Device to load the checkpoint to
+    remove_ddp : bool
+        Whether to remove the DDP wrapper keys from the model
+
+    Returns
+    -------
+    dict
+        Checkpoint
+    """
+    torch.serialization.add_safe_globals([pathlib.PosixPath, pathlib.WindowsPath])
+    checkpoint = torch.load(checkpoint_path, weights_only=True, map_location=device)
+    if remove_ddp:
+        for key, value in checkpoint["model_state_dict"].items():
+            # Check if the key starts with 'module._orig_mod.'
+            if key.startswith("module._orig_mod."):
+                # Remove the prefix
+                new_key = key.replace("module._orig_mod.", "")
+                checkpoint["model_state_dict"][new_key] = value
+            else:
+                # Keep the key as is
+                checkpoint["model_state_dict"][key] = value
+    return checkpoint
 
 
 def find_last_checkpoint(sim_dir: Path, best_model: bool) -> Path:

@@ -7,14 +7,15 @@ Date: 2025-04-07
 
 import os
 from pathlib import Path
-import pathlib
 import time
 import argparse
 import platform
 import math
 from dataclasses import dataclass
+
 import wandb
 import wandb.wandb_run
+
 import yaml
 
 try:
@@ -41,7 +42,7 @@ from lpfm.model.transformer.model import get_model
 from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
 from lpfm.utils.logger import get_logger
 from lpfm.model.transformer.loss_fns import NMSELoss, RNMSELoss, VMSELoss, RVMSELoss
-from lpfm.run.run_utils import find_last_checkpoint, human_format
+from lpfm.run.run_utils import find_last_checkpoint, human_format, load_stored_model
 from lpfm.run.lr_scheduler import get_lr_scheduler
 
 
@@ -325,10 +326,7 @@ class Trainer:
             raise ValueError("Invalid combination of restart and new_training")
 
         self.log_msg(f"Loading checkpoint from {checkpoint_path}")
-        torch.serialization.add_safe_globals([pathlib.PosixPath, pathlib.WindowsPath])
-        checkpoint = torch.load(
-            checkpoint_path, weights_only=True, map_location=self.device
-        )
+        checkpoint = load_stored_model(checkpoint_path, self.device, remove_ddp=False)
         self.total_samples_trained = checkpoint["samples_trained"]
         self.total_batches_trained = checkpoint["batches_trained"]
         self.cycle_idx = checkpoint["cycle_idx"]
