@@ -13,6 +13,7 @@ logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
   log_file: null #log.txt
   log_level: INFO
+  subdir_name: val_ # subdir name each cycle, should end with an underscore
 
 model:
   architecture:

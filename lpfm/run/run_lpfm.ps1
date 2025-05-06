@@ -30,6 +30,8 @@ $sim_name = "ti-cyl-sym-flow-0001"
 
 # use a checkpoint to continue training with a new config file (learning rate, etc.)
 $new_training = $false
+# config to use for new training, located in the log dir
+$new_config_name = "config_cooldown.yaml"
 # use the best model for potential restart
 $best_model = $false
 
@@ -56,9 +58,7 @@ if (-not (Test-Path $sim_dir)) {
 Copy-Item -Path $PSCommandPath -Destination $sim_dir
 
 if ($new_training) {
-    # copy a new config file to the sim_dir and use it as the config file
-    $config_file = Join-Path $sim_dir "$(Get-Date -Format 'yyyyMMdd')_config.yaml"
-    Copy-Item -Path $base_config_file -Destination $config_file
+    $config_file = Join-Path $sim_dir $new_config_name
     $restart = $false
     Write-Host "Using checkpoint to continue training with new config file..."
 }
@@ -109,7 +109,7 @@ if ($best_model) {
 }
 
 # Run the training script with torchrun for distributed training
-$cmd = "torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args"
+$cmd = "python $python_exec $exec_args"
 Invoke-Expression $cmd
 
 # Move the output file to the sim_dir (if it exists)

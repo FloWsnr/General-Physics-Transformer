@@ -109,6 +109,10 @@ class Trainer:
             Path(self.config["logging"]["log_dir"]) / self.config["wandb"]["id"]
         )
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        if "subdir_name" in self.config["logging"]:
+            self.cycle_name = self.config["logging"]["subdir_name"]
+        else:
+            self.cycle_name = "val_"
 
         if self.global_rank == 0:
             self.wandb_run = login_wandb(self.config)
@@ -327,9 +331,10 @@ class Trainer:
 
         self.log_msg(f"Loading checkpoint from {checkpoint_path}")
         checkpoint = load_stored_model(checkpoint_path, self.device, remove_ddp=False)
-        self.total_samples_trained = checkpoint["samples_trained"]
-        self.total_batches_trained = checkpoint["batches_trained"]
-        self.cycle_idx = checkpoint["cycle_idx"]
+        if not new_training:
+            self.total_samples_trained = checkpoint["samples_trained"]
+            self.total_batches_trained = checkpoint["batches_trained"]
+            self.cycle_idx = checkpoint["cycle_idx"]
         ##################################################################
         ########## Load model, optimizer, and scheduler ##################
         ##################################################################
@@ -697,7 +702,7 @@ class Trainer:
         while self.total_samples_trained < self.total_samples:
             self.cycle_idx += 1
             start_epoch_time = time.time()
-            self.val_dir = self.log_dir / f"val_{self.cycle_idx:04d}"
+            self.val_dir = self.log_dir / f"{self.cycle_name}{self.cycle_idx:04d}"
             self.val_dir.mkdir(parents=True, exist_ok=True)
             ######################################################################
             ########### Training ###############################################
@@ -945,7 +950,14 @@ def main(
 
     if restart or new_training:
         checkpoint_dir = config["logging"]["log_dir"] / config["wandb"]["id"]
-        checkpoint_path = find_last_checkpoint(checkpoint_dir, best_model)
+
+        # get subdir name to look for in the checkpoint dir
+        if "subdir_name" in config["logging"]:
+            subdir_name = config["logging"]["subdir_name"]
+        else:
+            subdir_name = "val_"
+
+        checkpoint_path = find_last_checkpoint(checkpoint_dir, subdir_name, best_model)
         if checkpoint_path is None:
             if global_rank == 0:
                 print("No checkpoint found, starting from scratch")

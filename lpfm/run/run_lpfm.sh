@@ -71,6 +71,8 @@ export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
 # use a checkpoint to continue training with a new config file (learning rate, etc.)
 new_training=false
+# config to use for new training, located in the log dir
+new_config_name="config_cooldown.yaml"
 # use the best model for potential restart
 best_model=false
 
@@ -102,8 +104,7 @@ cp "$0" "${sim_dir}/slurm_script.sh"
 
 if [ "$new_training" = true ]; then
     # copy a new config file to the sim_dir and use it as the config file
-    config_file="${sim_dir}/$(date +%Y%m%d)_config.yaml"
-    cp $base_config_file $config_file
+    config_file="${sim_dir}/${new_config_name}"
     restart=false
     echo "Using checkpoint to continue training with new config file..."
 else

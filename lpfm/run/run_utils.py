@@ -38,13 +38,16 @@ def load_stored_model(
     return checkpoint
 
 
-def find_last_checkpoint(sim_dir: Path, best_model: bool) -> Path:
+def find_last_checkpoint(sim_dir: Path, subdir_name: str, best_model: bool) -> Path:
     """Find the last epoch directory in the simulation directory.
 
     Parameters
     ----------
     sim_dir : Path
         Path to the simulation directory
+
+    subdir_name : str
+        Subdirectory name to look for in the checkpoint directory
 
     best_model : bool
         Whether to use the best model for potential restart or the last checkpoint
@@ -66,7 +69,7 @@ def find_last_checkpoint(sim_dir: Path, best_model: bool) -> Path:
 
     # Find all directories that match the pattern "epoch_XXXX"
     epoch_dirs = [
-        d for d in sim_dir.iterdir() if d.is_dir() and d.name.startswith("val_")
+        d for d in sim_dir.iterdir() if d.is_dir() and d.name.startswith(subdir_name)
     ]
 
     if len(epoch_dirs) == 0:
