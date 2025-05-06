@@ -96,7 +96,10 @@ $exec_args = "--config_file `"$config_file`""
 $exec_args += " --sim_name `"$sim_name`""
 $exec_args += " --log_dir `"$log_dir`""
 $exec_args += " --data_dir `"$data_dir`""
-$exec_args += " --time_limit `"$time_limit`""
+
+if ($time_limit) {
+    $exec_args += " --time_limit `"$time_limit`""
+}
 
 if ($restart) {
     $exec_args += " --restart"
