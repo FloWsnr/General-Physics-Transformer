@@ -19,7 +19,7 @@
 #SBATCH --time=24:00:00
 
 ### set number of GPUs per task (v100, a100, h200)
-#SBATCH --gres=gpu:4:a100
+#SBATCH --gres=gpu:a100:4
 ##SBATCH --constraint="a80|a40"
 ## SBATCH -C gpupod # use pod gpus...
 
