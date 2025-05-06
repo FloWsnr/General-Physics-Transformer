@@ -21,6 +21,7 @@ from lpfm.data.dataset_utils import get_datasets
 from lpfm.data.phys_dataset import PhysicsDataset
 from lpfm.utils.logger import get_logger
 from lpfm.model.transformer.loss_fns import NMSELoss
+from lpfm.run.run_utils import load_stored_model
 
 logger = get_logger(__name__, log_level="INFO")
 
@@ -51,9 +52,9 @@ def load_model(
     torch.nn.Module
         Loaded model
     """
-    data = torch.load(model_path, map_location=device, weights_only=False)
+    data = load_stored_model(model_path, device, remove_ddp=True)
     model = get_model(model_config)
-    model.load_state_dict(data["model_state_dict"], strict=False)
+    model.load_state_dict(data["model_state_dict"], strict=True)
     model.to(device)
     model.eval()
     return model
@@ -74,7 +75,8 @@ class LossEvaluator:
             base_path / "best_model.pth", self.device, self.config["model"]
         )
         self.datasets = get_datasets(self.config["data"], split="train")
-        self.base_path = base_path
+        self.base_path = base_path / "loss_eval"
+        self.base_path.mkdir(parents=True, exist_ok=True)
         self.num_samples = num_samples
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -124,31 +126,36 @@ class LossEvaluator:
                 loss_pressure,
                 target[..., 0],
                 y[..., 0],
-                name=f"{dataset_name}_pressure_sample_{i}",
+                dataset_name=dataset_name,
+                name=f"pressure_{i}",
             )
             self.show_large_losses(
                 loss_density,
                 target[..., 1],
                 y[..., 1],
-                name=f"{dataset_name}_density_sample_{i}",
+                dataset_name=dataset_name,
+                name=f"density_{i}",
             )
             self.show_large_losses(
                 loss_temperature,
                 target[..., 2],
                 y[..., 2],
-                name=f"{dataset_name}_temperature_sample_{i}",
+                dataset_name=dataset_name,
+                name=f"temperature_{i}",
             )
             self.show_large_losses(
                 loss_vel_x,
                 target[..., 3],
                 y[..., 3],
-                name=f"{dataset_name}_vel_x_sample_{i}",
+                dataset_name=dataset_name,
+                name=f"vel_x_{i}",
             )
             self.show_large_losses(
                 loss_vel_y,
                 target[..., 4],
                 y[..., 4],
-                name=f"{dataset_name}_vel_y_sample_{i}",
+                dataset_name=dataset_name,
+                name=f"vel_y_{i}",
             )
 
             losses["pressure"].extend(loss_pressure)
@@ -166,9 +173,12 @@ class LossEvaluator:
         loss_list: list,
         target: torch.Tensor,
         y: torch.Tensor,
+        dataset_name: str,
         name: str,
     ):
         """Export the largest losses to a file."""
+        loss_path = self.base_path / dataset_name
+        loss_path.mkdir(parents=True, exist_ok=True)
         # target and y are of shape (batch_size, 1, H, W)
 
         # find losses above 10
@@ -201,10 +211,10 @@ class LossEvaluator:
             plt.colorbar(im1, ax=axs[1])
             # add a title to the figure
             fig.suptitle(f"Loss: {loss_list[i]}, target_norm: {target_norm}")
-            fig.savefig(self.base_path / "max_losses" / f"{name}_{i}.png")
+            fig.savefig(loss_path / f"{name}_{i}.png")
             plt.close()
 
-            print(f"   Saved large losses to {name}_{i}.png")
+            print(f"   Saved large losses to {loss_path}/{name}_{i}.png")
 
     def main(self):
         # create plot with all losses
