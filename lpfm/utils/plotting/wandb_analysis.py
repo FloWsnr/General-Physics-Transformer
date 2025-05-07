@@ -15,22 +15,34 @@ class WandbLoader:
         self.runs: list[Run] = self.api.runs(
             f"{entity}/{project}", {"$or": [{"name": run_id} for run_id in run_ids]}
         )
-        keys = [
-            "training-losses/NMSE",
-            "training/total_samples_trained",
-            "training/total_batches_trained",
-        ]
-        data = {}
-        for run in self.runs:
-            data[run.name] = run.history(keys=keys, pandas=True)
-        self.data = pd.concat(data, axis=1)
-        self.data.columns = pd.MultiIndex.from_tuples(self.data.columns)
 
 
 class LossPlotter(WandbLoader):
     def __init__(self, run_ids: list[str]):
         super().__init__(run_ids)
         print(f"Found {len(self.runs)} runs")
+
+        keys = [
+            "training-losses/NMSE",
+            "training/total_samples_trained",
+            "training/total_batches_trained",
+        ]
+        train_data = {}
+        for run in self.runs:
+            train_data[run.name] = run.history(keys=keys, pandas=True)
+        self.train_data = pd.concat(train_data, axis=1)
+        self.train_data.columns = pd.MultiIndex.from_tuples(self.train_data.columns)
+
+        keys = [
+            "validation-summary/samples_trained",
+            "validation-sumamry/total-NMSE",
+        ]
+        val_data = {}
+        for run in self.runs:
+            val_data[run.name] = run.history(keys=keys, pandas=True)
+        self.val_data = pd.concat(val_data, axis=1)
+        self.val_data.columns = pd.MultiIndex.from_tuples(self.val_data.columns)
+
         self.y_ticks = [0.0001, 0.01, 1]
 
     def loss_over_samples(self):
@@ -40,7 +52,9 @@ class LossPlotter(WandbLoader):
 
         # get the max number of samples trained
         max_samples = (
-            self.data.xs("training/total_samples_trained", axis=1, level=1).max().max()
+            self.train_data.xs("training/total_samples_trained", axis=1, level=1)
+            .max()
+            .max()
         )
 
         plotter.setup_figure(
@@ -52,9 +66,9 @@ class LossPlotter(WandbLoader):
         )
 
         # plot the data
-        for run_name in self.data.columns.get_level_values(0):
-            samples = self.data[run_name]["training/total_samples_trained"]
-            loss = self.data[run_name]["training-losses/NMSE"]
+        for run_name in self.train_data.columns.get_level_values(0):
+            samples = self.train_data[run_name]["training/total_samples_trained"]
+            loss = self.train_data[run_name]["training-losses/NMSE"]
             color = next(plotter.color_cycler)
             plotter.plot_data(
                 samples, loss, label=run_name, symbolstyle="", color=color
@@ -70,7 +84,9 @@ class LossPlotter(WandbLoader):
 
         # get the max number of batches trained
         max_batches = (
-            self.data.xs("training/total_batches_trained", axis=1, level=1).max().max()
+            self.train_data.xs("training/total_batches_trained", axis=1, level=1)
+            .max()
+            .max()
         )
 
         plotter.setup_figure(
@@ -82,9 +98,9 @@ class LossPlotter(WandbLoader):
         )
 
         # plot the data
-        for run_name in self.data.columns.get_level_values(0):
-            batches = self.data[run_name]["training/total_batches_trained"]
-            loss = self.data[run_name]["training-losses/NMSE"]
+        for run_name in self.train_data.columns.get_level_values(0):
+            batches = self.train_data[run_name]["training/total_batches_trained"]
+            loss = self.train_data[run_name]["training-losses/NMSE"]
             color = next(plotter.color_cycler)
             plotter.plot_data(
                 batches, loss, label=run_name, symbolstyle="", color=color
