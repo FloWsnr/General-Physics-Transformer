@@ -724,6 +724,10 @@ class Trainer:
                 train_losses_wandb["training-summary/samples_trained"] = (
                     self.total_samples_trained
                 )
+                train_losses_wandb["training-summary/samples_remaining"] = (
+                    self.total_samples - self.total_samples_trained
+                )
+                train_losses_wandb["training-summary/cycle_idx"] = self.cycle_idx
                 self.wandb_run.log(train_losses_wandb, commit=True)
             ######################################################################
             ########### Save checkpoint ########################################
@@ -754,6 +758,7 @@ class Trainer:
                 val_losses_wandb["validation-summary/batches_trained"] = (
                     self.total_batches_trained
                 )
+                val_losses_wandb["validation-summary/cycle_idx"] = self.cycle_idx
                 self.wandb_run.log(val_losses_wandb, commit=True)
 
             ############################################################
