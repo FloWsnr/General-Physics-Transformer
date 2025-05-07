@@ -751,6 +751,9 @@ class Trainer:
                 val_losses_wandb["validation-summary/samples_trained"] = (
                     self.total_samples_trained
                 )
+                val_losses_wandb["validation-summary/batches_trained"] = (
+                    self.total_batches_trained
+                )
                 self.wandb_run.log(val_losses_wandb, commit=True)
 
             ############################################################
