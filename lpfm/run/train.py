@@ -456,11 +456,11 @@ class Trainer:
         train_iter = iter(self.train_loader)
         while samples_trained < num_samples:
             try:
-                batch = next(train_iter)
+                x, target = next(train_iter)
             except StopIteration:
                 train_iter = iter(self.train_loader)
-                batch = next(train_iter)
-            x, target = batch
+                x, target = next(train_iter)
+
             x = x.to(self.device)
             target = target.to(self.device)
 
@@ -621,12 +621,11 @@ class Trainer:
         with torch.inference_mode():
             while samples_validated < self.val_samples:
                 try:
-                    batch = next(val_iter)
+                    x, target = next(val_iter)
                 except StopIteration:
                     val_iter = iter(self.val_loader)
-                    batch = next(val_iter)
+                    x, target = next(val_iter)
 
-                x, target = batch
                 x = x.to(self.device)
                 target = target.to(self.device)
 
