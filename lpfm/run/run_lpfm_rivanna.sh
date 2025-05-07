@@ -18,6 +18,10 @@
 ### How much memory in total (MB)
 #SBATCH --mem=300G
 
+### Mail notification configuration
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=zsa8rk@virginia.edu
+
 ### Maximum runtime per task
 #SBATCH --time=24:00:00
 
