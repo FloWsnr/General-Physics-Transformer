@@ -14,6 +14,7 @@ from lpfm.model.transformer.pos_encodings import (
 from lpfm.model.transformer.tokenizer import Tokenizer, Detokenizer
 from lpfm.model.transformer.norms import RevIN
 from lpfm.model.transformer.derivatives import FiniteDifference
+from lpfm.model.transformer.num_integration import Euler
 
 
 @dataclass
@@ -73,6 +74,7 @@ def get_model(model_config: dict):
         num_heads=lpfm_config.num_heads,
         num_layers=lpfm_config.num_layers,
         att_mode=transformer_config.get("att_mode", "full"),
+        parc_mode=transformer_config.get("parc_mode", False),
         pos_enc_mode=transformer_config["pos_enc_mode"],
         img_size=model_config["img_size"],
         patch_size=transformer_config["patch_size"],
@@ -115,6 +117,9 @@ class PhysicsTransformer(nn.Module):
         Patch size for spatial-temporal embeddings. (time, height, width)
     att_mode: Literal["full", "full_causal"] = "full"
         Attention mode. Can be "full" or "full_causal".
+    parc_mode: bool = False
+        Whether to use the PARC mode, i.e. let the model
+        predict the time-derivative of the input and integrate it as output
     img_size: tuple[int, int, int]
         Incoming image size (time, height, width)
     use_derivatives: bool, optional
@@ -159,6 +164,7 @@ class PhysicsTransformer(nn.Module):
         use_derivatives: bool = False,
         pos_enc_mode: Literal["rope", "absolute"] = "absolute",
         att_mode: Literal["full", "full_causal"] = "full",
+        parc_mode: bool = False,
         tokenizer_mode: Literal["linear", "non_linear"] = "linear",
         detokenizer_mode: Literal["linear", "non_linear"] = "linear",
         tokenizer_overlap: int = 0,
@@ -187,6 +193,10 @@ class PhysicsTransformer(nn.Module):
             # if derivatives are used, the input channels are multiplied by 4 (original, dt, dh, dw)
             # however, the output channels of the tokenizer are still the original input channels
             self.input_channels *= 4
+
+        self.parc_mode = parc_mode
+        if self.parc_mode:
+            self.integrator = Euler()
 
         # Initialize revin
         self.revin = RevIN(num_channels=self.input_channels)
@@ -247,8 +257,10 @@ class PhysicsTransformer(nn.Module):
 
         self.stochastic_depth_rate = stochastic_depth_rate
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
         # x = [B, T, H, W, C]
+        x = input.clone()
+
         assert not torch.isnan(x).any(), "Input contains NaNs"
 
         if self.use_derivatives:
@@ -271,6 +283,9 @@ class PhysicsTransformer(nn.Module):
         # # Apply de-patching
         x = self.detokenizer(x)
         x = self.revin(x, mode="denorm")
+
+        if self.parc_mode:
+            x = self.integrator(x, input, step_size=1.0)
 
         if self.att_mode == "full_causal":
             return x
