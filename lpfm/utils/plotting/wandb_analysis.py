@@ -1,5 +1,7 @@
+from typing import Literal
 import wandb
 from wandb.apis.public import Run
+
 import dotenv
 import pandas as pd
 
@@ -18,7 +20,7 @@ class WandbLoader:
 
 
 class LossPlotter(WandbLoader):
-    def __init__(self, run_ids: list[str]):
+    def __init__(self, run_ids: list[str], color: Literal["white", "black"] = "white"):
         super().__init__(run_ids)
         print(f"Found {len(self.runs)} runs")
 
@@ -35,7 +37,7 @@ class LossPlotter(WandbLoader):
 
         keys = [
             "validation-summary/samples_trained",
-            "validation-sumamry/total-NMSE",
+            "validation-summary/total-NMSE",
         ]
         val_data = {}
         for run in self.runs:
@@ -43,11 +45,12 @@ class LossPlotter(WandbLoader):
         self.val_data = pd.concat(val_data, axis=1)
         self.val_data.columns = pd.MultiIndex.from_tuples(self.val_data.columns)
 
-        self.y_ticks = [0.0001, 0.01, 1]
+        self.y_ticks = [0.001, 0.1, 10]
+        self.color = color
 
     def loss_over_samples(self):
         plotter = BasePlotter(
-            color="white",
+            color=self.color,
         )
 
         # get the max number of samples trained
@@ -66,7 +69,7 @@ class LossPlotter(WandbLoader):
         )
 
         # plot the data
-        for run_name in self.train_data.columns.get_level_values(0):
+        for run_name in self.train_data.columns.get_level_values(0).unique():
             samples = self.train_data[run_name]["training/total_samples_trained"]
             loss = self.train_data[run_name]["training-losses/NMSE"]
             color = next(plotter.color_cycler)
@@ -79,7 +82,7 @@ class LossPlotter(WandbLoader):
 
     def loss_over_batches(self):
         plotter = BasePlotter(
-            color="white",
+            color=self.color,
         )
 
         # get the max number of batches trained
@@ -98,7 +101,7 @@ class LossPlotter(WandbLoader):
         )
 
         # plot the data
-        for run_name in self.train_data.columns.get_level_values(0):
+        for run_name in self.train_data.columns.get_level_values(0).unique():
             batches = self.train_data[run_name]["training/total_batches_trained"]
             loss = self.train_data[run_name]["training-losses/NMSE"]
             color = next(plotter.color_cycler)
@@ -112,7 +115,7 @@ class LossPlotter(WandbLoader):
 
 if __name__ == "__main__":
     plotter = LossPlotter(
-        ["ti-cyl-sym-flow-0001", "ti-cyl-sym-flow-0001b", "ti-cyl-sym-flow-0001c"]
+        ["m-main-run-all-0001", "ti-main-run-0007-riv"], color="black"
     )
     plotter.loss_over_samples()
-    plotter.loss_over_batches()
+    # plotter.loss_over_batches()
