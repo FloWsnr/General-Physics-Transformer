@@ -20,6 +20,7 @@ def get_rng_transforms(p_flip: float) -> Compose:
         ]
     )
 
+
 def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
     """Collate function for the dataset.
 
@@ -82,7 +83,7 @@ def get_dataloader(
     dataloader = DataLoader(
         dataset=super_dataset,
         batch_size=train_config["batch_size"],
-        collate_fn=collate_fn,
+        # collate_fn=collate_fn,
         num_workers=train_config["num_workers"],
         pin_memory=True,
         sampler=sampler,
