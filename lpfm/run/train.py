@@ -789,6 +789,7 @@ class Trainer:
                     {
                         "summary/cycle_idx": self.cycle_idx,
                         "summary/samples_trained": self.total_samples_trained,
+                        "summary/batches_trained": self.total_batches_trained,
                         "summary/minutes_per_cycle": duration / 60,
                         "summary/avg_minutes_per_cycle": self.avg_sec_per_cycle / 60,
                         "summary/projected_minutes_remaining": proj_time_remaining / 60,
