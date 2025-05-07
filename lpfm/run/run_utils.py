@@ -36,7 +36,7 @@ def load_stored_model(
             else:
                 # Keep the key as is
                 new_state_dict[key] = value
-    checkpoint["model_state_dict"] = new_state_dict
+        checkpoint["model_state_dict"] = new_state_dict
     return checkpoint
 
 
