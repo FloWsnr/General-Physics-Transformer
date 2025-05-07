@@ -3,6 +3,9 @@
 ### Task name
 #SBATCH --account=sds_baek_energetic
 
+### Job name
+#SBATCH --job-name=train_lpfm
+
 ### Output file
 #SBATCH --output=/home/zsa8rk/Coding/Large-Physics-Foundation-Model/logs/slrm_logs/train_lpfm_%j.out
 
