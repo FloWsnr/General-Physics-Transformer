@@ -254,7 +254,11 @@ class Trainer:
         ########### Initialize loss function and optimizer ###########
         ################################################################
         # all losses which should be computed and logged
-        loss_clip = self.config["training"]["loss_clip"]
+        if "loss_clip" in self.config["training"]:
+            loss_clip = self.config["training"]["loss_clip"]
+        else:
+            loss_clip = None
+
         self.loss_fns = {
             "MAE": nn.L1Loss(),
             "MSE": nn.MSELoss(),
