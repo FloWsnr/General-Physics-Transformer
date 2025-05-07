@@ -541,7 +541,7 @@ class Trainer:
                 f"LR: {lr:.2e}"
             )
             self.log_msg(
-                f"Training - Cycle: "
+                f"Training - Cycle: {self.cycle_idx} "
                 f"Samples: {s_cycle_trained_human}/{s_cycle_human}, "
                 f"Batches: {b_cycle_trained_human}/{b_cycle_human}, "
                 f"LR: {lr:.2e}"
@@ -667,7 +667,7 @@ class Trainer:
                 s_cycle_human = self.h_log_state.val_samples
                 b_cycle_human = self.h_log_state.val_batches
                 self.log_msg(
-                    "Validation - Cycle: "
+                    f"Validation - Cycle: {self.cycle_idx} "
                     f"Samples: {s_cycle_validated_human}/{s_cycle_human}, "
                     f"Batches: {b_cycle_validated_human}/{b_cycle_human}, "
                 )
