@@ -7,8 +7,6 @@ import pandas as pd
 
 from lpfm.utils.plotting.base_plotter import BasePlotter
 
-dotenv.load_dotenv()
-
 
 class WandbLoader:
     def __init__(self, run_ids: list[str]):
@@ -17,12 +15,12 @@ class WandbLoader:
         self.runs: list[Run] = self.api.runs(
             f"{entity}/{project}", {"$or": [{"name": run_id} for run_id in run_ids]}
         )
+        print(f"Found {len(self.runs)} runs, {len(run_ids)} requested")
 
 
 class LossPlotter(WandbLoader):
     def __init__(self, run_ids: list[str], color: Literal["white", "black"] = "white"):
         super().__init__(run_ids)
-        print(f"Found {len(self.runs)} runs")
 
         keys = [
             "training-losses/NMSE",
@@ -31,7 +29,9 @@ class LossPlotter(WandbLoader):
         ]
         train_data = {}
         for run in self.runs:
-            train_data[run.name] = run.history(keys=keys, pandas=True)
+            train_data[run.name] = run.history(
+                keys=keys, samples=100_000_000, pandas=True
+            )
         self.train_data = pd.concat(train_data, axis=1)
         self.train_data.columns = pd.MultiIndex.from_tuples(self.train_data.columns)
 
@@ -41,81 +41,131 @@ class LossPlotter(WandbLoader):
         ]
         val_data = {}
         for run in self.runs:
-            val_data[run.name] = run.history(keys=keys, pandas=True)
+            val_data[run.name] = run.history(
+                keys=keys, samples=100_000_000, pandas=True
+            )
         self.val_data = pd.concat(val_data, axis=1)
         self.val_data.columns = pd.MultiIndex.from_tuples(self.val_data.columns)
 
-        self.y_ticks = [0.001, 0.1, 10]
         self.color = color
 
-    def loss_over_samples(self):
+    def _running_avg(
+        self, data: pd.DataFrame, window: int = 1000
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Compute running mean and standard deviation of the data.
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Input data to compute statistics for
+        window : int, optional
+            Window size for the running average, by default 1000
+
+        Returns
+        -------
+        tuple[pd.DataFrame, pd.DataFrame]
+            Tuple containing (mean, std) DataFrames
+        """
+        mean = data.rolling(window=window, min_periods=1).mean()
+        std = data.rolling(window=window, min_periods=1).std()
+        return mean, std
+
+    def plot_loss(
+        self,
+        x_ticks: list[float],
+        y_ticks: list[float],
+        x_type: Literal["samples", "batches"] = "samples",
+        data_type: Literal["training", "validation"] = "training",
+        running_avg: bool = False,
+        window: int = 1000,
+    ):
+        """Plot loss curves over samples or batches for training or validation data.
+
+        Parameters
+        ----------
+        x_ticks : list[float]
+            The ticks for the x-axis
+        y_ticks : list[float]
+            The ticks for the y-axis
+        x_type : Literal["samples", "batches"]
+            Whether to plot over samples or batches
+        data_type : Literal["training", "validation"]
+            Whether to plot training or validation data
+        running_avg : bool
+            Whether to plot the running average of the loss
+        window : int
+            Window size for running average computation
+
+        Returns
+        -------
+        None
+        """
         plotter = BasePlotter(
             color=self.color,
         )
 
-        # get the max number of samples trained
-        max_samples = (
-            self.train_data.xs("training/total_samples_trained", axis=1, level=1)
-            .max()
-            .max()
+        x_label = "Samples Trained" if x_type == "samples" else "Batches Trained"
+        x_key = (
+            "training/total_samples_trained"
+            if x_type == "samples"
+            else "training/total_batches_trained"
         )
+        y_key = (
+            "training-losses/NMSE"
+            if data_type == "training"
+            else "validation-summary/total-NMSE"
+        )
+        data = self.train_data if data_type == "training" else self.val_data
 
         plotter.setup_figure(
-            x_ticks=[0, max_samples // 2, max_samples],
-            y_ticks=self.y_ticks,
-            x_label="Samples Trained",
+            x_ticks=x_ticks,
+            y_ticks=y_ticks,
+            x_label=x_label,
             y_label="NMSE",
+            x_log=False,
             y_log=True,
         )
 
         # plot the data
-        for run_name in self.train_data.columns.get_level_values(0).unique():
-            samples = self.train_data[run_name]["training/total_samples_trained"]
-            loss = self.train_data[run_name]["training-losses/NMSE"]
+        for run_name in data.columns.get_level_values(0).unique():
+            x_data = data[run_name][x_key]
+            y_data = data[run_name][y_key]
             color = next(plotter.color_cycler)
-            plotter.plot_data(
-                samples, loss, label=run_name, symbolstyle="", color=color
-            )
 
-        plotter.legend(title="Models", loc="upper right")
-        plotter.show_figure()
-
-    def loss_over_batches(self):
-        plotter = BasePlotter(
-            color=self.color,
-        )
-
-        # get the max number of batches trained
-        max_batches = (
-            self.train_data.xs("training/total_batches_trained", axis=1, level=1)
-            .max()
-            .max()
-        )
-
-        plotter.setup_figure(
-            x_ticks=[0, max_batches // 2, max_batches],
-            y_ticks=self.y_ticks,
-            x_label="Batches Trained",
-            y_label="NMSE",
-            y_log=True,
-        )
-
-        # plot the data
-        for run_name in self.train_data.columns.get_level_values(0).unique():
-            batches = self.train_data[run_name]["training/total_batches_trained"]
-            loss = self.train_data[run_name]["training-losses/NMSE"]
-            color = next(plotter.color_cycler)
-            plotter.plot_data(
-                batches, loss, label=run_name, symbolstyle="", color=color
-            )
+            if running_avg:
+                mean, std = self._running_avg(y_data, window=window)
+                plotter.plot_data(
+                    x_data, mean, label=run_name, symbolstyle="", color=color
+                )
+                plotter.plot_error_region(x_data, mean, std, color=color)
+            else:
+                plotter.plot_data(
+                    x_data, y_data, label=run_name, symbolstyle="", color=color
+                )
 
         plotter.legend(title="Models", loc="upper right")
         plotter.show_figure()
 
 
 if __name__ == "__main__":
+    dotenv.load_dotenv()
     plotter = LossPlotter(
-        ["m-main-run-all-0001", "ti-main-run-0007-riv"], color="black"
+        [
+            "ti-cyl-sym-flow-0003",
+            "ti-cyl-sym-flow-0003-deriv",
+            "ti-parc-0001",
+            "ti-cyl-sym-flow-deriv-parc",
+        ],
+        color="black",
     )
-    plotter.loss_over_samples()
-    # plotter.loss_over_batches()
+    x_ticks = [0.0001, 30e6]
+    y_ticks = [0.00001, 0.001, 0.1]
+    plotter.plot_loss(
+        x_ticks,
+        y_ticks,
+        x_type="samples",
+        data_type="training",
+        running_avg=True,
+        window=1000,
+    )
+    # plotter.plot_loss(x_type="batches", data_type="training")
