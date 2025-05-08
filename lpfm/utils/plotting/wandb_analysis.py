@@ -70,14 +70,63 @@ class LossPlotter(WandbLoader):
         std = data.rolling(window=window, min_periods=1).std()
         return mean, std
 
+    def _exp_moving_avg(
+        self, data: pd.DataFrame, alpha: float = 0.1
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Compute the exponential moving average and std of the data.
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Input data to smooth.
+        alpha : float, optional
+            Smoothing factor, by default 0.1.
+
+        Returns
+        -------
+        tuple[pd.DataFrame, pd.DataFrame]
+            Smoothed mean and std.
+        """
+        mean = data.ewm(alpha=alpha, adjust=False).mean()
+        std = data.ewm(alpha=alpha, adjust=False).std()
+        return mean, std
+
+    def _gaussian_smooth(
+        self, data: pd.Series, sigma: float = 10
+    ) -> tuple[pd.Series, pd.Series]:
+        """
+        Apply Gaussian filter to smooth the data and compute rolling std.
+
+        Parameters
+        ----------
+        data : pd.Series
+            Input data to smooth.
+        sigma : float, optional
+            Standard deviation for Gaussian kernel, by default 10.
+
+        Returns
+        -------
+        tuple[pd.Series, pd.Series]
+            Smoothed mean and std.
+        """
+        from scipy.ndimage import gaussian_filter1d
+
+        mean = pd.Series(gaussian_filter1d(data.values, sigma=sigma), index=data.index)
+        window = int(sigma * 3)
+        std = data.rolling(window=window, min_periods=1).std()
+        return mean, std
+
     def plot_loss(
         self,
         x_ticks: list[float],
         y_ticks: list[float],
         x_type: Literal["samples", "batches"] = "samples",
         data_type: Literal["training", "validation"] = "training",
-        running_avg: bool = False,
+        smoothing: Literal["rolling", "ema", "gaussian", None] = None,
         window: int = 1000,
+        alpha: float = 0.1,
+        gaussian_sigma: float = 10,
     ):
         """Plot loss curves over samples or batches for training or validation data.
 
@@ -91,10 +140,14 @@ class LossPlotter(WandbLoader):
             Whether to plot over samples or batches
         data_type : Literal["training", "validation"]
             Whether to plot training or validation data
-        running_avg : bool
-            Whether to plot the running average of the loss
+        smoothing : {'rolling', 'ema', 'gaussian', None}
+            Smoothing method to apply to the data
         window : int
-            Window size for running average computation
+            Window size for rolling smoothing
+        alpha : float
+            Smoothing factor for EMA
+        gaussian_sigma : float
+            Sigma for Gaussian smoothing
 
         Returns
         -------
@@ -132,16 +185,21 @@ class LossPlotter(WandbLoader):
             y_data = data[run_name][y_key]
             color = next(plotter.color_cycler)
 
-            if running_avg:
-                mean, std = self._running_avg(y_data, window=window)
+            if smoothing is None:
+                plotter.plot_data(
+                    x_data, y_data, label=run_name, symbolstyle="", color=color
+                )
+            else:
+                if smoothing == "ema":
+                    mean, std = self._exp_moving_avg(y_data, alpha=alpha)
+                elif smoothing == "gaussian":
+                    mean, std = self._gaussian_smooth(y_data, sigma=gaussian_sigma)
+                elif smoothing == "rolling":
+                    mean, std = self._running_avg(y_data, window=window)
                 plotter.plot_data(
                     x_data, mean, label=run_name, symbolstyle="", color=color
                 )
                 plotter.plot_error_region(x_data, mean, std, color=color)
-            else:
-                plotter.plot_data(
-                    x_data, y_data, label=run_name, symbolstyle="", color=color
-                )
 
         plotter.legend(title="Models", loc="upper right")
         plotter.show_figure()
@@ -165,7 +223,7 @@ if __name__ == "__main__":
         y_ticks,
         x_type="samples",
         data_type="training",
-        running_avg=True,
-        window=1000,
+        smoothing="gaussian",
+        gaussian_sigma=100,
     )
     # plotter.plot_loss(x_type="batches", data_type="training")
