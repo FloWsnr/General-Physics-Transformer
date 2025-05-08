@@ -42,7 +42,12 @@ from lpfm.model.transformer.model import get_model
 from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
 from lpfm.utils.logger import get_logger
 from lpfm.model.transformer.loss_fns import NMSELoss, RNMSELoss, VMSELoss, RVMSELoss
-from lpfm.run.run_utils import find_last_checkpoint, human_format, load_stored_model
+from lpfm.run.run_utils import (
+    find_last_checkpoint,
+    human_format,
+    load_stored_model,
+    path_to_string,
+)
 from lpfm.run.lr_scheduler import get_lr_scheduler
 
 
@@ -367,7 +372,7 @@ class Trainer:
             "cycle_idx": self.cycle_idx,
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
-            "config": self.config,
+            "config": path_to_string(self.config),
         }
         if self.grad_scaler is not None:
             checkpoint["grad_scaler_state_dict"] = self.grad_scaler.state_dict()

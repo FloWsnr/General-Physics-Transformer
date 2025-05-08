@@ -95,6 +95,23 @@ def find_last_checkpoint(sim_dir: Path, subdir_name: str, best_model: bool) -> P
     return checkpoint_path
 
 
+def path_to_string(config: dict) -> dict:
+    """Convert all Path objects in the config to strings.
+
+    Parameters
+    ----------
+    config : dict
+        The config to convert.
+    """
+
+    for key, value in config.items():
+        if isinstance(value, Path):
+            config[key] = str(value)
+        elif isinstance(value, dict):
+            config[key] = path_to_string(value)
+    return config
+
+
 def human_format(num: int | float) -> str:
     """Format a number with SI prefixes (K, M, B).
 
