@@ -12,7 +12,6 @@
 #SBATCH --nodes=1
 
 ### How many CPU cores to use
-##SBATCH --ntasks-per-node=48
 #SBATCH --ntasks-per-node=96
 #SBATCH --exclusive
 
@@ -22,11 +21,9 @@
 
 ### Maximum runtime per task
 #SBATCH --time=24:00:00
-##SBATCH --time=01:00:00
 
 ### set number of GPUs per task
 #SBATCH --gres=gpu:4
-##SBATCH --gres=gpu:2
 
 ### create time series, i.e. 100 jobs one after another. Each runs for 24 hours
 ##SBATCH --array=1-10%1
@@ -35,7 +32,6 @@
 ### Should be lower than the time limit of the partition
 ### Format: HH:MM:SS
 time_limit="24:00:00"
-#time_limit="01:00:00"
 
 #####################################################################################
 ############################# Setup #################################################
@@ -64,7 +60,6 @@ data_dir="${base_dir}/data/datasets"
 base_config_file="${base_dir}/lpfm/run/config.yaml"
 # sim_name (same as wandb id)
 sim_name="ti-main-run-all-0007"
-# sim_name="ti-test-run-new_data-0006-512-higher-lr"
 nnodes=1
 ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
@@ -75,13 +70,6 @@ new_training=false
 new_config_name="config_cooldown.yaml"
 # use the best model for potential restart
 best_model=false
-
-# NOTE: set cuda visible devices, MUST be consecutive numbers
-# USE ONLY FOR DEBUGGING, non-slurm jobs
-# export CUDA_VISIBLE_DEVICES=0,1
-
-######### Multi-Node Setup #########
-# rdzv_id=$SLURM_JOB_ID
 
 
 # sim directory
