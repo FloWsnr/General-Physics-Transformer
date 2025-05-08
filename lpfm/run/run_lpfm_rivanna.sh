@@ -16,7 +16,7 @@
 #SBATCH --ntasks-per-node=70
 
 ### How much memory in total (MB)
-#SBATCH --mem=300G
+#SBATCH --mem=600G
 
 ### Mail notification configuration
 #SBATCH --mail-type=ALL
@@ -27,8 +27,7 @@
 
 ### set number of GPUs per task (v100, a100, h200)
 #SBATCH --gres=gpu:a100:4
-##SBATCH --constraint="a80|a40"
-## SBATCH -C gpupod # use pod gpus...
+##SBATCH --constraint=a100_80gb
 
 
 ### Partition
@@ -76,13 +75,6 @@ new_training=false
 new_config_name="config_cooldown.yaml"
 # use the best model for potential restart
 best_model=false
-
-# NOTE: set cuda visible devices, MUST be consecutive numbers
-# USE ONLY FOR DEBUGGING, non-slurm jobs
-# export CUDA_VISIBLE_DEVICES=0,1
-
-######### Multi-Node Setup #########
-# rdzv_id=$SLURM_JOB_ID
 
 
 # sim directory
