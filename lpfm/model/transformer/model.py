@@ -257,10 +257,7 @@ class PhysicsTransformer(nn.Module):
 
         self.stochastic_depth_rate = stochastic_depth_rate
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # x = [B, T, H, W, C]
-        x = input.clone()
-
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert not torch.isnan(x).any(), "Input contains NaNs"
 
         if self.use_derivatives:
@@ -268,6 +265,8 @@ class PhysicsTransformer(nn.Module):
             x = torch.cat([x, dt, dh, dw], dim=-1)
 
         x = self.revin(x, mode="norm")
+        norm_input = x.clone()
+
         # Split into patches
         x = self.tokenizer(x)
         if self.init_pos_encodings is not None:
@@ -282,10 +281,10 @@ class PhysicsTransformer(nn.Module):
 
         # # Apply de-patching
         x = self.detokenizer(x)
-        x = self.revin(x, mode="denorm")
-
         if self.parc_mode:
-            x = self.integrator(x, input, step_size=1.0)
+            x = self.integrator(x, norm_input, step_size=1.0)
+
+        x = self.revin(x, mode="denorm")
 
         if self.att_mode == "full_causal":
             return x

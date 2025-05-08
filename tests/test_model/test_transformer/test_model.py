@@ -160,3 +160,25 @@ def test_forward_causal_attention():
 
     # for causal attention, the output should have the same shape as the input
     assert output.shape == (10, 8, 128, 128, 3)
+
+
+def test_forward_parc():
+    data = torch.randn(10, 8, 128, 128, 3)
+
+    transformer = PhysicsTransformer(
+        input_channels=3,
+        hidden_dim=96,
+        mlp_dim=256,
+        num_heads=4,
+        dropout=0.0,
+        tokenizer_mode="linear",
+        detokenizer_mode="linear",
+        img_size=(8, 128, 128),
+        patch_size=(4, 16, 16),
+        num_layers=4,
+        stochastic_depth_rate=0.0,
+        pos_enc_mode="rope",
+        parc_mode=True,
+    )
+    output = transformer(data)
+    assert output.shape == (10, 1, 128, 128, 3)
