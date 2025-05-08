@@ -5,7 +5,7 @@
 # # See http://matplotlib.org/api/artist_api.html#module-matplotlib.lines for more
 # # information on line properties.
 
-lines.linewidth   : 2.0     # line width in points
+lines.linewidth   : 1.0     # line width in points
 lines.linestyle   : -       # solid line
 lines.color       : b       # has no affect on plot(); see axes.prop_cycle
 lines.marker      : o   # the default marker
