@@ -68,7 +68,7 @@ def get_model(model_config: dict):
         lpfm_config = LPFM_L()
 
     return PhysicsTransformer(
-        input_channels=transformer_config["input_channels"],
+        num_fields=transformer_config["input_channels"],
         hidden_dim=lpfm_config.hidden_dim,
         mlp_dim=lpfm_config.mlp_dim,
         num_heads=lpfm_config.num_heads,
@@ -100,8 +100,8 @@ class PhysicsTransformer(nn.Module):
     ########### Transformer parameters #############################
     ################################################################
 
-    input_channels: int
-        Number of input channels (physical fields).
+    num_fields: int
+        Number of input fields (physical fields).
     hidden_dim: int
         Hidden dimension inside the attention blocks.
         Should be divisible by 6 if Rope positional encoding is used.
@@ -154,7 +154,7 @@ class PhysicsTransformer(nn.Module):
 
     def __init__(
         self,
-        input_channels: int,
+        num_fields: int,
         hidden_dim: int,
         mlp_dim: int,
         num_heads: int,
@@ -176,8 +176,9 @@ class PhysicsTransformer(nn.Module):
     ):
         super().__init__()
 
-        self.input_channels = input_channels
-        self.output_channels = input_channels
+        # differentiate between actual fields and input channels, which can be more due to derivatives
+        num_input_channels = num_fields
+        self.num_fields = num_fields
         self.att_mode = att_mode
 
         n_patch_t = img_size[0] // patch_size[0]
@@ -188,22 +189,22 @@ class PhysicsTransformer(nn.Module):
         self.use_derivatives = use_derivatives
         if self.use_derivatives:
             self.derivatives = FiniteDifference(
-                num_channels=input_channels, filter_1d="2nd"
+                num_channels=num_fields, filter_1d="2nd"
             )
             # if derivatives are used, the input channels are multiplied by 4 (original, dt, dh, dw)
             # however, the output channels of the tokenizer are still the original input channels
-            self.input_channels *= 4
+            num_input_channels *= 4
 
         self.parc_mode = parc_mode
         if self.parc_mode:
             self.integrator = Euler()
 
         # Initialize revin
-        self.revin = RevIN(num_channels=self.input_channels)
+        self.revin = RevIN(num_channels=num_input_channels)
 
         self.tokenizer = Tokenizer(
             patch_size=patch_size,
-            in_channels=self.input_channels,
+            in_channels=num_input_channels,
             dim_embed=hidden_dim,
             mode=tokenizer_mode,
             conv_net_channels=tokenizer_net_channels,
@@ -248,7 +249,7 @@ class PhysicsTransformer(nn.Module):
         self.detokenizer = Detokenizer(
             patch_size=patch_size,
             dim_embed=hidden_dim,
-            out_channels=input_channels,
+            out_channels=self.num_fields,  # important to set to num_fields
             mode=detokenizer_mode,
             conv_net_channels=detokenizer_net_channels,
             overlap=detokenizer_overlap,
@@ -282,6 +283,8 @@ class PhysicsTransformer(nn.Module):
         # # Apply de-patching
         x = self.detokenizer(x)
         if self.parc_mode:
+            # remove derivative channels so that x has the same shape as norm_input
+            norm_input = norm_input[..., : self.num_fields]
             x = self.integrator(x, norm_input, step_size=1.0)
 
         x = self.revin(x, mode="denorm")

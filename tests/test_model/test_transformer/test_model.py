@@ -8,7 +8,7 @@ def test_forward():
     data = torch.randn(10, 8, 128, 128, 3)
 
     transformer = PhysicsTransformer(
-        input_channels=3,
+        num_fields=3,
         hidden_dim=96,
         mlp_dim=256,
         num_heads=4,
@@ -28,7 +28,7 @@ def test_forward():
 def test_forward_cuda():
     data = torch.randn(10, 8, 128, 128, 3).cuda()
     transformer = PhysicsTransformer(
-        input_channels=3,
+        num_fields=3,
         hidden_dim=96,
         mlp_dim=256,
         num_heads=4,
@@ -51,7 +51,7 @@ def test_forward_absolute_pos_enc():
     data = torch.randn(10, 8, 128, 128, 3)
 
     transformer = PhysicsTransformer(
-        input_channels=3,
+        num_fields=3,
         hidden_dim=96,
         mlp_dim=256,
         num_heads=4,
@@ -73,7 +73,7 @@ def test_forward_conv_net_tokenizer():
     data = torch.randn(10, 8, 128, 128, 3)
 
     transformer = PhysicsTransformer(
-        input_channels=3,
+        num_fields=3,
         hidden_dim=96,
         mlp_dim=256,
         num_heads=4,
@@ -96,7 +96,7 @@ def test_forward_linear_tokenizer_overlap():
     data = torch.randn(10, 8, 128, 128, 3)
 
     transformer = PhysicsTransformer(
-        input_channels=3,
+        num_fields=3,
         hidden_dim=96,
         mlp_dim=256,
         num_heads=4,
@@ -120,7 +120,7 @@ def test_forward_derivatives():
     data = torch.randn(10, 8, 128, 128, 3)
 
     transformer = PhysicsTransformer(
-        input_channels=3,
+        num_fields=3,
         hidden_dim=96,
         mlp_dim=256,
         num_heads=4,
@@ -142,7 +142,7 @@ def test_forward_causal_attention():
     data = torch.randn(10, 8, 128, 128, 3)
 
     transformer = PhysicsTransformer(
-        input_channels=3,
+        num_fields=3,
         hidden_dim=96,
         mlp_dim=256,
         num_heads=4,
@@ -166,7 +166,7 @@ def test_forward_parc():
     data = torch.randn(10, 8, 128, 128, 3)
 
     transformer = PhysicsTransformer(
-        input_channels=3,
+        num_fields=3,
         hidden_dim=96,
         mlp_dim=256,
         num_heads=4,
@@ -179,6 +179,29 @@ def test_forward_parc():
         stochastic_depth_rate=0.0,
         pos_enc_mode="rope",
         parc_mode=True,
+    )
+    output = transformer(data)
+    assert output.shape == (10, 1, 128, 128, 3)
+
+
+def test_forward_parc_plus_derivatives():
+    data = torch.randn(10, 8, 128, 128, 3)
+
+    transformer = PhysicsTransformer(
+        num_fields=3,
+        hidden_dim=96,
+        mlp_dim=256,
+        num_heads=4,
+        dropout=0.0,
+        tokenizer_mode="linear",
+        detokenizer_mode="linear",
+        img_size=(8, 128, 128),
+        patch_size=(4, 16, 16),
+        num_layers=4,
+        stochastic_depth_rate=0.0,
+        pos_enc_mode="absolute",
+        parc_mode=True,
+        use_derivatives=True,
     )
     output = transformer(data)
     assert output.shape == (10, 1, 128, 128, 3)
