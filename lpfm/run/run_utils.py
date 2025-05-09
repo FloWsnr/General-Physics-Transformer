@@ -33,6 +33,12 @@ def load_stored_model(
                 # Remove the prefix
                 new_key = key.replace("module._orig_mod.", "")
                 new_state_dict[new_key] = value
+            elif key.startswith("module."):
+                new_key = key.replace("module.", "")
+                new_state_dict[new_key] = value
+            elif key.startswith("_orig_mod."):
+                new_key = key.replace("_orig_mod.", "")
+                new_state_dict[new_key] = value
             else:
                 # Keep the key as is
                 new_state_dict[key] = value
