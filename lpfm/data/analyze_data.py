@@ -98,7 +98,6 @@ def initialize_field_stats(field_names: List[str]) -> Dict[str, Dict[str, Any]]:
             "max": float("-inf"),
             "sum": 0,
             "count": 0,
-            "values": [],  # Store all values for median calculation
         }
         for name in field_names
     }
@@ -121,8 +120,6 @@ def process_field_data(field_data: np.ndarray, stats: Dict[str, Any]) -> None:
         stats["max"] = max(stats["max"], np.max(valid_data))
         stats["sum"] += np.sum(valid_data)
         stats["count"] += valid_data.size
-        # Store values for median calculation
-        stats["values"].extend(valid_data.flatten().tolist())
 
 
 def calculate_field_statistics(
@@ -181,9 +178,6 @@ def get_final_statistics(
             "min": stats["min"],
             "max": stats["max"],
             "mean": stats["sum"] / stats["count"],
-            "median": float(np.median(stats["values"]))
-            if stats["values"]
-            else float("nan"),
         }
         for name, stats in field_stats.items()
     }
@@ -255,17 +249,20 @@ def print_dataset_statistics(dataset_name: str, stats: Dict[str, Any]) -> None:
 
 
 def main():
-    """Main function to analyze all datasets."""
+    """Main function to analyze all datasets.
+
+    Analyzes each dataset and prints its statistics immediately after processing.
+    This provides intermediate results and reduces memory usage.
+    """
     data_dir = Path(
         r"C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\data\datasets"
     )
-    datasets = get_dataset_paths(data_dir)
+    datasets = [data_dir / "cylinder_pipe_flow_water"]
 
-    dataset_stats = {}
     for dataset in datasets:
-        print(f"Analyzing dataset: {dataset}")
-        dataset_stats[dataset.name] = analyze_dataset(dataset)
-        print_dataset_statistics(dataset.name, dataset_stats[dataset.name])
+        print(f"\nAnalyzing dataset: {dataset}")
+        stats = analyze_dataset(dataset)
+        print_dataset_statistics(dataset.name, stats)
 
 
 if __name__ == "__main__":
