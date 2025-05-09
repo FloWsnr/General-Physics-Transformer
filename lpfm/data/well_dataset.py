@@ -591,7 +591,7 @@ class WellDataset(Dataset):
                         if field_name in self.means:
                             field_data = field_data - self.means[field_name]
                         if field_name in self.stds:
-                            field_data = field_data / self.stds[field_name]
+                            field_data = field_data / (self.stds[field_name] + 1e-6)
                     # If constant, try to cache
                     if (
                         not field.attrs["time_varying"]

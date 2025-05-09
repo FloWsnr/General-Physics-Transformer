@@ -117,7 +117,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
     n_steps_output = data_config["n_steps_output"]
     dt_stride = data_config["dt_stride"]
     zero_field_value = data_config["zero_field_value"]
-
+    use_normalization = data_config.get("use_normalization", False)
     datasets = {}
     dataset_list: list[str] = data_config["datasets"].copy()
 
@@ -132,6 +132,8 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             max_rollout_steps=max_rollout_steps,
             include_field_names=include_field_names,
             zero_field_value=zero_field_value,
+            use_normalization=use_normalization,
+            normalization_path=data_dir / f"{dataset_name}/data/stats.yaml",
         )
         datasets[dataset_name] = dataset
 

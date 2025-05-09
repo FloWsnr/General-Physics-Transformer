@@ -91,6 +91,7 @@ training:
     #   num_updates: 10 # number of batches for linear cool down
 
 data:
+  use_normalization: false # whether to normalize the data
   max_samples_per_ds: null # limit the number of samples per epoch, set to null for no limit
   dt_stride: [1,8] # take every dt_stride-th timestep, if list, randomize between the values
   n_steps_input: 4 # number of input timesteps
