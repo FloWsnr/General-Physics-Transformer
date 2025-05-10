@@ -33,6 +33,7 @@ def compute_statistics(train_path: str | Path, stats_path: str | Path):
     rmss_delta = {}
 
     for p in ds.files_paths:
+        print(f"  Processing {p}")
         with h5.File(p, "r") as f:
             for i in range(3):
                 ti = f"t{i}_fields"
