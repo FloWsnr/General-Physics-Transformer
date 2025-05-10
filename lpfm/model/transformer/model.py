@@ -79,7 +79,7 @@ def get_model(model_config: dict):
         img_size=model_config["img_size"],
         patch_size=transformer_config["patch_size"],
         use_derivatives=transformer_config["use_derivatives"],
-        revin=transformer_config.get("revin", True),
+        revin=model_config.get("revin", True),
         tokenizer_mode=tokenizer_config["tokenizer_mode"],
         detokenizer_mode=tokenizer_config["detokenizer_mode"],
         tokenizer_overlap=tokenizer_config["tokenizer_overlap"],

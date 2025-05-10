@@ -144,6 +144,9 @@ class Trainer:
         ################################################################
         self.log_msg(f"Using device: {self.device}")
 
+        if self.config["data"]["use_normalization"]:
+            self.config["model"]["revin"] = False
+
         self.model = get_model(model_config=self.config["model"])
 
         total_params = sum(p.numel() for p in self.model.parameters())
