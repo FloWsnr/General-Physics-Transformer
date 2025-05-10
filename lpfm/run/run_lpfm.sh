@@ -16,7 +16,7 @@
 #SBATCH --exclusive
 
 ### Mail notification configuration
-#SBATCH --mail-type=ALL
+#SBATCH --mail-type=FAIL
 #SBATCH --mail-user=zsa8rk@virginia.edu
 
 ### Maximum runtime per task
