@@ -41,7 +41,7 @@ from lpfm.data.dataset_utils import get_dataloader
 from lpfm.model.transformer.model import get_model
 from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
 from lpfm.utils.logger import get_logger
-from lpfm.model.transformer.loss_fns import NMSELoss, RNMSELoss, VMSELoss, RVMSELoss
+from lpfm.model.transformer.loss_fns import RMSE
 from lpfm.run.run_utils import (
     find_last_checkpoint,
     human_format,
@@ -143,10 +143,6 @@ class Trainer:
         ########### Initialize model ##################################
         ################################################################
         self.log_msg(f"Using device: {self.device}")
-
-        if self.config["data"]["use_normalization"]:
-            self.config["model"]["revin"] = False
-
         self.model = get_model(model_config=self.config["model"])
 
         total_params = sum(p.numel() for p in self.model.parameters())
@@ -261,36 +257,18 @@ class Trainer:
         ################################################################
         ########### Initialize loss function and optimizer ###########
         ################################################################
-        # all losses which should be computed and logged
-        if "loss_clip" in self.config["training"]:
-            loss_clip = self.config["training"]["loss_clip"]
-        else:
-            loss_clip = None
-
         self.loss_fns = {
             "MAE": nn.L1Loss(),
             "MSE": nn.MSELoss(),
-            "RMSE": nn.MSELoss(),
-            "NMSE": NMSELoss(clip_max=loss_clip),
-            "RNMSE": RNMSELoss(clip_max=loss_clip),
-            "VMSE": VMSELoss(clip_max=loss_clip),
-            "RVMSE": RVMSELoss(clip_max=loss_clip),
+            "RMSE": RMSE(),
         }
 
         if self.config["training"]["criterion"] == "MSE":
             self.criterion = self.loss_fns.pop("MSE")
         elif self.config["training"]["criterion"] == "RMSE":
             self.criterion = self.loss_fns.pop("RMSE")
-        elif self.config["training"]["criterion"] == "NMSE":
-            self.criterion = self.loss_fns.pop("NMSE")
-        elif self.config["training"]["criterion"] == "RNMSE":
-            self.criterion = self.loss_fns.pop("RNMSE")
         elif self.config["training"]["criterion"] == "MAE":
             self.criterion = self.loss_fns.pop("MAE")
-        elif self.config["training"]["criterion"] == "VMSE":
-            self.criterion = self.loss_fns.pop("VMSE")
-        elif self.config["training"]["criterion"] == "RVMSE":
-            self.criterion = self.loss_fns.pop("RVMSE")
         else:
             raise ValueError(
                 f"Criterion {self.config['training']['criterion']} not supported"
@@ -457,10 +435,6 @@ class Trainer:
             "total-MAE": torch.tensor(0.0, device=self.device),
             "total-MSE": torch.tensor(0.0, device=self.device),
             "total-RMSE": torch.tensor(0.0, device=self.device),
-            "total-NMSE": torch.tensor(0.0, device=self.device),
-            "total-RNMSE": torch.tensor(0.0, device=self.device),
-            "total-VMSE": torch.tensor(0.0, device=self.device),
-            "total-RVMSE": torch.tensor(0.0, device=self.device),
         }
 
         samples_trained = 0
@@ -623,10 +597,6 @@ class Trainer:
             "total-MAE": torch.tensor(0.0, device=self.device),
             "total-MSE": torch.tensor(0.0, device=self.device),
             "total-RMSE": torch.tensor(0.0, device=self.device),
-            "total-NMSE": torch.tensor(0.0, device=self.device),
-            "total-RNMSE": torch.tensor(0.0, device=self.device),
-            "total-VMSE": torch.tensor(0.0, device=self.device),
-            "total-RVMSE": torch.tensor(0.0, device=self.device),
         }
 
         if self.ddp_enabled:

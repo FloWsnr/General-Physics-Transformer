@@ -79,7 +79,6 @@ def get_model(model_config: dict):
         img_size=model_config["img_size"],
         patch_size=transformer_config["patch_size"],
         use_derivatives=transformer_config["use_derivatives"],
-        revin=model_config.get("revin", True),
         tokenizer_mode=tokenizer_config["tokenizer_mode"],
         detokenizer_mode=tokenizer_config["detokenizer_mode"],
         tokenizer_overlap=tokenizer_config["tokenizer_overlap"],
@@ -125,8 +124,6 @@ class PhysicsTransformer(nn.Module):
         Incoming image size (time, height, width)
     use_derivatives: bool, optional
         Whether to use derivatives in the model.
-    revin: bool = True
-        Whether to use RevIN normalization.
 
     ################################################################
     ########### Tokenizer parameters ###############################
@@ -165,7 +162,6 @@ class PhysicsTransformer(nn.Module):
         patch_size: tuple[int, int, int],
         img_size: tuple[int, int, int],
         use_derivatives: bool = False,
-        revin: bool = True,
         pos_enc_mode: Literal["rope", "absolute"] = "absolute",
         att_mode: Literal["full", "full_causal"] = "full",
         parc_mode: bool = False,
@@ -202,12 +198,6 @@ class PhysicsTransformer(nn.Module):
         self.parc_mode = parc_mode
         if self.parc_mode:
             self.integrator = Euler()
-
-        # Initialize revin
-        if revin:
-            self.revin = RevIN(num_channels=num_input_channels)
-        else:
-            self.revin = None
 
         self.tokenizer = Tokenizer(
             patch_size=patch_size,
@@ -272,8 +262,6 @@ class PhysicsTransformer(nn.Module):
             dt, dh, dw = self.derivatives(x)
             x = torch.cat([x, dt, dh, dw], dim=-1)
 
-        if self.revin is not None:
-            x = self.revin(x, mode="norm")
         norm_input = x.clone()
 
         # Split into patches
@@ -294,9 +282,6 @@ class PhysicsTransformer(nn.Module):
             # remove derivative channels so that x has the same shape as norm_input
             norm_input = norm_input[..., : self.num_fields]
             x = self.integrator(x, norm_input, step_size=1.0)
-
-        if self.revin is not None:
-            x = self.revin(x, mode="denorm")
 
         if self.att_mode == "full_causal":
             return x

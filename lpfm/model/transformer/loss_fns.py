@@ -206,3 +206,14 @@ class RVMSELoss(VMSELoss):
         """
         nmse = super().forward(pred, target)
         return torch.sqrt(nmse)
+
+
+class RMSE(nn.Module):
+    """Root Mean Squared Error loss function."""
+
+    def __init__(self):
+        super().__init__()
+        self.mse = nn.MSELoss()
+
+    def forward(self, pred, target):
+        return torch.sqrt(self.mse(pred, target))
