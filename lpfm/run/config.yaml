@@ -1,13 +1,13 @@
 wandb:
   project: Large-Physics-Foundation-Model
   entity: wsnr-florian
-  id: ti-bug-fix-0001
+  id: ti-
   tags:
     - LPFM-Ti
-    - SingleDataset
-    - TestRun
+    - AllDatasets
+    - MainRun
   log_model: gradients # log :all", "parameters" or "gradients" or null
-  notes: "Test run without gradient clipping"
+  notes: "T"
 
 logging:
   log_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/logs
@@ -33,7 +33,7 @@ model:
     patch_size: [2, 16, 16] # patch size (usually 4x16x16)
     stochastic_depth_rate: 0.0 # stochastic depth rate
     use_derivatives: false # whether to use derivatives in the model
-    parc_mode: false # whether to use the PARC mode
+    parc_mode: true # whether to use the PARC mode
   tokenizer:
     tokenizer_mode: linear # tokenizer mode (usually linear or conv_net)
     detokenizer_mode: linear # detokenizer mode (usually linear or conv_net)
@@ -48,8 +48,8 @@ training:
   amp: true # use automatic mixed precision training
   seed: 42
   batch_size: 256 # batch size per GPU
-  samples: 10e6 # number of samples to use for training
-  val_every_samples: 200e3 # number of samples between validation runs
+  samples: 100e6 # number of samples to use for training
+  val_every_samples: 2e6 # number of samples between validation runs
   val_frac_samples: 1 # fraction of samples to validate on (1 = all val samples)
   
   num_workers: 16 # number of workers for dataloader per GPU
@@ -60,16 +60,12 @@ training:
     # learning_rate: 1e-3
     # weight_decay: 0.01
     # betas: [0.9, 0.999]
-    # name: AdaptAdamW # AdaptAdamW or AdamW
-    # weight_decay: 0.01
-    # betas: [0.9, 0.999]
-    # learning_rate: 1
     name: Prodigy
     learning_rate: 1
     weight_decay: 0.001
     slice_p: 1
     betas: [0.9, 0.999]
-  criterion: NMSE # MSE or NMSE or MAE
+  criterion: MSE # MSE or MAE
   loss_clip: null # 10 # loss clipping due to numerical instabilities
 
   # lr_scheduler:
@@ -91,7 +87,7 @@ training:
     #   num_updates: 10 # number of batches for linear cool down
 
 data:
-  use_normalization: false # whether to normalize the data
+  use_normalization: true # whether to normalize the data
   max_samples_per_ds: null # limit the number of samples per epoch, set to null for no limit
   dt_stride: [1,8] # take every dt_stride-th timestep, if list, randomize between the values
   n_steps_input: 4 # number of input timesteps
@@ -102,21 +98,21 @@ data:
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:
     - cylinder_sym_flow_water
-    # - cylinder_pipe_flow_water
-    # - object_periodic_flow_water
-    # - object_sym_flow_water
-    # - object_sym_flow_air
+    - cylinder_pipe_flow_water
+    - object_periodic_flow_water
+    - object_sym_flow_water
+    - object_sym_flow_air
 
-    # - heated_object_pipe_flow_air
-    # - cooled_object_pipe_flow_air
-    # - rayleigh_benard_obstacle
+    - heated_object_pipe_flow_air
+    - cooled_object_pipe_flow_air
+    - rayleigh_benard_obstacle
     
-    # - twophase_flow
+    - twophase_flow
 
-    # - rayleigh_benard
-    # - shear_flow
-    # - euler_multi_quadrants_periodicBC
-    # - acoustic_scattering_inclusions
+    - rayleigh_benard
+    - shear_flow
+    - euler_multi_quadrants_periodicBC
+    - acoustic_scattering_inclusions
 
     # For testing
     # - turbulent_radiative_layer_2D
