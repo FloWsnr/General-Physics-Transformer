@@ -591,7 +591,12 @@ class Trainer:
             vis_path = self.val_dir / "train.png"
             try:
                 visualize_predictions(
-                    vis_path, x, output, target, num_samples=4, svg=True
+                    vis_path,
+                    x.float(),
+                    output.float(),
+                    target.float(),
+                    num_samples=4,
+                    svg=True,
                 )
                 log_predictions_wandb(
                     run=self.wandb_run,
@@ -689,7 +694,12 @@ class Trainer:
             vis_path = self.val_dir / "val.png"
             try:
                 visualize_predictions(
-                    vis_path, x, output, target, num_samples=4, svg=True
+                    vis_path,
+                    x.float(),
+                    output.float(),
+                    target.float(),
+                    num_samples=4,
+                    svg=True,
                 )
                 log_predictions_wandb(
                     run=self.wandb_run,
