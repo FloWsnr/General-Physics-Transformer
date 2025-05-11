@@ -1,6 +1,6 @@
 import torch
 import pytest
-from lpfm.model.autoencoder.autoencoder import Encoder, Decoder
+from lpfm.model.tokenizer.autoencoder import Encoder, Decoder
 
 
 class TestAutoencoder:
