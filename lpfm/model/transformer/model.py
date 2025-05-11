@@ -11,7 +11,7 @@ from lpfm.model.transformer.pos_encodings import (
     RotaryPositionalEmbedding,
     AbsPositionalEmbedding,
 )
-from lpfm.model.transformer.tokenizer import Tokenizer, Detokenizer
+from lpfm.model.tokenizer.tokenizer import Tokenizer, Detokenizer
 from lpfm.model.transformer.norms import RevIN
 from lpfm.model.transformer.derivatives import FiniteDifference
 from lpfm.model.transformer.num_integration import Euler
