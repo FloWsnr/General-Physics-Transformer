@@ -121,10 +121,6 @@ class VQVAETokenizer(nn.Module):
     ):
         super().__init__()
 
-        # Rearrangement layers
-        self.to_conv = Rearrange("b t h w c -> b c t h w")
-        self.from_conv = Rearrange("b c t h w -> b t h w c")
-
         # Encoder
         self.encoder = nn.Sequential(
             # First strided conv
@@ -144,23 +140,14 @@ class VQVAETokenizer(nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Input tensor of shape (batch_size, time, height, width, channels)
+            Input tensor of shape (batch_size, channels, time, height, width)
 
         Returns
         -------
         torch.Tensor
-            Encoded tensor of shape (batch_size, time, height, width, hidden_dim)
+            Encoded tensor of shape (batch_size, channels, time, height, width)
         """
-        # Rearrange for Conv3d
-        x = self.to_conv(x)
-
-        # Encode
-        z = self.encoder(x)
-
-        # Rearrange back to original format
-        z = self.from_conv(z)
-
-        return z
+        return self.encoder(x)
 
 
 class VQVAEDetokenizer(nn.Module):
@@ -181,10 +168,6 @@ class VQVAEDetokenizer(nn.Module):
         hidden_dim: int = 256,
     ):
         super().__init__()
-
-        # Rearrangement layers
-        self.to_conv = Rearrange("b t h w c -> b c t h w")
-        self.from_conv = Rearrange("b c t h w -> b t h w c")
 
         # Decoder
         self.decoder = nn.Sequential(
@@ -210,23 +193,14 @@ class VQVAEDetokenizer(nn.Module):
         Parameters
         ----------
         z_q : torch.Tensor
-            Quantized tensor of shape (batch_size, time, height, width, hidden_dim)
+            Quantized tensor of shape (batch_size, channels, time, height, width)
 
         Returns
         -------
         torch.Tensor
-            Reconstructed tensor of shape (batch_size, time, height, width, channels)
+            Reconstructed tensor of shape (batch_size, channels, time, height, width)
         """
-        # Rearrange for ConvTranspose3d
-        z_q = self.to_conv(z_q)
-
-        # Decode
-        x_recon = self.decoder(z_q)
-
-        # Rearrange back to original format
-        x_recon = self.from_conv(x_recon)
-
-        return x_recon
+        return self.decoder(z_q)
 
 
 class VQVAE(nn.Module):
@@ -256,6 +230,10 @@ class VQVAE(nn.Module):
         commitment_cost: float = 0.25,
     ):
         super().__init__()
+
+        # Rearrangement layers
+        self.to_conv = Rearrange("b t h w c -> b c t h w")
+        self.from_conv = Rearrange("b c t h w -> b t h w c")
 
         self.tokenizer = VQVAETokenizer(
             in_channels=in_channels,
@@ -296,6 +274,8 @@ class VQVAE(nn.Module):
             - Codebook loss
             - Encoding indices
         """
+        # Rearrange for Conv3d
+        x = self.to_conv(x)
         # Encode
         z = self.tokenizer(x)
 
@@ -310,5 +290,8 @@ class VQVAE(nn.Module):
 
         # Decode
         x_recon = self.detokenizer(z_q)
+
+        # Rearrange back to original format
+        x_recon = self.from_conv(x_recon)
 
         return x_recon, loss, indices
