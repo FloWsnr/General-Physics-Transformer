@@ -7,6 +7,7 @@ class LPFM_Ti:
     mlp_dim: int = 768
     num_heads: int = 3
     num_layers: int = 12
+    conv_channels: tuple[int, int] = (64, 128)
 
 
 @dataclass
@@ -15,7 +16,7 @@ class LPFM_S:
     mlp_dim: int = 1536
     num_heads: int = 6
     num_layers: int = 12
-
+    conv_channels: tuple[int, int] = (64, 128)
 
 @dataclass
 class LPFM_M:
@@ -23,7 +24,7 @@ class LPFM_M:
     mlp_dim: int = 3072
     num_heads: int = 12
     num_layers: int = 12
-
+    conv_channels: tuple[int, int] = (64, 128)
 
 @dataclass
 class LPFM_L:
@@ -31,7 +32,7 @@ class LPFM_L:
     mlp_dim: int = 4096
     num_heads: int = 16
     num_layers: int = 24
-
+    conv_channels: tuple[int, int] = (64, 128)
 
 @dataclass
 class LPFM_XL:
@@ -39,3 +40,4 @@ class LPFM_XL:
     mlp_dim: int = 5120
     num_heads: int = 20
     num_layers: int = 32
+    conv_channels: tuple[int, int] = (64, 128)
