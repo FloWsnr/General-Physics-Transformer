@@ -1,5 +1,4 @@
 from typing import Optional, Literal
-from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
@@ -15,42 +14,7 @@ from lpfm.model.tokenizer.tokenizer import Tokenizer, Detokenizer
 from lpfm.model.transformer.norms import RevIN
 from lpfm.model.transformer.derivatives import FiniteDifference
 from lpfm.model.transformer.num_integration import Euler
-
-
-@dataclass
-class LPFM_Ti:
-    hidden_dim: int = 192
-    mlp_dim: int = 768
-    num_heads: int = 3
-    num_layers: int = 12
-
-
-class LPFM_S:
-    hidden_dim: int = 384
-    mlp_dim: int = 1536
-    num_heads: int = 6
-    num_layers: int = 12
-
-
-class LPFM_M:
-    hidden_dim: int = 768
-    mlp_dim: int = 3072
-    num_heads: int = 12
-    num_layers: int = 12
-
-
-class LPFM_L:
-    hidden_dim: int = 1024
-    mlp_dim: int = 4096
-    num_heads: int = 16
-    num_layers: int = 24
-
-
-class LPFM_XL:
-    hidden_dim: int = 1280
-    mlp_dim: int = 5120
-    num_heads: int = 20
-    num_layers: int = 32
+import lpfm.model.model_specs as model_specs
 
 
 def get_model(model_config: dict):
@@ -59,13 +23,13 @@ def get_model(model_config: dict):
     tokenizer_config: dict = model_config["tokenizer"]
 
     if transformer_config["model_size"] == "LPFM_Ti":
-        lpfm_config = LPFM_Ti()
+        lpfm_config = model_specs.LPFM_Ti()
     elif transformer_config["model_size"] == "LPFM_S":
-        lpfm_config = LPFM_S()
+        lpfm_config = model_specs.LPFM_S()
     elif transformer_config["model_size"] == "LPFM_M":
-        lpfm_config = LPFM_M()
+        lpfm_config = model_specs.LPFM_M()
     elif transformer_config["model_size"] == "LPFM_L":
-        lpfm_config = LPFM_L()
+        lpfm_config = model_specs.LPFM_L()
 
     return PhysicsTransformer(
         num_fields=transformer_config["input_channels"],

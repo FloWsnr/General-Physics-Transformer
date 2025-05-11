@@ -35,8 +35,8 @@ model:
     use_derivatives: false # whether to use derivatives in the model
     parc_mode: true # whether to use the PARC mode
   tokenizer:
-    tokenizer_mode: linear # tokenizer mode (usually linear or conv_net)
-    detokenizer_mode: linear # detokenizer mode (usually linear or conv_net)
+    tokenizer_mode: linear # tokenizer mode (usually linear or conv_net, or vqvae)
+    detokenizer_mode: linear # detokenizer mode (usually linear or conv_net, or vqvae)
     tokenizer_overlap: 0 # pixels overlap between patches, only used for linear tokenizer
     detokenizer_overlap: 0 # pixels overlap between patches, only used for linear detokenizer
     tokenizer_net_channels: null # number of channels in the tokenizer conv_net
