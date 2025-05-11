@@ -256,6 +256,25 @@ class VQVAE(nn.Module):
             hidden_dim=hidden_dim,
         )
 
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Encode the input tensor.
+        """
+        x = self.to_conv(x)
+        z = self.tokenizer(x)
+        z = self.to_codebook(z)
+        z_q, loss, indices = self.quantizer(z)
+        return z_q, loss, indices
+
+    def decode(self, z_q: torch.Tensor) -> torch.Tensor:
+        """
+        Decode the quantized tensor.
+        """
+        z_q = self.from_codebook(z_q)
+        x_recon = self.detokenizer(z_q)
+        x_recon = self.from_conv(x_recon)
+        return x_recon
+
     def forward(
         self, x: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -274,24 +293,9 @@ class VQVAE(nn.Module):
             - Codebook loss
             - Encoding indices
         """
-        # Rearrange for Conv3d
-        x = self.to_conv(x)
         # Encode
-        z = self.tokenizer(x)
-
-        # Project to codebook dimension
-        z = self.to_codebook(z)
-
-        # Quantize
-        z_q, loss, indices = self.quantizer(z)
-
-        # Project back to hidden dimension
-        z_q = self.from_codebook(z_q)
-
+        z_q, loss, indices = self.encode(x)
         # Decode
-        x_recon = self.detokenizer(z_q)
-
-        # Rearrange back to original format
-        x_recon = self.from_conv(x_recon)
+        x_recon = self.decode(z_q)
 
         return x_recon, loss, indices
