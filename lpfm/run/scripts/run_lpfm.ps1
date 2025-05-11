@@ -25,7 +25,7 @@ $base_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model"
 $python_exec = "$base_dir\lpfm\run\train.py"
 $log_dir = "$base_dir\logs"
 $data_dir = "$base_dir\data\datasets"
-$base_config_file = "$base_dir\lpfm\run\config.yaml"
+$base_config_file = "$base_dir\lpfm\run\scripts\config.yaml"
 $sim_name = "ti-cyl-sym-flow-0001"
 
 # use a checkpoint to continue training with a new config file (learning rate, etc.)

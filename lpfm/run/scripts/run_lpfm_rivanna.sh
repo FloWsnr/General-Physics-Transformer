@@ -1,29 +1,37 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 ### Task name
-#SBATCH --account=rwth1802
+#SBATCH --account=sds_baek_energetic
+
+### Job name
 #SBATCH --job-name=train_lpfm
 
 ### Output file
-#SBATCH --output=/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs/slrm_logs/train_lpfm_%j.out
+#SBATCH --output=/home/zsa8rk/Coding/Large-Physics-Foundation-Model/logs/slrm_logs/train_lpfm_%j.out
 
-
-### Start a parallel job for a distributed-memory system on several nodes
+### Number of nodes
 #SBATCH --nodes=1
 
 ### How many CPU cores to use
-#SBATCH --ntasks-per-node=96
-#SBATCH --exclusive
+#SBATCH --ntasks-per-node=70
+
+### How much memory in total (MB)
+#SBATCH --mem=600G
 
 ### Mail notification configuration
-#SBATCH --mail-type=FAIL
+#SBATCH --mail-type=ALL
 #SBATCH --mail-user=zsa8rk@virginia.edu
 
 ### Maximum runtime per task
 #SBATCH --time=24:00:00
 
-### set number of GPUs per task
-#SBATCH --gres=gpu:4
+### set number of GPUs per task (v100, a100, h200)
+#SBATCH --gres=gpu:a100:4
+##SBATCH --constraint=a100_80gb
+
+
+### Partition
+#SBATCH --partition=gpu
 
 ### create time series, i.e. 100 jobs one after another. Each runs for 24 hours
 ##SBATCH --array=1-10%1
@@ -37,10 +45,6 @@ time_limit="24:00:00"
 ############################# Setup #################################################
 #####################################################################################
 
-# Load modules
-module purge
-module load CUDA/12.6.0
-
 # activate conda environment
 export CONDA_ROOT=$HOME/miniforge3
 source $CONDA_ROOT/etc/profile.d/conda.sh
@@ -53,13 +57,14 @@ conda activate lpfm
 # debug mode
 # debug=true
 # Set up paths
-base_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model"
+base_dir="/home/zsa8rk/Coding/Large-Physics-Foundation-Model"
 python_exec="${base_dir}/lpfm/run/train.py"
 log_dir="${base_dir}/logs"
-data_dir="${base_dir}/data/datasets"
-base_config_file="${base_dir}/lpfm/run/config.yaml"
+base_config_file="${base_dir}/lpfm/run/scripts/config.yaml"
+data_dir="/scratch/zsa8rk/datasets"
 # sim_name (same as wandb id)
-sim_name="ti-main-run-all-0007"
+# sim_name="ti-main-run-all-0002"
+sim_name="ti-test-run-no-grad-clip"
 nnodes=1
 ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
