@@ -2,6 +2,32 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Tuple
+from einops.layers.torch import Rearrange
+
+
+class ResidualBlock(nn.Module):
+    """
+    Residual block with two convolutions and a skip connection.
+
+    Parameters
+    ----------
+    channels : int
+        Number of input and output channels
+    """
+
+    def __init__(self, channels: int):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.ReLU(),
+            nn.Conv3d(channels, channels, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv3d(channels, channels, kernel_size=1),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        residual = x
+        x = self.block(x)
+        return x + residual
 
 
 class VectorQuantizer(nn.Module):
@@ -10,9 +36,9 @@ class VectorQuantizer(nn.Module):
 
     Parameters
     ----------
-    num_embeddings : int
+    codebook_size : int
         Number of embeddings in the codebook
-    embedding_dim : int
+    codebook_dim : int
         Dimension of each embedding vector
     commitment_cost : float
         Commitment cost for the codebook loss
@@ -20,18 +46,18 @@ class VectorQuantizer(nn.Module):
 
     def __init__(
         self,
-        num_embeddings: int,
-        embedding_dim: int,
+        codebook_size: int,
+        codebook_dim: int,
         commitment_cost: float = 0.25,
     ):
         super().__init__()
-        self.num_embeddings = num_embeddings
-        self.embedding_dim = embedding_dim
+        self.codebook_size = codebook_size
+        self.codebook_dim = codebook_dim
         self.commitment_cost = commitment_cost
 
         # Initialize codebook
-        self.embedding = nn.Embedding(num_embeddings, embedding_dim)
-        self.embedding.weight.data.uniform_(-1 / num_embeddings, 1 / num_embeddings)
+        self.embedding = nn.Embedding(codebook_size, codebook_dim)
+        self.embedding.weight.data.uniform_(-1 / codebook_size, 1 / codebook_size)
 
     def forward(
         self, z: torch.Tensor
@@ -52,7 +78,7 @@ class VectorQuantizer(nn.Module):
             - Encoding indices
         """
         # Reshape input to (batch_size * time * height * width, embedding_dim)
-        z_flat = z.reshape(-1, self.embedding_dim)
+        z_flat = z.reshape(-1, self.codebook_dim)
 
         # Calculate distances to codebook vectors
         d = (
@@ -78,51 +104,40 @@ class VectorQuantizer(nn.Module):
 
 class VQVAETokenizer(nn.Module):
     """
-    VQ-VAE Tokenizer that encodes input into discrete latent codes.
+    VQ-VAE Tokenizer that encodes input into latent representation.
 
     Parameters
     ----------
     in_channels : int
         Number of input channels
     hidden_dim : int
-        Hidden dimension for the encoder
-    num_embeddings : int
-        Number of embeddings in the codebook
-    embedding_dim : int
-        Dimension of each embedding vector
-    commitment_cost : float
-        Commitment cost for the codebook loss
+        Hidden dimension for the encoder conv layers
     """
 
     def __init__(
         self,
         in_channels: int,
-        hidden_dim: int,
-        num_embeddings: int = 512,
-        embedding_dim: int = 64,
-        commitment_cost: float = 0.25,
+        hidden_dim: int = 256,
     ):
         super().__init__()
 
+        # Rearrangement layers
+        self.to_conv = Rearrange("b t h w c -> b c t h w")
+        self.from_conv = Rearrange("b c t h w -> b t h w c")
+
         # Encoder
         self.encoder = nn.Sequential(
-            nn.Conv3d(in_channels, hidden_dim, 4, stride=2, padding=1),
+            # First strided conv
+            nn.Conv3d(in_channels, hidden_dim, kernel_size=4, stride=2, padding=1),
             nn.ReLU(),
-            nn.Conv3d(hidden_dim, hidden_dim, 4, stride=2, padding=1),
-            nn.ReLU(),
-            nn.Conv3d(hidden_dim, embedding_dim, 1),
+            # Second strided conv
+            nn.Conv3d(hidden_dim, hidden_dim, kernel_size=4, stride=2, padding=1),
+            # Two residual blocks
+            ResidualBlock(hidden_dim),
+            ResidualBlock(hidden_dim),
         )
 
-        # Vector Quantizer
-        self.quantizer = VectorQuantizer(
-            num_embeddings=num_embeddings,
-            embedding_dim=embedding_dim,
-            commitment_cost=commitment_cost,
-        )
-
-    def forward(
-        self, x: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through the VQ-VAE tokenizer.
 
@@ -133,24 +148,19 @@ class VQVAETokenizer(nn.Module):
 
         Returns
         -------
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
-            - Quantized tensor
-            - Codebook loss
-            - Encoding indices
+        torch.Tensor
+            Encoded tensor of shape (batch_size, time, height, width, hidden_dim)
         """
         # Rearrange for Conv3d
-        x = x.permute(0, 4, 1, 2, 3)
+        x = self.to_conv(x)
 
         # Encode
         z = self.encoder(x)
 
         # Rearrange back to original format
-        z = z.permute(0, 2, 3, 4, 1)
+        z = self.from_conv(z)
 
-        # Quantize
-        z_q, loss, indices = self.quantizer(z)
-
-        return z_q, loss, indices
+        return z
 
 
 class VQVAEDetokenizer(nn.Module):
@@ -163,25 +173,34 @@ class VQVAEDetokenizer(nn.Module):
         Number of output channels
     hidden_dim : int
         Hidden dimension for the decoder
-    embedding_dim : int
-        Dimension of each embedding vector
     """
 
     def __init__(
         self,
         out_channels: int,
-        hidden_dim: int,
-        embedding_dim: int = 64,
+        hidden_dim: int = 256,
     ):
         super().__init__()
 
+        # Rearrangement layers
+        self.to_conv = Rearrange("b t h w c -> b c t h w")
+        self.from_conv = Rearrange("b c t h w -> b t h w c")
+
         # Decoder
         self.decoder = nn.Sequential(
-            nn.ConvTranspose3d(embedding_dim, hidden_dim, 4, stride=2, padding=1),
+            # Two residual blocks
+            ResidualBlock(hidden_dim),
+            ResidualBlock(hidden_dim),
+            # First transposed conv
             nn.ReLU(),
-            nn.ConvTranspose3d(hidden_dim, hidden_dim, 4, stride=2, padding=1),
+            nn.ConvTranspose3d(
+                hidden_dim, hidden_dim, kernel_size=4, stride=2, padding=1
+            ),
             nn.ReLU(),
-            nn.ConvTranspose3d(hidden_dim, out_channels, 1),
+            # Second transposed conv
+            nn.ConvTranspose3d(
+                hidden_dim, out_channels, kernel_size=4, stride=2, padding=1
+            ),
         )
 
     def forward(self, z_q: torch.Tensor) -> torch.Tensor:
@@ -191,7 +210,7 @@ class VQVAEDetokenizer(nn.Module):
         Parameters
         ----------
         z_q : torch.Tensor
-            Quantized tensor of shape (batch_size, time, height, width, embedding_dim)
+            Quantized tensor of shape (batch_size, time, height, width, hidden_dim)
 
         Returns
         -------
@@ -199,13 +218,13 @@ class VQVAEDetokenizer(nn.Module):
             Reconstructed tensor of shape (batch_size, time, height, width, channels)
         """
         # Rearrange for ConvTranspose3d
-        z_q = z_q.permute(0, 4, 1, 2, 3)
+        z_q = self.to_conv(z_q)
 
         # Decode
         x_recon = self.decoder(z_q)
 
         # Rearrange back to original format
-        x_recon = x_recon.permute(0, 2, 3, 4, 1)
+        x_recon = self.from_conv(x_recon)
 
         return x_recon
 
@@ -220,9 +239,9 @@ class VQVAE(nn.Module):
         Number of input channels
     hidden_dim : int
         Hidden dimension for encoder/decoder
-    num_embeddings : int
+    codebook_size : int
         Number of embeddings in the codebook
-    embedding_dim : int
+    codebook_dim : int
         Dimension of each embedding vector
     commitment_cost : float
         Commitment cost for the codebook loss
@@ -231,9 +250,9 @@ class VQVAE(nn.Module):
     def __init__(
         self,
         in_channels: int,
-        hidden_dim: int,
-        num_embeddings: int = 512,
-        embedding_dim: int = 64,
+        hidden_dim: int = 256,
+        codebook_size: int = 512,
+        codebook_dim: int = 64,
         commitment_cost: float = 0.25,
     ):
         super().__init__()
@@ -241,13 +260,22 @@ class VQVAE(nn.Module):
         self.tokenizer = VQVAETokenizer(
             in_channels=in_channels,
             hidden_dim=hidden_dim,
-            num_embeddings=num_embeddings,
-            embedding_dim=embedding_dim,
+        )
+
+        # Projection layers for codebook
+        self.to_codebook = nn.Conv3d(hidden_dim, codebook_dim, kernel_size=1)
+        self.from_codebook = nn.Conv3d(codebook_dim, hidden_dim, kernel_size=1)
+
+        # Vector Quantizer
+        self.quantizer = VectorQuantizer(
+            codebook_size=codebook_size,
+            codebook_dim=codebook_dim,
             commitment_cost=commitment_cost,
         )
 
         self.detokenizer = VQVAEDetokenizer(
-            out_channels=in_channels, hidden_dim=hidden_dim, embedding_dim=embedding_dim
+            out_channels=in_channels,
+            hidden_dim=hidden_dim,
         )
 
     def forward(
@@ -268,7 +296,19 @@ class VQVAE(nn.Module):
             - Codebook loss
             - Encoding indices
         """
-        z_q, loss, indices = self.tokenizer(x)
+        # Encode
+        z = self.tokenizer(x)
+
+        # Project to codebook dimension
+        z = self.to_codebook(z)
+
+        # Quantize
+        z_q, loss, indices = self.quantizer(z)
+
+        # Project back to hidden dimension
+        z_q = self.from_codebook(z_q)
+
+        # Decode
         x_recon = self.detokenizer(z_q)
 
         return x_recon, loss, indices
