@@ -149,8 +149,8 @@ class VQVAETrainer:
         self.model = VQVAE(
             in_channels=vqvae_config["in_channels"],
             hidden_dim=vqvae_config["hidden_dim"],
-            codebook_size=vqvae_config["num_embeddings"],
-            codebook_dim=vqvae_config["embedding_dim"],
+            codebook_size=vqvae_config["codebook_size"],
+            codebook_dim=vqvae_config["codebook_dim"],
             commitment_cost=vqvae_config["commitment_cost"],
         )
 
@@ -429,24 +429,24 @@ class VQVAETrainer:
         train_iter = iter(self.train_loader)
         while samples_trained < num_samples:
             try:
-                x, target = next(train_iter)
+                x, _ = next(train_iter)
             except StopIteration:
                 train_iter = iter(self.train_loader)
-                x, target = next(train_iter)
+                x, _ = next(train_iter)
 
+            # we only need x for training the VQVAE
             x = x.to(self.device)
-            target = target.to(self.device)
 
             self.optimizer.zero_grad()
             with torch.autocast(
                 device_type=self.device.type, dtype=torch.bfloat16, enabled=self.use_amp
             ):
                 x_recon, codebook_loss, _ = self.model(x)
-                recon_loss = self.criterion(x_recon, target)
+                recon_loss = self.criterion(x_recon, x)
                 loss = recon_loss + codebook_loss
 
             # Log training loss
-            log_losses = self._compute_log_metrics(x_recon.detach(), target.detach())
+            log_losses = self._compute_log_metrics(x_recon.detach(), x.detach())
             log_losses[self.config["training"]["criterion"]] = recon_loss.detach()
             log_losses["codebook"] = codebook_loss.detach()
 
@@ -537,7 +537,7 @@ class VQVAETrainer:
                     vis_path,
                     x.float(),
                     x_recon.float(),
-                    target.float(),
+                    x.float(),
                     num_samples=4,
                     svg=True,
                 )
@@ -575,13 +575,12 @@ class VQVAETrainer:
         with torch.inference_mode():
             while samples_validated < self.val_samples:
                 try:
-                    x, target = next(val_iter)
+                    x, _ = next(val_iter)
                 except StopIteration:
                     val_iter = iter(self.val_loader)
-                    x, target = next(val_iter)
+                    x, _ = next(val_iter)
 
                 x = x.to(self.device)
-                target = target.to(self.device)
 
                 with torch.autocast(
                     device_type=self.device.type,
@@ -589,11 +588,9 @@ class VQVAETrainer:
                     enabled=self.use_amp,
                 ):
                     x_recon, codebook_loss, _ = self.model(x)
-                    recon_loss = self.criterion(x_recon, target)
+                    recon_loss = self.criterion(x_recon, x)
 
-                log_losses = self._compute_log_metrics(
-                    x_recon.detach(), target.detach()
-                )
+                log_losses = self._compute_log_metrics(x_recon.detach(), x.detach())
                 log_losses[self.config["training"]["criterion"]] = recon_loss.detach()
                 log_losses["codebook"] = codebook_loss.detach()
 
@@ -624,7 +621,7 @@ class VQVAETrainer:
                     vis_path,
                     x.float(),
                     x_recon.float(),
-                    target.float(),
+                    x.float(),
                     num_samples=4,
                     svg=True,
                 )
