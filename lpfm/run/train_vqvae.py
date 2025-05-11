@@ -149,8 +149,8 @@ class VQVAETrainer:
         self.model = VQVAE(
             in_channels=vqvae_config["in_channels"],
             hidden_dim=vqvae_config["hidden_dim"],
-            num_embeddings=vqvae_config["num_embeddings"],
-            embedding_dim=vqvae_config["embedding_dim"],
+            codebook_size=vqvae_config["num_embeddings"],
+            codebook_dim=vqvae_config["embedding_dim"],
             commitment_cost=vqvae_config["commitment_cost"],
         )
 
