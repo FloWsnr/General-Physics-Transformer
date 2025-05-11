@@ -145,4 +145,4 @@ fi
 torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args
 
 # move the output file to the sim_dir
-mv ${log_dir}/slrm_logs/train_lpfm_${SLURM_JOB_ID}.out $sim_dir
+mv ${log_dir}/slrm_logs/${sim_name}_${SLURM_JOB_ID}.out $sim_dir
