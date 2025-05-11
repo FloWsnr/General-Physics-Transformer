@@ -63,7 +63,6 @@ log_dir="${base_dir}/logs"
 base_config_file="${base_dir}/lpfm/run/scripts/config.yaml"
 data_dir="/scratch/zsa8rk/datasets"
 # sim_name (same as wandb id)
-# sim_name="ti-main-run-all-0002"
 sim_name="ti-test-run-no-grad-clip"
 nnodes=1
 ngpus_per_node=4
