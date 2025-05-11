@@ -3,6 +3,8 @@ import torch.nn as nn
 from einops.layers.torch import Rearrange
 
 from lpfm.model.tokenizer.tokenizer_utils import _calculate_strides
+
+
 class Encoder(nn.Module):
     """
     Encoder module that downsamples an input tensor to a latent representation.
@@ -163,6 +165,20 @@ class Decoder(nn.Module):
             (batch_size, time, height, width, out_channels)
         """
         return self.decoder(x)
+
+
+class Autoencoder(nn.Module):
+    """
+    Autoencoder module that encodes and decodes an input tensor.
+    """
+
+    def __init__(self, encoder: Encoder, decoder: Decoder):
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.decoder(self.encoder(x))
 
 
 if __name__ == "__main__":
