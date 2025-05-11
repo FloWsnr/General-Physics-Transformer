@@ -1,8 +1,10 @@
+from typing import Optional, Tuple
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from typing import Optional, Tuple
+
 from einops.layers.torch import Rearrange
+from einops import rearrange
 
 
 class ResidualBlock(nn.Module):
@@ -299,3 +301,28 @@ class VQVAE(nn.Module):
         x_recon = self.decode(z_q)
 
         return x_recon, loss, indices
+
+    def get_3d_indices(
+        self,
+        indices: torch.Tensor,
+        shape: Tuple[int, int, int, int],
+    ) -> torch.Tensor:
+        """
+        Reshape the flattened indices back to 3D format.
+
+        Parameters
+        ----------
+        indices : torch.Tensor
+            Flattened indices from the quantizer
+        shape : Tuple[int, int, int, int]
+            Shape of the original tensor
+
+        Returns
+        -------
+        torch.Tensor
+            Reshaped indices with shape (batch_size, time//4, height//4, width//4)
+        """
+        B, T, H, W = shape
+
+        # Use einops to rearrange the flattened indices back to 3D format
+        return rearrange(indices, "(b t h w) -> b t h w", b=B, t=T, h=H, w=W)

@@ -39,6 +39,7 @@ def test_vector_quantizer():
     assert isinstance(loss, torch.Tensor)
     assert indices.shape == (batch_size * time * height * width,)
 
+
 def test_vqvae_tokenizer():
     batch_size = 2
     time = 4
@@ -92,4 +93,36 @@ def test_vqvae():
     x_recon, loss, indices = vqvae(x)
     assert x_recon.shape == x.shape
     assert isinstance(loss, torch.Tensor)
-    assert indices.shape == (batch_size * time//4 * height//4 * width//4,)
+    assert indices.shape == (batch_size * time // 4 * height // 4 * width // 4,)
+
+
+def test_get_3d_indices():
+    batch_size = 2
+    time = 4
+    height = 32
+    width = 32
+    in_channels = 3
+    hidden_dim = 256
+    codebook_size = 512
+    codebook_dim = 64
+
+    vqvae = VQVAE(
+        in_channels=in_channels,
+        hidden_dim=hidden_dim,
+        codebook_size=codebook_size,
+        codebook_dim=codebook_dim,
+    )
+
+    # Create a flattened indices tensor
+    # After two stride-2 convolutions, spatial dimensions are reduced by 4
+    flattened_indices = torch.randint(
+        0, codebook_size, (batch_size * time * height * width,)
+    )
+
+    # Get 3D indices
+    indices_3d = vqvae.get_3d_indices(
+        flattened_indices, (batch_size, time, height, width)
+    )
+
+    # Check shape
+    assert indices_3d.shape == (batch_size, time, height, width)
