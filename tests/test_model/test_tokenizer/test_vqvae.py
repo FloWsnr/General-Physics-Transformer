@@ -126,3 +126,40 @@ def test_get_3d_indices():
 
     # Check shape
     assert indices_3d.shape == (batch_size, time, height, width)
+
+
+def test_vqvae_with_derivatives():
+    batch_size = 2
+    time = 4
+    height = 32
+    width = 32
+    in_channels = 3
+    hidden_dim = 256
+    codebook_size = 512
+    codebook_dim = 64
+
+    # Create VQVAE with derivatives enabled
+    vqvae = VQVAE(
+        in_channels=in_channels,
+        hidden_dim=hidden_dim,
+        codebook_size=codebook_size,
+        codebook_dim=codebook_dim,
+        derivatives=True,
+    )
+
+    # Input shape: (batch_size, time, height, width, channels)
+    x = torch.randn(batch_size, time, height, width, in_channels)
+
+    # Forward pass
+    x_recon, loss, indices = vqvae(x)
+
+    # Check shapes
+    # With derivatives enabled, input channels are multiplied by 4 (original + dt, dx, dy)
+    expected_input_channels = in_channels * 4
+    assert x_recon.shape == (batch_size, time, height, width, in_channels)
+    assert indices.shape == (batch_size * time // 4 * height // 4 * width // 4,)
+
+    # Check that derivatives were computed
+    assert vqvae.derivatives is not None
+    # The tokenizer should have received the expanded input channels
+    assert vqvae.tokenizer.encoder[0].in_channels == expected_input_channels

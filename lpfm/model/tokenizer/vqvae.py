@@ -6,6 +6,8 @@ import torch.nn as nn
 from einops.layers.torch import Rearrange
 from einops import rearrange
 
+from lpfm.model.transformer.model import FiniteDifference
+
 
 class ResidualBlock(nn.Module):
     """
@@ -230,15 +232,27 @@ class VQVAE(nn.Module):
         codebook_size: int = 512,
         codebook_dim: int = 64,
         commitment_cost: float = 0.25,
+        derivatives: bool = False,
     ):
         super().__init__()
+        num_fields = in_channels
+        input_channels = in_channels
+        if derivatives:
+            self.derivatives = FiniteDifference(
+                num_channels=num_fields, filter_1d="2nd"
+            )
+            input_channels = (
+                num_fields * 4
+            )  # more input channels due to derivatives dt, dx ,dy
+        else:
+            self.derivatives = None
 
         # Rearrangement layers
         self.to_conv = Rearrange("b t h w c -> b c t h w")
         self.from_conv = Rearrange("b c t h w -> b t h w c")
 
         self.tokenizer = VQVAETokenizer(
-            in_channels=in_channels,
+            in_channels=input_channels,
             hidden_dim=hidden_dim,
         )
 
@@ -254,7 +268,7 @@ class VQVAE(nn.Module):
         )
 
         self.detokenizer = VQVAEDetokenizer(
-            out_channels=in_channels,
+            out_channels=num_fields,
             hidden_dim=hidden_dim,
         )
 
@@ -295,6 +309,9 @@ class VQVAE(nn.Module):
             - Codebook loss
             - Encoding indices
         """
+        if self.derivatives:
+            dt, dh, dw = self.derivatives(x)
+            x = torch.cat([x, dt, dh, dw], dim=-1)
         # Encode
         z_q, loss, indices = self.encode(x)
         # Decode
