@@ -3,8 +3,8 @@ import pytest
 from lpfm.model.tokenizer.vqvae import (
     ResidualBlock,
     VectorQuantizer,
-    VQVAETokenizer,
-    VQVAEDetokenizer,
+    Encoder,
+    Decoder,
     VQVAE,
 )
 
@@ -48,7 +48,7 @@ def test_vqvae_tokenizer():
     in_channels = 3
     hidden_dim = 256
 
-    tokenizer = VQVAETokenizer(in_channels, hidden_dim)
+    tokenizer = Encoder(in_channels, hidden_dim)
     x = torch.randn(batch_size, in_channels, time, height, width)
 
     z = tokenizer(x)
@@ -64,7 +64,7 @@ def test_vqvae_detokenizer():
     hidden_dim = 256
     out_channels = 3
 
-    detokenizer = VQVAEDetokenizer(out_channels, hidden_dim)
+    detokenizer = Decoder(out_channels, hidden_dim)
     z_q = torch.randn(batch_size, hidden_dim, time, height, width)
 
     x_recon = detokenizer(z_q)
@@ -162,4 +162,4 @@ def test_vqvae_with_derivatives():
     # Check that derivatives were computed
     assert vqvae.derivatives is not None
     # The tokenizer should have received the expanded input channels
-    assert vqvae.tokenizer.encoder[0].in_channels == expected_input_channels
+    assert vqvae.encoder.encoder[0].in_channels == expected_input_channels

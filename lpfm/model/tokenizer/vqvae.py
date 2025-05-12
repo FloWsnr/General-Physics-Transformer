@@ -106,7 +106,7 @@ class VectorQuantizer(nn.Module):
         return z_q, loss, min_encoding_indices
 
 
-class VQVAETokenizer(nn.Module):
+class Encoder(nn.Module):
     """
     VQ-VAE Tokenizer that encodes input into latent representation.
 
@@ -154,7 +154,7 @@ class VQVAETokenizer(nn.Module):
         return self.encoder(x)
 
 
-class VQVAEDetokenizer(nn.Module):
+class Decoder(nn.Module):
     """
     VQ-VAE Detokenizer that decodes discrete latent codes back to the original space.
 
@@ -251,7 +251,7 @@ class VQVAE(nn.Module):
         self.to_conv = Rearrange("b t h w c -> b c t h w")
         self.from_conv = Rearrange("b c t h w -> b t h w c")
 
-        self.tokenizer = VQVAETokenizer(
+        self.encoder = Encoder(
             in_channels=input_channels,
             hidden_dim=hidden_dim,
         )
@@ -267,7 +267,7 @@ class VQVAE(nn.Module):
             commitment_cost=commitment_cost,
         )
 
-        self.detokenizer = VQVAEDetokenizer(
+        self.decoder = Decoder(
             out_channels=num_fields,
             hidden_dim=hidden_dim,
         )
@@ -277,7 +277,7 @@ class VQVAE(nn.Module):
         Encode the input tensor.
         """
         x = self.to_conv(x)
-        z = self.tokenizer(x)
+        z = self.encoder(x)
         z = self.to_codebook(z)
         z_q, loss, indices = self.quantizer(z)
         return z_q, loss, indices
@@ -287,7 +287,7 @@ class VQVAE(nn.Module):
         Decode the quantized tensor.
         """
         z_q = self.from_codebook(z_q)
-        x_recon = self.detokenizer(z_q)
+        x_recon = self.decoder(z_q)
         x_recon = self.from_conv(x_recon)
         return x_recon
 
