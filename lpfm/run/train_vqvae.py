@@ -264,6 +264,9 @@ class VQVAETrainer:
             "MSE": nn.MSELoss(),
             "RMSE": RMSE(),
         }
+        self.codebook_usage = torch.zeros(
+            vqvae_config["codebook_size"], device=self.device
+        )
 
         if self.config["training"]["criterion"] == "MSE":
             self.criterion = self.loss_fns.pop("MSE")
@@ -441,9 +444,14 @@ class VQVAETrainer:
             with torch.autocast(
                 device_type=self.device.type, dtype=torch.bfloat16, enabled=self.use_amp
             ):
-                x_recon, codebook_loss, _ = self.model(x)
+                x_recon, codebook_loss, indices = self.model(x)
                 recon_loss = self.criterion(x_recon, x)
                 loss = recon_loss + codebook_loss
+
+            # Track codebook usage
+            unique_indices, counts = torch.unique(indices, return_counts=True)
+            self.codebook_usage[unique_indices] += counts
+            num_unique_codes = unique_indices.numel()
 
             # Log training loss
             log_losses = self._compute_log_metrics(x_recon.detach(), x.detach())
@@ -475,6 +483,13 @@ class VQVAETrainer:
 
             if self.ddp_enabled:
                 log_losses = self._reduce_all_losses(log_losses)
+                self.codebook_usage = dist.all_reduce(
+                    self.codebook_usage, op=dist.ReduceOp.SUM
+                )
+                num_unique_codes = dist.all_reduce(
+                    num_unique_codes, op=dist.ReduceOp.SUM
+                )
+
             for loss_name, log_loss in log_losses.items():
                 loss_per_cycle[f"total-{loss_name}"] += log_loss
 
@@ -512,6 +527,7 @@ class VQVAETrainer:
                 loss = loss.item()
                 log_string += f"{loss_name}: {loss:.8f}, "
                 wandb_log_losses[f"training-losses/{loss_name}"] = loss
+            wandb_log_losses["training-losses/num_unique_codes"] = num_unique_codes
             self.log_msg(log_string)
             self.log_msg("")
 
