@@ -15,14 +15,7 @@ logging:
   log_level: INFO
   subdir_name: val_ # subdir name each cycle, should end with an underscore
 
-model:
-  architecture:
-    name: "Spatial-Temporal Transformer"
-    backbone: "spatial temporal attention"
-    normalization: "RevIN (T,H,W)"
-    activation: GELU
-    patches: linear
-  
+model:  
   transformer:
     input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
     # number of hidden channels across all layers (must be divisible by 6 and by num_heads)
@@ -49,9 +42,16 @@ training:
   seed: 42
   batch_size: 256 # batch size per GPU
   samples: 100e6 # number of samples to use for training
+
+  ################################################################
+  ########### Validation parameters ############################
+  ################################################################
   val_every_samples: 2e6 # number of samples between validation runs
-  val_frac_samples: 1 # fraction of samples to validate on (1 = all val samples)
   
+  # This is per dataset, also per dt, if separate_dt is true 
+  val_frac_samples: 0.1 # fraction of samples to validate on (1 = all val samples)
+  val_separate_dt: true # whether to separate the validation datasets for different dt strides
+
   num_workers: 16 # number of workers for dataloader per GPU
   prefetch_factor: 2 # how many batches to prefetch for each worker
   grad_clip: 1.0 # gradient clipping, use null for no gradient clipping
@@ -92,7 +92,6 @@ data:
   n_steps_input: 4 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
   out_shape: [256, 128] # output shape (usually 256 x 128
-  zero_field_value: 0 # value to replace zero channels with
 
   data_dir: /Users/zsa8rk/Coding/Large-Physics-Foundation-Model/data/datasets
   datasets:

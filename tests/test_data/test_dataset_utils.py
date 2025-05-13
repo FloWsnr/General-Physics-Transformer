@@ -9,6 +9,7 @@ from lpfm.data.dataset_utils import (
     get_datasets,
     get_dt_datasets,
     get_dataloader,
+    get_dataloader_val,
 )
 from lpfm.data.phys_dataset import PhysicsDataset
 
@@ -145,3 +146,33 @@ def test_get_dataloader(tmp_path: Path, write_dummy_data: Callable, shuffle: boo
         data_config, train_config, split="train", shuffle=shuffle
     )
     assert len(dataloader) == 10
+
+
+def test_get_dataloader_val(tmp_path: Path, write_dummy_data: Callable):
+    """Test the get_dataloader_val function."""
+    # Create test data in train and valid directories
+    write_dummy_data(tmp_path / "dummy_1/data/valid/dummy_dataset.hdf5")
+    write_dummy_data(tmp_path / "dummy_2/data/valid/dummy_dataset.hdf5")
+
+    data_config = {
+        "data_dir": tmp_path,
+        "n_steps_input": 1,
+        "n_steps_output": 1,
+        "dt_stride": [1, 2],
+        "full_trajectory_mode": False,
+        "max_rollout_steps": 10000,
+        "zero_field_value": 0.0,
+        "use_normalization": False,
+        "nan_to_zero": True,
+        "datasets": ["dummy_1", "dummy_2"],
+        "max_samples_per_ds": 10,
+    }
+    train_config = {
+        "batch_size": 1,
+        "num_workers": 0,
+        "prefetch_factor": None,
+        "seed": 42,
+        "val_frac_samples": 1,
+    }
+    dataloader = get_dataloader_val(data_config, train_config)
+    assert len(dataloader) == 5

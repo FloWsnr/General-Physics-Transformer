@@ -1,5 +1,5 @@
 from pathlib import Path
-
+from typing import Optional
 import torch
 from torch.utils.data import (
     default_collate,
@@ -59,7 +59,7 @@ def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
 def get_dataloader(
     data_config: dict,
     train_config: dict,
-    split: str,
+    split: str = "train",
     is_distributed: bool = False,
     shuffle: bool = True,
 ) -> DataLoader:
@@ -79,7 +79,7 @@ def get_dataloader(
         Whether to shuffle the dataset
     """
     seed = train_config["seed"]
-    datasets = get_datasets(data_config, split)
+    datasets = get_datasets(data_config, split=split)
     super_dataset = SuperDataset(
         datasets,
         max_samples_per_ds=data_config["max_samples_per_ds"],
@@ -97,7 +97,44 @@ def get_dataloader(
     dataloader = DataLoader(
         dataset=super_dataset,
         batch_size=train_config["batch_size"],
-        # collate_fn=collate_fn,
+        num_workers=train_config["num_workers"],
+        pin_memory=True,
+        sampler=sampler,
+        prefetch_factor=train_config["prefetch_factor"],
+    )
+
+    return dataloader
+
+
+def get_dataloader_val(
+    data_config: dict,
+    train_config: dict,
+    is_distributed: bool = False,
+) -> DataLoader:
+    """Get a dataloader for the validation dataset."""
+    seed = train_config["seed"]
+    datasets = get_dt_datasets(data_config, split="val")
+
+    # get the number of samples per dataset
+    samples_per_ds = [len(dataset) for dataset in datasets.values()]
+    # get the number of samples per dataset for the validation set using the val_frac_samples
+    val_frac_samples = float(train_config["val_frac_samples"])
+    val_num_samples_per_ds = [
+        int(val_frac_samples * samples_per_ds[i]) for i in range(len(samples_per_ds))
+    ]
+
+    super_dataset = SuperDataset(
+        datasets, max_samples_per_ds=val_num_samples_per_ds, seed=seed
+    )
+
+    if is_distributed:
+        sampler = DistributedSampler(super_dataset, seed=seed, shuffle=False)
+    else:
+        sampler = SequentialSampler(super_dataset)
+
+    dataloader = DataLoader(
+        dataset=super_dataset,
+        batch_size=train_config["batch_size"],
         num_workers=train_config["num_workers"],
         pin_memory=True,
         sampler=sampler,
@@ -130,7 +167,6 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
     n_steps_input = data_config["n_steps_input"]
     n_steps_output = data_config["n_steps_output"]
     dt_stride = data_config["dt_stride"]
-    zero_field_value = data_config["zero_field_value"]
     use_normalization = data_config.get("use_normalization", False)
     datasets = {}
     dataset_list: list[str] = data_config["datasets"].copy()
@@ -145,7 +181,6 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
             include_field_names=include_field_names,
-            zero_field_value=zero_field_value,
             use_normalization=use_normalization,
             normalization_path=data_dir / f"{dataset_name}/data/stats.yaml",
         )
