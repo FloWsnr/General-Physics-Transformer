@@ -1,7 +1,12 @@
 from pathlib import Path
 
 import torch
-from torch.utils.data import default_collate, DataLoader, RandomSampler
+from torch.utils.data import (
+    default_collate,
+    DataLoader,
+    RandomSampler,
+    SequentialSampler,
+)
 from torch.utils.data.distributed import DistributedSampler
 
 from the_well.data.augmentation import (
@@ -52,7 +57,11 @@ def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
 
 
 def get_dataloader(
-    data_config: dict, train_config: dict, split: str, is_distributed: bool = False
+    data_config: dict,
+    train_config: dict,
+    split: str,
+    is_distributed: bool = False,
+    shuffle: bool = True,
 ) -> DataLoader:
     """Get a dataloader for the dataset.
 
@@ -66,6 +75,8 @@ def get_dataloader(
         Split to load ("train", "val", "test")
     is_distributed : bool
         Whether to use distributed sampling
+    shuffle : bool
+        Whether to shuffle the dataset
     """
     seed = train_config["seed"]
     datasets = get_datasets(data_config, split)
@@ -75,11 +86,14 @@ def get_dataloader(
     )
 
     if is_distributed:
-        sampler = DistributedSampler(super_dataset, seed=seed)
+        sampler = DistributedSampler(super_dataset, seed=seed, shuffle=shuffle)
     else:
-        generator = torch.Generator()
-        generator.manual_seed(seed)
-        sampler = RandomSampler(super_dataset, generator=generator)
+        if shuffle:
+            generator = torch.Generator()
+            generator.manual_seed(seed)
+            sampler = RandomSampler(super_dataset, generator=generator)
+        else:
+            sampler = SequentialSampler(super_dataset)
     dataloader = DataLoader(
         dataset=super_dataset,
         batch_size=train_config["batch_size"],
@@ -145,3 +159,32 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
         )
 
     return datasets
+
+
+def get_dt_datasets(
+    data_config: dict, split: str = "train"
+) -> dict[int, dict[str, PhysicsDataset]]:
+    """Get the datasets for different dt strides.
+    This is useful for evaluation to control the dt.
+
+    Parameters
+    ----------
+    data_config : dict
+        Configuration for the dataset.
+    split : str
+        Split to load ("train", "val", "test")
+
+    Returns
+    -------
+    dt_datasets : dict[int, dict[str, PhysicsDataset]]
+        Dictionary of datasets for different dt strides.
+    """
+    dt_strides = data_config["dt_stride"]
+    if isinstance(dt_strides, int):
+        dt_strides = [dt_strides]
+    all_datasets = {}
+    for dt_stride in dt_strides:
+        data_config["dt_stride"] = dt_stride
+        datasets = get_datasets(data_config, split)
+        all_datasets[dt_stride] = datasets
+    return all_datasets

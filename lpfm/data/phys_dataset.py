@@ -9,7 +9,7 @@ from lpfm.data.well_dataset import WellDataset
 
 def zero_field_to_value(x: torch.Tensor, value: float) -> torch.Tensor:
     """Find channels which are all zeros and replace them with a given value.
-    
+
     Parameters
     ----------
     x : torch.Tensor
@@ -18,7 +18,7 @@ def zero_field_to_value(x: torch.Tensor, value: float) -> torch.Tensor:
         Value to replace the zero channels with
     """
     zero_channels = torch.all(x == 0, dim=(0, 1, 2), keepdim=False)
-    x[...,zero_channels] = value
+    x[..., zero_channels] = value
     return x
 
 
@@ -155,8 +155,8 @@ class SuperDataset:
         max_samples_per_ds: Optional[int] = None,
         seed: Optional[int] = None,
     ):
-        self.datasets = list(datasets.values())
-        self.dataset_names = list(datasets.keys())
+        self.datasets = datasets
+        self.dataset_list = list(datasets.values())
         self.max_samples_per_ds = max_samples_per_ds
         self.seed = seed
 
@@ -176,7 +176,7 @@ class SuperDataset:
 
         """
         self.dataset_indices = []
-        for dataset in self.datasets:
+        for dataset in self.dataset_list:
             if (
                 self.max_samples_per_ds is not None
                 and len(dataset) > self.max_samples_per_ds
@@ -193,7 +193,7 @@ class SuperDataset:
             min(self.max_samples_per_ds, len(dataset))
             if self.max_samples_per_ds is not None
             else len(dataset)
-            for dataset in self.datasets
+            for dataset in self.dataset_list
         ]
 
     def __len__(self):
@@ -207,7 +207,27 @@ class SuperDataset:
                     actual_index = self.dataset_indices[i][index]
                 else:
                     actual_index = index
-                x, y = self.datasets[i][actual_index]  # (time, h, w, n_channels)
+                x, y = self.dataset_list[i][actual_index]  # (time, h, w, n_channels)
                 break
             index -= length
         return x, y
+
+
+class SuperDatasetValidation:
+    """Wrapper around a list of datasets used for validation.
+
+    This class is used to validate the model on each dataset.
+    It will sample a single random index from each dataset and return the corresponding input and target.
+
+    Parameters
+    ----------
+    datasets : dict[str, PhysicsDataset]
+        Dictionary of datasets to concatenate
+    """
+
+    def __init__(self, datasets: dict[str, PhysicsDataset]):
+        self.datasets = datasets
+        self.dataset_list = list(datasets.values())
+
+    def __len__(self):
+        return len(self.dataset_list)

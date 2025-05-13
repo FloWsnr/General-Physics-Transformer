@@ -1,7 +1,12 @@
 import torch
 from pathlib import Path
-
-from lpfm.data.dataset_utils import collate_fn, get_rng_transforms
+from typing import Callable
+from lpfm.data.dataset_utils import (
+    collate_fn,
+    get_rng_transforms,
+    get_datasets,
+    get_dt_datasets,
+)
 from lpfm.data.phys_dataset import PhysicsDataset
 
 
@@ -42,3 +47,66 @@ def test_rng_transforms(dummy_datapath: Path):
     # Note: There's a very small chance this could fail if the random transform
     # happens to return the exact same data
     assert not torch.allclose(input_fields_t, input_fields_nt)
+
+
+def test_get_datasets(tmp_path: Path, write_dummy_data: Callable[[Path], None]):
+    """Test the get_datasets function.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Temporary path for test data
+    write_dummy_data : Callable[[Path], None]
+        Factory function for writing dummy data
+    """
+    # Create test data in train and valid directories
+    write_dummy_data(tmp_path / "dummy_1/data/train/dummy_dataset.hdf5")
+    write_dummy_data(tmp_path / "dummy_2/data/train/dummy_dataset.hdf5")
+
+    data_config = {
+        "data_dir": tmp_path,
+        "n_steps_input": 4,
+        "n_steps_output": 1,
+        "dt_stride": [1, 2],
+        "full_trajectory_mode": False,
+        "max_rollout_steps": 10000,
+        "zero_field_value": 0.0,
+        "use_normalization": False,
+        "nan_to_zero": True,
+        "datasets": ["dummy_1", "dummy_2"],
+    }
+
+    # Test getting datasets for different splits
+    train_datasets = get_datasets(data_config, split="train")
+
+    # Check that we get the expected number of datasets
+    assert len(train_datasets) == 2
+
+    # Check that the datasets are PhysicsDataset instances
+    assert isinstance(train_datasets["dummy_1"], PhysicsDataset)
+    assert isinstance(train_datasets["dummy_2"], PhysicsDataset)
+
+
+def test_get_dt_datasets(tmp_path: Path, write_dummy_data: Callable):
+    """Test the get_dt_datasets function."""
+    # Create test data in train and valid directories
+    write_dummy_data(tmp_path / "dummy_1/data/train/dummy_dataset.hdf5")
+    write_dummy_data(tmp_path / "dummy_2/data/train/dummy_dataset.hdf5")
+
+    data_config = {
+        "data_dir": tmp_path,
+        "n_steps_input": 4,
+        "n_steps_output": 1,
+        "dt_stride": [1, 2],
+        "full_trajectory_mode": False,
+        "max_rollout_steps": 10000,
+        "zero_field_value": 0.0,
+        "use_normalization": False,
+        "nan_to_zero": True,
+        "datasets": ["dummy_1", "dummy_2"],
+    }
+
+    dt_datasets = get_dt_datasets(data_config, split="train")
+    assert len(dt_datasets) == 2
+    assert isinstance(dt_datasets[1]["dummy_1"], PhysicsDataset)
+    assert isinstance(dt_datasets[2]["dummy_1"], PhysicsDataset)
