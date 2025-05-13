@@ -37,7 +37,7 @@ from torch.amp.grad_scaler import GradScaler
 import dadaptation
 import prodigyopt
 
-from lpfm.data.dataset_utils import get_dataloader
+from lpfm.data.dataset_utils import get_dataloader_train, get_dataloader_val
 from lpfm.model.transformer.model import get_model
 from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
 from lpfm.utils.logger import get_logger
@@ -178,17 +178,16 @@ class Trainer:
         ################################################################
         ########### Initialize data loaders ##########################
         ################################################################
-        self.train_loader = get_dataloader(
+        self.train_loader = get_dataloader_train(
             self.config["data"],
             self.config["training"],
-            split="train",
             is_distributed=self.ddp_enabled,
         )
-        self.val_loader = get_dataloader(
+        self.val_loader = get_dataloader_val(
             self.config["data"],
             self.config["training"],
-            split="val",
             is_distributed=self.ddp_enabled,
+            shuffle=False,
         )
         ################################################################
         ########### Initialize training parameters ##################
