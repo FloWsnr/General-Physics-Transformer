@@ -66,9 +66,6 @@ class PhysicsDataset(WellDataset):
     nan_to_zero: bool
         Whether to replace NaNs with 0
         By default True
-    zero_field_value: Optional[float]
-        Value to replace zero channels with
-        By default None
     """
 
     def __init__(
@@ -85,7 +82,6 @@ class PhysicsDataset(WellDataset):
         full_trajectory_mode: bool = False,
         max_rollout_steps: int = 10000,
         nan_to_zero: bool = True,
-        zero_field_value: Optional[float] = None,
     ):
         if isinstance(dt_stride, list):
             min_dt_stride = dt_stride[0]
@@ -109,7 +105,6 @@ class PhysicsDataset(WellDataset):
             max_rollout_steps=max_rollout_steps,
         )
         self.nan_to_zero = nan_to_zero
-        self.zero_field_value = zero_field_value
 
     def __len__(self):
         return super().__len__()
@@ -122,9 +117,6 @@ class PhysicsDataset(WellDataset):
         if self.nan_to_zero:
             x = torch.nan_to_num(x, 0)
             y = torch.nan_to_num(y, 0)
-        if self.zero_field_value is not None:
-            x = zero_field_to_value(x, self.zero_field_value)
-            y = zero_field_to_value(y, self.zero_field_value)
         return x, y
 
 
@@ -140,10 +132,12 @@ class SuperDataset:
     out_shape : tuple[int, int]
         Output shape (h, w) of the concatenated dataset.
         This is needed to account for the different shapes of the datasets.
-    max_samples_per_ds : Optional[int]
+    max_samples_per_ds : Optional[int | list[int]]
         Maximum number of samples to sample from each dataset.
+        If a list, specifies the number of samples for each dataset individually.
         If None, uses all samples from each dataset.
         By default None.
+
     seed : Optional[int]
         Random seed for reproducibility.
         By default None.
@@ -152,12 +146,17 @@ class SuperDataset:
     def __init__(
         self,
         datasets: dict[str, PhysicsDataset],
-        max_samples_per_ds: Optional[int] = None,
+        max_samples_per_ds: Optional[int | list[int]] = None,
         seed: Optional[int] = None,
     ):
         self.datasets = datasets
         self.dataset_list = list(datasets.values())
-        self.max_samples_per_ds = max_samples_per_ds
+
+        if isinstance(max_samples_per_ds, int):
+            self.max_samples_per_ds = [max_samples_per_ds] * len(datasets)
+        else:
+            self.max_samples_per_ds = max_samples_per_ds
+
         self.seed = seed
 
         # Initialize random number generator
@@ -176,13 +175,13 @@ class SuperDataset:
 
         """
         self.dataset_indices = []
-        for dataset in self.dataset_list:
+        for i, dataset in enumerate(self.dataset_list):
             if (
                 self.max_samples_per_ds is not None
-                and len(dataset) > self.max_samples_per_ds
+                and len(dataset) > self.max_samples_per_ds[i]
             ):
                 indices = torch.randperm(len(dataset), generator=self.rng)[
-                    : self.max_samples_per_ds
+                    : self.max_samples_per_ds[i]
                 ]
                 self.dataset_indices.append(indices)
             else:
@@ -190,10 +189,10 @@ class SuperDataset:
 
         # Calculate lengths based on either max_samples_per_ds or full dataset length
         self.lengths = [
-            min(self.max_samples_per_ds, len(dataset))
+            min(self.max_samples_per_ds[i], len(dataset))
             if self.max_samples_per_ds is not None
             else len(dataset)
-            for dataset in self.dataset_list
+            for i, dataset in enumerate(self.dataset_list)
         ]
 
     def __len__(self):
@@ -211,23 +210,3 @@ class SuperDataset:
                 break
             index -= length
         return x, y
-
-
-class SuperDatasetValidation:
-    """Wrapper around a list of datasets used for validation.
-
-    This class is used to validate the model on each dataset.
-    It will sample a single random index from each dataset and return the corresponding input and target.
-
-    Parameters
-    ----------
-    datasets : dict[str, PhysicsDataset]
-        Dictionary of datasets to concatenate
-    """
-
-    def __init__(self, datasets: dict[str, PhysicsDataset]):
-        self.datasets = datasets
-        self.dataset_list = list(datasets.values())
-
-    def __len__(self):
-        return len(self.dataset_list)

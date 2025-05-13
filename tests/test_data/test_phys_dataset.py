@@ -4,9 +4,10 @@ from pathlib import Path
 import torch
 from lpfm.data.phys_dataset import PhysicsDataset, SuperDataset, zero_field_to_value
 
+
 def test_zero_field_to_value():
     x = torch.zeros(2, 32, 32, 6)
-    
+
     # make some channels non-zero
     x[..., :3] = 2.0
     x = zero_field_to_value(x, 1.0)
@@ -14,6 +15,7 @@ def test_zero_field_to_value():
     assert torch.all(x[..., :3] == 2.0)
     # check that the zero channels are replaced with 1.0
     assert torch.all(x[..., 3:] == 1.0)
+
 
 def test_physics_dataset(dummy_datapath: Path):
     dataset = PhysicsDataset(dummy_datapath.parent)
@@ -324,3 +326,25 @@ class TestSuperDataset:
 
         # Verify we got the same samples (since max_samples_per_ds is None)
         assert all(torch.equal(s1, s2) for s1, s2 in zip(initial_samples, new_samples))
+
+    def test_super_dataset_max_samples_per_ds_list(self, dummy_datapath: Path):
+        """Test that SuperDataset works with a list of max_samples_per_ds."""
+        # Create two identical datasets
+        dataset1 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+        dataset2 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
+        max_samples_per_ds = [5, 10]
+        super_dataset = SuperDataset(datasets, max_samples_per_ds=max_samples_per_ds)
+        assert len(super_dataset) == sum(max_samples_per_ds)
+
+        for i in range(len(super_dataset)):
+            x, _ = super_dataset[i]
+            assert x.shape == (1, 32, 32, 6)
+
+
+    
