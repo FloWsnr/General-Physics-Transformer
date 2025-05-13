@@ -1,11 +1,14 @@
 import torch
+import pytest
 from pathlib import Path
 from typing import Callable
+
 from lpfm.data.dataset_utils import (
     collate_fn,
     get_rng_transforms,
     get_datasets,
     get_dt_datasets,
+    get_dataloader,
 )
 from lpfm.data.phys_dataset import PhysicsDataset
 
@@ -110,3 +113,35 @@ def test_get_dt_datasets(tmp_path: Path, write_dummy_data: Callable):
     assert len(dt_datasets) == 2
     assert isinstance(dt_datasets[1]["dummy_1"], PhysicsDataset)
     assert isinstance(dt_datasets[2]["dummy_1"], PhysicsDataset)
+
+
+@pytest.mark.parametrize("shuffle", [True, False])
+def test_get_dataloader(tmp_path: Path, write_dummy_data: Callable, shuffle: bool):
+    """Test the get_dataloader function."""
+    # Create test data in train and valid directories
+    write_dummy_data(tmp_path / "dummy_1/data/train/dummy_dataset.hdf5")
+    write_dummy_data(tmp_path / "dummy_2/data/train/dummy_dataset.hdf5")
+
+    data_config = {
+        "data_dir": tmp_path,
+        "n_steps_input": 4,
+        "n_steps_output": 1,
+        "dt_stride": [1, 2],
+        "full_trajectory_mode": False,
+        "max_rollout_steps": 10000,
+        "zero_field_value": 0.0,
+        "use_normalization": False,
+        "nan_to_zero": True,
+        "datasets": ["dummy_1", "dummy_2"],
+        "max_samples_per_ds": 10,
+    }
+    train_config = {
+        "batch_size": 2,
+        "num_workers": 0,
+        "prefetch_factor": None,
+        "seed": 42,
+    }
+    dataloader = get_dataloader(
+        data_config, train_config, split="train", shuffle=shuffle
+    )
+    assert len(dataloader) == 10
