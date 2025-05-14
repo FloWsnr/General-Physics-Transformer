@@ -4,6 +4,7 @@ By: Florian Wiesner
 Date: 2025-05-01
 """
 
+from typing import Optional
 from pathlib import Path
 
 import yaml
@@ -61,10 +62,25 @@ def load_model(
 
 
 class LossEvaluator:
+    """Evaluate the loss of a model on a dataset.
+
+    Parameters
+    ----------
+    base_path : Path
+        Path to the base directory of the model
+    num_samples : Optional[int]
+        Number of samples to evaluate on
+        If None, all samples are evaluated
+    batch_size : int
+        Batch size
+    num_workers : int
+        Number of workers for the dataloader
+    """
+
     def __init__(
         self,
-        base_path: Path = None,
-        num_samples: int = 10,
+        base_path: Path,
+        num_samples: Optional[int] = None,
         batch_size: int = 256,
         num_workers: int = 4,
     ):
@@ -163,7 +179,7 @@ class LossEvaluator:
             losses["temperature"].extend(loss_temperature)
             losses["vel_x"].extend(loss_vel_x)
             losses["vel_y"].extend(loss_vel_y)
-            if i > self.num_samples:
+            if self.num_samples is not None and i > self.num_samples:
                 break
 
         return losses
