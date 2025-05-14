@@ -689,7 +689,12 @@ class Trainer:
     def train(self):
         """Train the model."""
         best_loss = float("inf")
+        # we use this to count the number of cycles of this training run
+        # this is used to calculate the projected time remaining. If we use cycle idx and do a
+        # restart, the projected time remaining will be wrong.
+        num_cycles = 0
         while self.total_samples_trained < self.total_samples:
+            num_cycles += 1
             self.cycle_idx += 1
             start_epoch_time = time.time()
             self.val_dir = self.log_dir / f"{self.cycle_name}{self.cycle_idx:04d}"
@@ -757,8 +762,8 @@ class Trainer:
             duration = time.time() - start_epoch_time
             self.log_msg(f"Summary: Training cycle took {duration / 60:.2f} minutes")
             self.avg_sec_per_cycle = (
-                self.avg_sec_per_cycle * (self.cycle_idx - 1) + duration
-            ) / self.cycle_idx
+                self.avg_sec_per_cycle * (num_cycles - 1) + duration
+            ) / num_cycles
 
             self.log_msg(
                 f"Summary: Average time per cycle: {self.avg_sec_per_cycle / 60:.2f} minutes"
