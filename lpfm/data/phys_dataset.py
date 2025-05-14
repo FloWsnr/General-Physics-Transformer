@@ -1,8 +1,7 @@
-from typing import Optional, Callable
+from typing import Optional
 from pathlib import Path
 
 import torch
-from the_well.data.augmentation import Compose
 
 from lpfm.data.well_dataset import WellDataset
 
