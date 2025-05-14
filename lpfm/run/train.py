@@ -865,7 +865,7 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
         betas = config["betas"]
         optimizer = dadaptation.DAdaptAdam(
             model.parameters(),
-            lr=config["learning_rate"],
+            lr=float(config["learning_rate"]),
             betas=betas,
             weight_decay=weight_decay,
             decouple=True,
@@ -873,7 +873,7 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
     elif config["name"] == "Prodigy":
         optimizer = prodigyopt.Prodigy(
             model.parameters(),
-            lr=config["learning_rate"],
+            lr=float(config["learning_rate"]),
             weight_decay=config["weight_decay"],
             betas=config["betas"],
             decouple=True,
