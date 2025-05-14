@@ -9,21 +9,7 @@ from torch.utils.data import (
 )
 from torch.utils.data.distributed import DistributedSampler
 
-from the_well.data.augmentation import (
-    Compose,
-    RandomAxisFlip,
-)
-
 from lpfm.data.phys_dataset import SuperDataset, PhysicsDataset
-
-
-def get_rng_transforms(p_flip: float) -> Compose:
-    """Get a list of transforms to apply to the data."""
-    return Compose(
-        *[
-            RandomAxisFlip(p=p_flip),
-        ]
-    )
 
 
 def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
@@ -157,7 +143,6 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
     for dataset_name in dataset_list:
         dataset = PhysicsDataset(
             data_dir=data_dir / f"{dataset_name}/data/{split_name}",
-            split=split,
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             dt_stride=dt_stride,
@@ -165,7 +150,6 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             max_rollout_steps=max_rollout_steps,
             include_field_names=include_field_names,
             use_normalization=use_normalization,
-            normalization_path=data_dir / f"{dataset_name}/data/stats.yaml",
         )
         datasets[dataset_name] = dataset
 
