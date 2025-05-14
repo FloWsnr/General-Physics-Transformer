@@ -178,16 +178,27 @@ class Trainer:
         ################################################################
         ########### Initialize data loaders ##########################
         ################################################################
+
         self.train_loader = get_dataloader(
             self.config["data"],
-            self.config["training"],
+            seed=self.config["training"]["seed"],
+            batch_size=self.config["training"]["batch_size"],
+            num_workers=self.config["training"]["num_workers"],
+            prefetch_factor=self.config["training"]["prefetch_factor"],
+            split="train",
             is_distributed=self.ddp_enabled,
+            shuffle=True,
         )
-        self.val_loader = get_dataloader_val(
+        self.val_loader = get_dataloader(
             self.config["data"],
-            self.config["training"],
+            seed=self.config["training"]["seed"],
+            batch_size=self.config["training"]["batch_size"],
+            num_workers=self.config["training"]["num_workers"],
+            prefetch_factor=self.config["training"]["prefetch_factor"],
+            split="val",
             is_distributed=self.ddp_enabled,
             shuffle=False,
+            data_fraction=self.config["training"]["val_frac_samples"],
         )
         ################################################################
         ########### Initialize training parameters ##################
@@ -601,17 +612,10 @@ class Trainer:
         if self.ddp_enabled:
             self.val_loader.sampler.set_epoch(self.cycle_idx)
 
-        val_iter = iter(self.val_loader)
         samples_validated = 0
         batches_validated = 0
         with torch.inference_mode():
-            while samples_validated < self.val_samples:
-                try:
-                    x, target = next(val_iter)
-                except StopIteration:
-                    val_iter = iter(self.val_loader)
-                    x, target = next(val_iter)
-
+            for x, target in self.val_loader:
                 x = x.to(self.device)
                 target = target.to(self.device)
 
