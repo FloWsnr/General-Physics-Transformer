@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+
 import torch
 from torch.utils.data import (
     default_collate,
@@ -58,7 +58,11 @@ def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
 
 def get_dataloader(
     data_config: dict,
-    train_config: dict,
+    seed: int,
+    batch_size: int,
+    num_workers: int,
+    prefetch_factor: int,
+    data_fraction: float = 1.0,
     split: str = "train",
     is_distributed: bool = False,
     shuffle: bool = True,
@@ -68,21 +72,38 @@ def get_dataloader(
     Parameters
     ----------
     data_config : dict
-        Configuration for the dataset.
-    train_config : dict
-        Configuration for the training.
+        Configuration for the datasets.
+    seed : int
+        Seed for the dataset.
+    batch_size : int
+        Batch size.
+    num_workers : int
+        Number of workers.
+    prefetch_factor : int
+        Prefetch factor.
     split : str
         Split to load ("train", "val", "test")
+    data_fraction : float
+        Fraction of the dataset to use.
     is_distributed : bool
         Whether to use distributed sampling
     shuffle : bool
         Whether to shuffle the dataset
     """
-    seed = train_config["seed"]
-    datasets = get_datasets(data_config, split=split)
+    datasets = get_dt_datasets(data_config, split=split)
+
+    if data_fraction < 1.0:
+        # get the number of samples per dataset
+        samples_per_ds = [len(dataset) for dataset in datasets.values()]
+        # get the number of samples per dataset using the data_fraction
+        num_samples_per_ds = [
+            int(data_fraction * samples_per_ds[i]) for i in range(len(samples_per_ds))
+        ]
+    else:
+        num_samples_per_ds = None
+
     super_dataset = SuperDataset(
-        datasets,
-        max_samples_per_ds=data_config["max_samples_per_ds"],
+        datasets, max_samples_per_ds=num_samples_per_ds, seed=seed
     )
 
     if is_distributed:
@@ -96,49 +117,11 @@ def get_dataloader(
             sampler = SequentialSampler(super_dataset)
     dataloader = DataLoader(
         dataset=super_dataset,
-        batch_size=train_config["batch_size"],
-        num_workers=train_config["num_workers"],
+        batch_size=batch_size,
+        num_workers=num_workers,
         pin_memory=True,
         sampler=sampler,
-        prefetch_factor=train_config["prefetch_factor"],
-    )
-
-    return dataloader
-
-
-def get_dataloader_val(
-    data_config: dict,
-    train_config: dict,
-    is_distributed: bool = False,
-) -> DataLoader:
-    """Get a dataloader for the validation dataset."""
-    seed = train_config["seed"]
-    datasets = get_dt_datasets(data_config, split="val")
-
-    # get the number of samples per dataset
-    samples_per_ds = [len(dataset) for dataset in datasets.values()]
-    # get the number of samples per dataset for the validation set using the val_frac_samples
-    val_frac_samples = float(train_config["val_frac_samples"])
-    val_num_samples_per_ds = [
-        int(val_frac_samples * samples_per_ds[i]) for i in range(len(samples_per_ds))
-    ]
-
-    super_dataset = SuperDataset(
-        datasets, max_samples_per_ds=val_num_samples_per_ds, seed=seed
-    )
-
-    if is_distributed:
-        sampler = DistributedSampler(super_dataset, seed=seed, shuffle=False)
-    else:
-        sampler = SequentialSampler(super_dataset)
-
-    dataloader = DataLoader(
-        dataset=super_dataset,
-        batch_size=train_config["batch_size"],
-        num_workers=train_config["num_workers"],
-        pin_memory=True,
-        sampler=sampler,
-        prefetch_factor=train_config["prefetch_factor"],
+        prefetch_factor=prefetch_factor,
     )
 
     return dataloader

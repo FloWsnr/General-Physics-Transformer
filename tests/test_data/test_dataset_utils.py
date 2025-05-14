@@ -9,7 +9,6 @@ from lpfm.data.dataset_utils import (
     get_datasets,
     get_dt_datasets,
     get_dataloader,
-    get_dataloader_val,
 )
 from lpfm.data.phys_dataset import PhysicsDataset
 
@@ -125,7 +124,7 @@ def test_get_dataloader(tmp_path: Path, write_dummy_data: Callable, shuffle: boo
 
     data_config = {
         "data_dir": tmp_path,
-        "n_steps_input": 4,
+        "n_steps_input": 1,
         "n_steps_output": 1,
         "dt_stride": [1, 2],
         "full_trajectory_mode": False,
@@ -134,30 +133,28 @@ def test_get_dataloader(tmp_path: Path, write_dummy_data: Callable, shuffle: boo
         "use_normalization": False,
         "nan_to_zero": True,
         "datasets": ["dummy_1", "dummy_2"],
-        "max_samples_per_ds": 10,
-    }
-    train_config = {
-        "batch_size": 2,
-        "num_workers": 0,
-        "prefetch_factor": None,
-        "seed": 42,
     }
     dataloader = get_dataloader(
-        data_config, train_config, split="train", shuffle=shuffle
+        data_config,
+        seed=42,
+        batch_size=1,
+        num_workers=0,
+        prefetch_factor=None,
+        split="train",
+        shuffle=shuffle,
     )
-    assert len(dataloader) == 10
+    assert len(dataloader) == 68
 
-
-@pytest.mark.parametrize("val_frac_samples", [0.5, 1.0])
-def test_get_dataloader_val(tmp_path: Path, write_dummy_data: Callable, val_frac_samples: float):
-    """Test the get_dataloader_val function."""
+@pytest.mark.parametrize("shuffle", [True, False])
+def test_get_dataloader_data_fraction(tmp_path: Path, write_dummy_data: Callable, shuffle: bool):
+    """Test the get_dataloader function."""
     # Create test data in train and valid directories
     write_dummy_data(tmp_path / "dummy_1/data/valid/dummy_dataset.hdf5")
     write_dummy_data(tmp_path / "dummy_2/data/valid/dummy_dataset.hdf5")
 
     data_config = {
         "data_dir": tmp_path,
-        "n_steps_input": 4,
+        "n_steps_input": 1,
         "n_steps_output": 1,
         "dt_stride": [1, 2],
         "full_trajectory_mode": False,
@@ -166,14 +163,15 @@ def test_get_dataloader_val(tmp_path: Path, write_dummy_data: Callable, val_frac
         "use_normalization": False,
         "nan_to_zero": True,
         "datasets": ["dummy_1", "dummy_2"],
-        "max_samples_per_ds": 10,
     }
-    train_config = {
-        "batch_size": 1,
-        "num_workers": 0,
-        "prefetch_factor": None,
-        "seed": 42,
-        "val_frac_samples": val_frac_samples,
-    }
-    dataloader = get_dataloader_val(data_config, train_config)
-    assert len(dataloader) == 32 * val_frac_samples
+    dataloader = get_dataloader(
+        data_config,
+        seed=42,
+        batch_size=1,
+        num_workers=0,
+        prefetch_factor=None,
+        split="val",
+        shuffle=shuffle,
+        data_fraction=0.5,
+    )
+    assert len(dataloader) == 34
