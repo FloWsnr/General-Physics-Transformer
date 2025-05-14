@@ -218,24 +218,20 @@ class Trainer:
         #################################################################
         ########### Initialize validation parameters ##################
         #################################################################
-        frac_val_samples = float(self.config["training"]["val_frac_samples"])
         total_val_samples = len(self.val_loader) * self.batch_size
-        self.val_samples = int(frac_val_samples * total_val_samples)
         # num training samples per validation loop
         self.val_every_x_samples = int(
             float(self.config["training"]["val_every_samples"])
         )
         self.val_every_x_batches = self.val_every_x_samples // self.batch_size
-        # num validation loops per episode (epoch)
-        self.val_batches = self.val_samples // self.batch_size
 
         self.h_log_state = LogState(
             total_samples=human_format(self.total_samples),
             total_batches=human_format(self.total_batches),
             val_every_x_samples=human_format(self.val_every_x_samples),
             val_every_x_batches=human_format(self.val_every_x_batches),
-            val_samples=human_format(self.val_samples),
-            val_batches=human_format(self.val_batches),
+            val_samples=human_format(total_val_samples),
+            val_batches=human_format(len(self.val_loader)),
         )
         ################################################################
         ########### Log parameters #####################################
@@ -258,7 +254,7 @@ class Trainer:
                     "training/total_samples": self.total_samples,
                     "training/samples_per_batch": self.batch_size,
                     "training/val_every_samples": self.val_every_x_samples,
-                    "training/num_val_samples": self.val_samples,
+                    "training/num_val_samples": total_val_samples,
                     "training/slurm_id": os.environ.get("SLURM_JOB_ID", ""),
                 },
                 allow_val_change=True,

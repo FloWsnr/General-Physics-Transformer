@@ -275,7 +275,7 @@ class WellDataset(Dataset):
         min_dt_stride: int = 1,
         max_dt_stride: int = 1,
         flatten_tensors: bool = True,
-        cache_small: bool = True,
+        cache_small: bool = False,
         max_cache_size: float = 1e9,
         return_grid: bool = False,
         boundary_return_type: str = None,
