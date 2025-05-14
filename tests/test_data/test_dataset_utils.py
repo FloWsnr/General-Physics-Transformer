@@ -110,9 +110,11 @@ def test_get_dt_datasets(tmp_path: Path, write_dummy_data: Callable):
     }
 
     dt_datasets = get_dt_datasets(data_config, split="train")
-    assert len(dt_datasets) == 2
-    assert isinstance(dt_datasets[1]["dummy_1"], PhysicsDataset)
-    assert isinstance(dt_datasets[2]["dummy_1"], PhysicsDataset)
+    assert len(dt_datasets) == 4
+    assert isinstance(dt_datasets["dummy_1_dt_1"], PhysicsDataset)
+    assert isinstance(dt_datasets["dummy_1_dt_2"], PhysicsDataset)
+    assert isinstance(dt_datasets["dummy_2_dt_1"], PhysicsDataset)
+    assert isinstance(dt_datasets["dummy_2_dt_2"], PhysicsDataset)
 
 
 @pytest.mark.parametrize("shuffle", [True, False])
@@ -145,8 +147,11 @@ def test_get_dataloader(tmp_path: Path, write_dummy_data: Callable, shuffle: boo
     )
     assert len(dataloader) == 68
 
+
 @pytest.mark.parametrize("shuffle", [True, False])
-def test_get_dataloader_data_fraction(tmp_path: Path, write_dummy_data: Callable, shuffle: bool):
+def test_get_dataloader_data_fraction(
+    tmp_path: Path, write_dummy_data: Callable, shuffle: bool
+):
     """Test the get_dataloader function."""
     # Create test data in train and valid directories
     write_dummy_data(tmp_path / "dummy_1/data/valid/dummy_dataset.hdf5")
