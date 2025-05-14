@@ -221,5 +221,7 @@ def get_dt_datasets(
     for dt_stride in dt_strides:
         data_config["dt_stride"] = dt_stride
         datasets = get_datasets(data_config, split)
-        all_datasets[dt_stride] = datasets
+        for dataset_name, dataset in datasets.items():
+            all_datasets[f"{dataset_name}_dt_{dt_stride}"] = dataset
+
     return all_datasets

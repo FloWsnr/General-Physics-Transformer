@@ -148,7 +148,8 @@ def test_get_dataloader(tmp_path: Path, write_dummy_data: Callable, shuffle: boo
     assert len(dataloader) == 10
 
 
-def test_get_dataloader_val(tmp_path: Path, write_dummy_data: Callable):
+@pytest.mark.parametrize("val_frac_samples", [0.5, 1.0])
+def test_get_dataloader_val(tmp_path: Path, write_dummy_data: Callable, val_frac_samples: float):
     """Test the get_dataloader_val function."""
     # Create test data in train and valid directories
     write_dummy_data(tmp_path / "dummy_1/data/valid/dummy_dataset.hdf5")
@@ -156,7 +157,7 @@ def test_get_dataloader_val(tmp_path: Path, write_dummy_data: Callable):
 
     data_config = {
         "data_dir": tmp_path,
-        "n_steps_input": 1,
+        "n_steps_input": 4,
         "n_steps_output": 1,
         "dt_stride": [1, 2],
         "full_trajectory_mode": False,
@@ -172,7 +173,7 @@ def test_get_dataloader_val(tmp_path: Path, write_dummy_data: Callable):
         "num_workers": 0,
         "prefetch_factor": None,
         "seed": 42,
-        "val_frac_samples": 1,
+        "val_frac_samples": val_frac_samples,
     }
     dataloader = get_dataloader_val(data_config, train_config)
-    assert len(dataloader) == 5
+    assert len(dataloader) == 32 * val_frac_samples
