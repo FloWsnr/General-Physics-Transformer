@@ -1021,6 +1021,7 @@ if __name__ == "__main__":
     default_restart = False
     default_new_training = False
     default_checkpoint_name = "last_checkpoint"
+    default_best_model = False
     ############################################################
     ########### Parse arguments ################################
     ############################################################
@@ -1041,6 +1042,12 @@ if __name__ == "__main__":
         type=str,
         default=default_checkpoint_name,
     )
+    parser.add_argument(
+        "--best_model",
+        action=argparse.BooleanOptionalAction,
+        default=default_best_model,
+    )
+
     parser.add_argument("--sim_name", type=str, default=default_sim_name)
     parser.add_argument("--data_dir", type=str, default=default_data_dir)
     parser.add_argument("--time_limit", type=str, default=default_time_limit)
@@ -1058,6 +1065,11 @@ if __name__ == "__main__":
     restart = args.restart
     new_training = args.new_training
     checkpoint_name = args.checkpoint_name
+    best_model = args.best_model
+
+    # For backward compatibility, if best_model is True, use it as checkpoint_name
+    if best_model:
+        checkpoint_name = "best_model"
 
     main(
         config_path=config_path,
