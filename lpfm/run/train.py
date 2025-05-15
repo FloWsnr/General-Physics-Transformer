@@ -218,7 +218,8 @@ class Trainer:
         #################################################################
         ########### Initialize validation parameters ##################
         #################################################################
-        total_val_samples = len(self.val_loader) * self.batch_size
+        val_batches = len(self.val_loader)
+        total_val_samples = val_batches * self.batch_size
         # num training samples per validation loop
         self.val_every_x_samples = int(
             float(self.config["training"]["val_every_samples"])
@@ -240,17 +241,23 @@ class Trainer:
             val_every_x_samples=human_format(self.val_every_x_samples),
             val_every_x_batches=human_format(self.val_every_x_batches),
             val_samples=human_format(total_val_samples),
-            val_batches=human_format(len(self.val_loader)),
+            val_batches=human_format(val_batches),
         )
         ################################################################
         ########### Log parameters #####################################
         ################################################################
+        self.log_msg(f"Number of unique training batches: {len(self.train_loader)}")
+        self.log_msg(
+            f"Number of unique training samples: {len(self.train_loader) * self.config['training']['batch_size']}"
+        )
+
         self.log_msg(f"Training for {self.h_log_state.total_samples} samples")
         self.log_msg(f"Training for {self.h_log_state.total_batches} batches")
         self.log_msg(f"Training on {self.batch_size} samples per batch")
 
         self.log_msg(f"Validating every {self.h_log_state.val_every_x_samples} samples")
         self.log_msg(f"Validating on {self.h_log_state.val_samples} samples")
+        self.log_msg(f"Validating on {self.h_log_state.val_batches} batches")
         self.log_msg(
             f"Checkpoint every {self.config['training']['checkpoint_every_samples']} samples"
         )
