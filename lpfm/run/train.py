@@ -223,6 +223,9 @@ class Trainer:
         self.val_every_x_samples = int(
             float(self.config["training"]["val_every_samples"])
         )
+        self.checkpoint_every_x_samples = int(
+            float(self.config["training"]["checkpoint_every_samples"])
+        )
         self.val_every_x_batches = self.val_every_x_samples // self.batch_size
 
         self.h_log_state = LogState(
@@ -254,6 +257,7 @@ class Trainer:
                     "training/total_samples": self.total_samples,
                     "training/samples_per_batch": self.batch_size,
                     "training/val_every_samples": self.val_every_x_samples,
+                    "training/checkpoint_every_samples": self.checkpoint_every_x_samples,
                     "training/num_val_samples": total_val_samples,
                     "training/slurm_id": os.environ.get("SLURM_JOB_ID", ""),
                 },
@@ -563,6 +567,14 @@ class Trainer:
                     commit=False,
                 )
                 self.wandb_run.log(wandb_log_losses, commit=True)
+            ############################################################
+            # Save checkpoint ##########################################
+            ############################################################
+            if self.total_samples_trained % self.checkpoint_every_x_samples == 0:
+                if self.global_rank == 0:
+                    self.save_checkpoint(path=self.log_dir / "last_checkpoint.pth")
+                if self.ddp_enabled:
+                    dist.barrier()
 
         ############################################################
         # Visualize predictions ####################################
