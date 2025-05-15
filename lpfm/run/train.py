@@ -584,7 +584,10 @@ class Trainer:
             ############################################################
             # Save checkpoint ##########################################
             ############################################################
-            if self.total_samples_trained % self.checkpoint_every_x_samples == 0:
+            next_checkpoint = (
+                self.total_samples_trained // self.checkpoint_every_x_samples + 1
+            ) * self.checkpoint_every_x_samples
+            if self.total_samples_trained >= next_checkpoint - self.batch_size:
                 if self.global_rank == 0:
                     self.save_checkpoint(path=self.log_dir / "last_checkpoint.pth")
                 if self.ddp_enabled:
