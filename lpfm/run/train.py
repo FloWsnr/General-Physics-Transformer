@@ -43,7 +43,7 @@ from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
 from lpfm.utils.logger import get_logger
 from lpfm.model.transformer.loss_fns import RMSE
 from lpfm.run.run_utils import (
-    find_last_checkpoint,
+    find_checkpoint,
     human_format,
     load_stored_model,
     path_to_string,
@@ -925,7 +925,7 @@ def main(
     log_dir: Path | None,
     restart: bool,
     new_training: bool,
-    best_model: bool,
+    checkpoint_name: str,
     sim_name: str | None,
     data_dir: Path | None,
     time_limit: str | None,
@@ -974,7 +974,9 @@ def main(
         else:
             subdir_name = "val_"
 
-        checkpoint_path = find_last_checkpoint(checkpoint_dir, subdir_name, best_model)
+        checkpoint_path = find_checkpoint(
+            checkpoint_dir, subdir_name, specific_checkpoint=checkpoint_name
+        )
         if checkpoint_path is None:
             if global_rank == 0:
                 print("No checkpoint found, starting from scratch")
@@ -1018,8 +1020,7 @@ if __name__ == "__main__":
     default_time_limit = None
     default_restart = False
     default_new_training = False
-    default_best_model = False
-
+    default_checkpoint_name = "last_checkpoint"
     ############################################################
     ########### Parse arguments ################################
     ############################################################
@@ -1036,9 +1037,9 @@ if __name__ == "__main__":
         default=default_new_training,
     )
     parser.add_argument(
-        "--best_model",
-        action=argparse.BooleanOptionalAction,
-        default=default_best_model,
+        "--checkpoint_name",
+        type=str,
+        default=default_checkpoint_name,
     )
     parser.add_argument("--sim_name", type=str, default=default_sim_name)
     parser.add_argument("--data_dir", type=str, default=default_data_dir)
@@ -1056,7 +1057,7 @@ if __name__ == "__main__":
     time_limit = args.time_limit
     restart = args.restart
     new_training = args.new_training
-    best_model = args.best_model
+    checkpoint_name = args.checkpoint_name
 
     main(
         config_path=config_path,
@@ -1065,7 +1066,7 @@ if __name__ == "__main__":
         data_dir=data_dir,
         restart=restart,
         new_training=new_training,
-        best_model=best_model,
+        checkpoint_name=checkpoint_name,
         time_limit=time_limit,
         global_rank=global_rank,
         local_rank=local_rank,

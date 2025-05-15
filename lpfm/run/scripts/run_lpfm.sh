@@ -64,12 +64,14 @@ nnodes=1
 ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
+# name of the checkpoint to use for training. Can be "best_model" or a number of a epoch directory
+# if last_checkpoint, the last checkpoint is used
+checkpoint_name="last_checkpoint"
 # use a checkpoint to continue training with a new config file (learning rate, etc.)
+# if false, the last training is continued
 new_training=false
 # config to use for new training, located in the log dir
 new_config_name="config_cooldown.yaml"
-# use the best model for potential restart
-best_model=false
 
 
 # sim directory
@@ -121,14 +123,15 @@ echo "config_file: $config_file"
 echo "sim_dir: $sim_dir"
 echo "restart: $restart"
 echo "new_training: $new_training"
-echo "using best model for restart: $best_model"
+echo "using checkpoint: $checkpoint_name"
 echo "--------------------------------"
 
 exec_args="--config_file $config_file \
     --sim_name $sim_name \
     --log_dir $log_dir \
     --data_dir $data_dir \
-    --time_limit $time_limit"
+    --time_limit $time_limit \
+    --checkpoint_name $checkpoint_name"
 
 # Add --restart if the restart flag is true
 if [ "$restart" = true ]; then
@@ -137,10 +140,6 @@ fi
 if [ "$new_training" = true ]; then
     exec_args="$exec_args --new_training"
 fi
-if [ "$best_model" = true ]; then
-    exec_args="$exec_args --best_model"
-fi
-
 # Capture Python output and errors in a variable and run the script
 torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args
 
