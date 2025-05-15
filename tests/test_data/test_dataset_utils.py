@@ -129,7 +129,7 @@ def test_get_dataloader_data_fraction(
         "data_dir": tmp_path,
         "n_steps_input": 1,
         "n_steps_output": 1,
-        "dt_stride": [1, 2],
+        "dt_stride": [1, 8],
         "full_trajectory_mode": False,
         "max_rollout_steps": 10000,
         "zero_field_value": 0.0,
@@ -147,4 +147,4 @@ def test_get_dataloader_data_fraction(
         shuffle=shuffle,
         data_fraction=0.5,
     )
-    assert len(dataloader) == 34
+    assert len(dataloader) == 88
