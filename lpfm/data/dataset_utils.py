@@ -181,9 +181,13 @@ def get_dt_datasets(
     dt_datasets : dict[int, dict[str, PhysicsDataset]]
         Dictionary of datasets for different dt strides.
     """
-    dt_strides = data_config["dt_stride"]
-    if isinstance(dt_strides, int):
-        dt_strides = [dt_strides]
+    dt_strides_bounds = data_config["dt_stride"]
+    if isinstance(dt_strides_bounds, int):
+        dt_strides = [dt_strides_bounds]
+    elif isinstance(dt_strides_bounds, list):
+        dt_strides = list(range(dt_strides_bounds[0], dt_strides_bounds[1] + 1))
+    else:
+        raise ValueError(f"Invalid dt_stride: {dt_strides_bounds}")
     all_datasets = {}
     for dt_stride in dt_strides:
         data_config["dt_stride"] = dt_stride
