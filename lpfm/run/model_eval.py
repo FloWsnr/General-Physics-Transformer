@@ -18,11 +18,10 @@ import torch
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from lpfm.model.transformer.model import get_model
-from lpfm.data.dataset_utils import get_datasets
+from lpfm.data.dataset_utils import get_dt_datasets
 from lpfm.data.phys_dataset import PhysicsDataset
 from lpfm.utils.logger import get_logger
-from lpfm.model.transformer.loss_fns import NMSELoss
-from lpfm.run.run_utils import load_stored_model
+from lpfm.run.run_utils import load_stored_model, find_checkpoint
 
 logger = get_logger(__name__, log_level="INFO")
 
@@ -35,7 +34,7 @@ def load_config(model_path: Path) -> dict:
 
 
 def load_model(
-    model_path: Path, device: torch.device, model_config: dict
+    model_dir: Path, device: torch.device, model_config: dict, checkpoint_name: str
 ) -> torch.nn.Module:
     """Load a model from a checkpoint.
 
@@ -53,7 +52,11 @@ def load_model(
     torch.nn.Module
         Loaded model
     """
-    data = load_stored_model(model_path, device, remove_ddp=True)
+    subdir_name = "val"
+    checkpoint_path = find_checkpoint(
+        model_dir, subdir_name=subdir_name, specific_checkpoint=checkpoint_name
+    )
+    data = load_stored_model(checkpoint_path, device, remove_ddp=True)
     model = get_model(model_config)
     model.load_state_dict(data["model_state_dict"], strict=True)
     model.to(device)
@@ -61,8 +64,8 @@ def load_model(
     return model
 
 
-class LossEvaluator:
-    """Evaluate the loss of a model on a dataset.
+class Evaluator:
+    """Thorough evaluation of the model, its predictions, and the losses.
 
     Parameters
     ----------
@@ -75,6 +78,8 @@ class LossEvaluator:
         Batch size
     num_workers : int
         Number of workers for the dataloader
+    checkpoint_name : str
+        Name of the checkpoint to evaluate
     """
 
     def __init__(
@@ -83,184 +88,63 @@ class LossEvaluator:
         num_samples: Optional[int] = None,
         batch_size: int = 256,
         num_workers: int = 4,
+        checkpoint_name: str = "best_model",
     ):
         print("Setting up evaluator")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.config = load_config(base_path)
         self.model = load_model(
-            base_path / "best_model.pth", self.device, self.config["model"]
+            base_path, self.device, self.config["model"], checkpoint_name
         )
-        self.datasets = get_datasets(self.config["data"], split="train")
-        self.base_path = base_path / "loss_eval"
-        self.base_path.mkdir(parents=True, exist_ok=True)
-        self.num_samples = num_samples
+
+        self.datasets = get_dt_datasets(self.config["data"], split="test")
+
+        self.eval_dir = base_path / "eval"
+        self.eval_dir.mkdir(parents=True, exist_ok=True)
         self.batch_size = batch_size
         self.num_workers = num_workers
 
     @torch.no_grad()
     def eval_on_dataset(self, dataset: PhysicsDataset):
-        print(f"   Evaluating on {self.num_samples} samples")
-        criterion = NMSELoss(return_scalar=False)
-
-        losses = {
-            "pressure": [],
-            "density": [],
-            "temperature": [],
-            "vel_x": [],
-            "vel_y": [],
-        }
+        criterion = torch.nn.MSELoss(reduction="none")
 
         loader = DataLoader(
             dataset,
             batch_size=self.batch_size,
-            shuffle=True,
+            shuffle=False,
             num_workers=self.num_workers,
         )
+        losses = []
         for i, (x, target) in enumerate(loader):
-            dataset_name = dataset.metadata.dataset_name
+            # shape of x is (batch_size, T, H, W, C)
+            # shape of target is (batch_size, 1, H, W, C)
+
             print(f"   Evaluating on {i}th batch")
             x = x.to(self.device)
             target = target.to(self.device)
             y = self.model(x)
 
-            loss = criterion(y, target)
-            loss_pressure = torch.mean(
-                loss[..., 0], dim=(1, 2, 3)
-            )  # get the loss of each sample, dont average accross batches
-            loss_density = torch.mean(loss[..., 1], dim=(1, 2, 3))
-            loss_temperature = torch.mean(loss[..., 2], dim=(1, 2, 3))
-            loss_vel_x = torch.mean(loss[..., 3], dim=(1, 2, 3))
-            loss_vel_y = torch.mean(loss[..., 4], dim=(1, 2, 3))
-
-            # convert batches to list
-            loss_pressure = loss_pressure.tolist()
-            loss_density = loss_density.tolist()
-            loss_temperature = loss_temperature.tolist()
-            loss_vel_x = loss_vel_x.tolist()
-            loss_vel_y = loss_vel_y.tolist()
-            self.show_large_losses(
-                loss_pressure,
-                target[..., 0],
-                y[..., 0],
-                dataset_name=dataset_name,
-                name=f"pressure_{i}",
-            )
-            self.show_large_losses(
-                loss_density,
-                target[..., 1],
-                y[..., 1],
-                dataset_name=dataset_name,
-                name=f"density_{i}",
-            )
-            self.show_large_losses(
-                loss_temperature,
-                target[..., 2],
-                y[..., 2],
-                dataset_name=dataset_name,
-                name=f"temperature_{i}",
-            )
-            self.show_large_losses(
-                loss_vel_x,
-                target[..., 3],
-                y[..., 3],
-                dataset_name=dataset_name,
-                name=f"vel_x_{i}",
-            )
-            self.show_large_losses(
-                loss_vel_y,
-                target[..., 4],
-                y[..., 4],
-                dataset_name=dataset_name,
-                name=f"vel_y_{i}",
-            )
-
-            losses["pressure"].extend(loss_pressure)
-            losses["density"].extend(loss_density)
-            losses["temperature"].extend(loss_temperature)
-            losses["vel_x"].extend(loss_vel_x)
-            losses["vel_y"].extend(loss_vel_y)
-            if self.num_samples is not None and i > self.num_samples:
-                break
+            loss = criterion(y, target).squeeze()  # remove T dimension
+            # get the loss of each sample, dont average accross batches (h,w,c)
+            loss = torch.mean(loss, dim=(1, 2, 3))
+            losses.append(loss)
 
         return losses
 
-    def show_large_losses(
-        self,
-        loss_list: list,
-        target: torch.Tensor,
-        y: torch.Tensor,
-        dataset_name: str,
-        name: str,
-    ):
-        """Export the largest losses to a file."""
-        loss_path = self.base_path / dataset_name
-        loss_path.mkdir(parents=True, exist_ok=True)
-        # target and y are of shape (batch_size, 1, H, W)
-
-        # find losses above 10
-        indices = [i for i, loss in enumerate(loss_list) if loss > 10]
-        if len(indices) == 0:
-            print(f"   No large losses for {name}")
-            return
-        for i in indices:
-            target_large = target[i, 0, ...].squeeze()
-            target_norm = target_large.pow(2).mean() + 1e-6
-            y_large = y[i, 0, ...].squeeze()
-            # convert to numpy
-            target_large = target_large.cpu().numpy()
-            y_large = y_large.cpu().numpy()
-
-            # transpose target and y
-            target_large = target_large.transpose(1, 0)
-            y_large = y_large.transpose(1, 0)
-
-            # add a colorbar
-            # make a figure with 2 cols, target and y
-            fig, axs = plt.subplots(1, 2, figsize=(10, 5))
-            # normalize target and y
-            vmin = min(target_large.min(), y_large.min())
-            vmax = max(target_large.max(), y_large.max())
-            im0 = axs[0].imshow(target_large, vmin=vmin, vmax=vmax, cmap="viridis")
-            im1 = axs[1].imshow(y_large, vmin=vmin, vmax=vmax, cmap="viridis")
-            # add colorbars
-            plt.colorbar(im0, ax=axs[0])
-            plt.colorbar(im1, ax=axs[1])
-            # add a title to the figure
-            fig.suptitle(f"Loss: {loss_list[i]}, target_norm: {target_norm}")
-            fig.savefig(loss_path / f"{name}_{i}.png")
-            plt.close()
-
-            print(f"   Saved large losses to {loss_path}/{name}_{i}.png")
-
     def main(self):
-        # create plot with all losses
-
-        # create plot with all losses
-        # each dataset is a row, the columns are the losses
-        cols = ["pressure", "density", "temperature", "vel_x", "vel_y"]
-        num_cols = len(cols)
-        num_rows = len(self.datasets)
-        fig, axs = plt.subplots(
-            num_rows, num_cols, figsize=(5 * num_cols, 5 * num_rows)
-        )
-        for i, (dataset_name, dataset) in enumerate(self.datasets.items()):
-            print(f"Evaluating on {dataset_name} dataset")
+        for dataset in self.datasets:
             losses = self.eval_on_dataset(dataset)
-            for j, col in enumerate(cols):
-                axs[i, j].plot(losses[col])
-                axs[i, j].set_title(f"{dataset_name} {col}")
-        plt.savefig(f"{self.base_path}/losses.png")
-        plt.close()
 
 
 if __name__ == "__main__":
-    import os
-
+    # import os
     # set cuda visible devices
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-    base_path = Path("/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs")
-    model_name = "m-main-run-all-0001"
-    loss_evaluator = LossEvaluator(
-        base_path=base_path / model_name, batch_size=64, num_workers=8, num_samples=40
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    base_path = Path("logs")
+    model_name = "ti-main-run-0008"
+    loss_evaluator = Evaluator(
+        base_path=base_path / model_name,
+        batch_size=256,
+        num_workers=8,
     )
     loss_evaluator.main()
