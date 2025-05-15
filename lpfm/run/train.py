@@ -242,11 +242,12 @@ class Trainer:
         self.log_msg(f"Training for {self.h_log_state.total_samples} samples")
         self.log_msg(f"Training for {self.h_log_state.total_batches} batches")
         self.log_msg(f"Training on {self.batch_size} samples per batch")
-        self.log_msg(
-            f"Training with {self.config['training']['num_workers']} workers per GPU"
-        )
+
         self.log_msg(f"Validating every {self.h_log_state.val_every_x_samples} samples")
         self.log_msg(f"Validating on {self.h_log_state.val_samples} samples")
+        self.log_msg(
+            f"Checkpoint every {self.config['training']['checkpoint_every_samples']} samples"
+        )
         self.log_msg(
             f"Running {self.config['training']['num_workers']} dataloader workers per GPU"
         )
