@@ -223,11 +223,17 @@ class Trainer:
         self.val_every_x_samples = int(
             float(self.config["training"]["val_every_samples"])
         )
-        self.checkpoint_every_x_samples = int(
-            float(self.config["training"]["checkpoint_every_samples"])
-        )
         self.val_every_x_batches = self.val_every_x_samples // self.batch_size
 
+        # check if checkpoint_every_samples is present in config
+        if "checkpoint_every_samples" in self.config["training"]:
+            self.checkpoint_every_x_samples = int(
+                float(self.config["training"]["checkpoint_every_samples"])
+            )
+        else:
+            self.checkpoint_every_x_samples = self.val_every_x_samples
+
+        ###################################################################
         self.h_log_state = LogState(
             total_samples=human_format(self.total_samples),
             total_batches=human_format(self.total_batches),
