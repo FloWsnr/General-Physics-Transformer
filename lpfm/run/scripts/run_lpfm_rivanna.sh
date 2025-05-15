@@ -72,9 +72,9 @@ export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 new_training=false
 # config to use for new training, located in the log dir
 new_config_name="config_cooldown.yaml"
-# use the best model for potential restart
-best_model=false
-
+# name of the checkpoint to use for training. Can be "best_model" or a number of a epoch directory
+# if last_checkpoint, the last checkpoint is used
+checkpoint_name="last_checkpoint"
 
 # sim directory
 sim_dir="${log_dir}/${sim_name}"
@@ -125,14 +125,15 @@ echo "config_file: $config_file"
 echo "sim_dir: $sim_dir"
 echo "restart: $restart"
 echo "new_training: $new_training"
-echo "using best model for restart: $best_model"
+echo "using checkpoint: $checkpoint_name"
 echo "--------------------------------"
 
 exec_args="--config_file $config_file \
     --sim_name $sim_name \
     --log_dir $log_dir \
     --data_dir $data_dir \
-    --time_limit $time_limit"
+    --time_limit $time_limit \
+    --checkpoint_name $checkpoint_name"
 
 # Add --restart if the restart flag is true
 if [ "$restart" = true ]; then
@@ -140,9 +141,6 @@ if [ "$restart" = true ]; then
 fi
 if [ "$new_training" = true ]; then
     exec_args="$exec_args --new_training"
-fi
-if [ "$best_model" = true ]; then
-    exec_args="$exec_args --best_model"
 fi
 
 # Capture Python output and errors in a variable and run the script

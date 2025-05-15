@@ -32,8 +32,9 @@ $sim_name = "ti-cyl-sym-flow-0001"
 $new_training = $false
 # config to use for new training, located in the log dir
 $new_config_name = "config_cooldown.yaml"
-# use the best model for potential restart
-$best_model = $false
+# name of the checkpoint to use for training. Can be "best_model" or a number of a epoch directory
+# if last_checkpoint, the last checkpoint is used
+$checkpoint_name = "last_checkpoint"
 
 # sim directory
 $sim_dir = Join-Path $log_dir $sim_name
@@ -88,7 +89,7 @@ Write-Host "config_file: $config_file"
 Write-Host "sim_dir: $sim_dir"
 Write-Host "restart: $restart"
 Write-Host "new_training: $new_training"
-Write-Host "using best model for restart: $best_model"
+Write-Host "using checkpoint: $checkpoint_name"
 Write-Host "--------------------------------"
 
 # Build the command with proper argument formatting
@@ -96,6 +97,7 @@ $exec_args = "--config_file `"$config_file`""
 $exec_args += " --sim_name `"$sim_name`""
 $exec_args += " --log_dir `"$log_dir`""
 $exec_args += " --data_dir `"$data_dir`""
+$exec_args += " --checkpoint_name `"$checkpoint_name`""
 
 if ($time_limit) {
     $exec_args += " --time_limit `"$time_limit`""
@@ -106,9 +108,6 @@ if ($restart) {
 }
 if ($new_training) {
     $exec_args += " --new_training"
-}
-if ($best_model) {
-    $exec_args += " --best_model"
 }
 
 # Run the training script with torchrun for distributed training
