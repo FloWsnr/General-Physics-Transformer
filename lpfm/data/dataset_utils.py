@@ -190,8 +190,9 @@ def get_dt_datasets(
         raise ValueError(f"Invalid dt_stride: {dt_strides_bounds}")
     all_datasets = {}
     for dt_stride in dt_strides:
-        data_config["dt_stride"] = dt_stride
-        datasets = get_datasets(data_config, split)
+        dt_data_config = data_config.copy()
+        dt_data_config["dt_stride"] = dt_stride
+        datasets = get_datasets(dt_data_config, split)
         for dataset_name, dataset in datasets.items():
             all_datasets[f"{dataset_name}_dt_{dt_stride}"] = dataset
 
