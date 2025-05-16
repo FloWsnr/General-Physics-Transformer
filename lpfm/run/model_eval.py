@@ -4,8 +4,8 @@ By: Florian Wiesner
 Date: 2025-05-01
 """
 
-from typing import Optional
 from pathlib import Path
+import platform
 
 import yaml
 
@@ -14,16 +14,22 @@ try:
 except ImportError:
     from yaml import Loader
 
-import torch
-from torch.utils.data import DataLoader
+import pandas as pd
 import matplotlib.pyplot as plt
+
+import wandb
+import wandb.wandb_run
+
+import torch
+from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+
 from lpfm.model.transformer.model import get_model
 from lpfm.data.dataset_utils import get_dt_datasets
 from lpfm.data.phys_dataset import PhysicsDataset
 from lpfm.utils.logger import get_logger
 from lpfm.run.run_utils import load_stored_model, find_checkpoint
-
-logger = get_logger(__name__, log_level="INFO")
 
 
 def load_config(model_path: Path) -> dict:
@@ -71,9 +77,7 @@ class Evaluator:
     ----------
     base_path : Path
         Path to the base directory of the model
-    num_samples : Optional[int]
-        Number of samples to evaluate on
-        If None, all samples are evaluated
+
     batch_size : int
         Batch size
     num_workers : int
@@ -85,17 +89,54 @@ class Evaluator:
     def __init__(
         self,
         base_path: Path,
-        num_samples: Optional[int] = None,
         batch_size: int = 256,
         num_workers: int = 4,
         checkpoint_name: str = "best_model",
+        wandb_run: wandb.Run | None = None,
+        global_rank: int = 0,
+        local_rank: int = 0,
+        world_size: int = 1,
+        log_level: str = "INFO",
     ):
-        print("Setting up evaluator")
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.global_rank = global_rank
+        self.local_rank = local_rank
+        self.world_size = world_size
+        self.device = (
+            torch.device(f"cuda:{self.local_rank}")
+            if torch.cuda.is_available()
+            else torch.device("cpu")
+        )
+        self.ddp_enabled = dist.is_initialized()
+        self.logger = get_logger(
+            "Evaluator",
+            log_file=self.config["logging"]["log_file"],
+            log_level=self.config["logging"]["log_level"],
+        )
+
         self.config = load_config(base_path)
         self.model = load_model(
             base_path, self.device, self.config["model"], checkpoint_name
         )
+
+        # print the model architecture
+        self.model.to(self.device)
+        torch.set_float32_matmul_precision("high")
+        if not platform.system() == "Windows":
+            self.log_msg("Compiling model")
+            self.model = torch.compile(self.model)
+        if torch.cuda.is_available():
+            self.log_msg("Using AMP")
+            self.use_amp = True
+        else:
+            self.use_amp = False
+
+        if self.ddp_enabled:
+            self.model = DDP(
+                self.model,
+                device_ids=[self.local_rank],
+                output_device=self.device,
+            )
+        self.model.eval()
 
         self.datasets = get_dt_datasets(self.config["data"], split="test")
 
@@ -104,36 +145,73 @@ class Evaluator:
         self.batch_size = batch_size
         self.num_workers = num_workers
 
-    @torch.no_grad()
-    def eval_on_dataset(self, dataset: PhysicsDataset):
-        criterion = torch.nn.MSELoss(reduction="none")
+    def _get_dataloader(self, dataset: PhysicsDataset, is_distributed: bool = False):
+        if is_distributed:
+            sampler = DistributedSampler(dataset, shuffle=False)
+        else:
+            sampler = SequentialSampler(dataset)
 
-        loader = DataLoader(
+        return DataLoader(
             dataset,
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
+            pin_memory=True,
+            sampler=sampler,
         )
+
+    def eval_on_dataset(self, dataset: PhysicsDataset):
+        criterion = torch.nn.MSELoss(reduction="none")
+
+        loader = self._get_dataloader(dataset, is_distributed=False)
         losses = []
-        for i, (x, target) in enumerate(loader):
-            # shape of x is (batch_size, T, H, W, C)
-            # shape of target is (batch_size, 1, H, W, C)
+        with torch.inference_mode():
+            for i, (x, target) in enumerate(loader):
+                x = x.to(self.device)
+                target = target.to(self.device)
+                with torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    # shape of x is (batch_size, T, H, W, C)
+                    # shape of target is (batch_size, 1, H, W, C)
+                    y = self.model(x)
+                    loss = criterion(y, target).squeeze()  # remove T dimension
+                # get the loss of each sample, dont average accross batches (h,w,c)
+                loss = torch.mean(loss, dim=(1, 2, 3))
+                losses.append(loss.detach())
 
-            print(f"   Evaluating on {i}th batch")
-            x = x.to(self.device)
-            target = target.to(self.device)
-            y = self.model(x)
-
-            loss = criterion(y, target).squeeze()  # remove T dimension
-            # get the loss of each sample, dont average accross batches (h,w,c)
-            loss = torch.mean(loss, dim=(1, 2, 3))
-            losses.append(loss)
+        # send losses to all GPUs
+        if self.ddp_enabled:
+            # Gather losses from all GPUs to rank 0
+            gathered_losses = [
+                torch.zeros_like(losses[0]) for _ in range(self.world_size)
+            ]
+            dist.gather(losses[0], gathered_losses, dst=0)
+            if self.global_rank == 0:
+                # Concatenate all gathered losses
+                losses = torch.cat(gathered_losses, dim=0)
+            else:
+                losses = None
 
         return losses
 
     def main(self):
-        for dataset in self.datasets:
+        all_losses = {}
+        for name, dataset in self.datasets.items():
             losses = self.eval_on_dataset(dataset)
+            all_losses[name] = losses
+
+        # insert losses into df, each col is a dataset, set the name of the col to the dataset name
+        df = pd.DataFrame(all_losses)
+        df.columns = list(self.datasets.keys())
+
+        df.to_csv(self.eval_dir / "losses.csv", index=False)
+
+    def _log_losses(self, df: pd.DataFrame):
+        # compute mean and std of losses
+        mean_losses = df.mean(axis=0)
+        std_losses = df.std(axis=0)
+
+        self.wandb_run.log({"validation-summary/eval-loss-mean": mean_losses})
+        self.wandb_run.log({"validation-summary/eval-loss-std": std_losses})
 
 
 if __name__ == "__main__":
