@@ -89,7 +89,10 @@ class Trainer:
         ############ Initialize time limit #############################
         ################################################################
         self.avg_sec_per_cycle = 0
-        self.start_time = time.time()
+        self.avg_sec_per_checkpoint = 0
+        self.avg_sec_per_1k_samples = 0
+        self.avg_sec_per_val_cycle = 0
+
         if "time_limit" in self.config["training"]:
             self.time_limit = self.config["training"]["time_limit"]
         else:
@@ -462,6 +465,9 @@ class Trainer:
         }
 
         samples_trained = 0
+        # check that num_samples does not exceed self.total_samples
+        num_samples = min(num_samples, self.total_samples - self.total_samples_trained)
+
         batches_trained = 0
         train_iter = iter(self.train_loader)
         while samples_trained < num_samples:
@@ -565,6 +571,18 @@ class Trainer:
             self.log_msg("")
 
             ############################################################
+            ############ Update time estimates ########################
+            ############################################################
+            total_train_duration = time.time() - self.start_time
+            seconds_per_sample = total_train_duration / self.total_samples_trained
+            self.avg_sec_per_1m_samples = seconds_per_sample * 1000000
+
+            checkpoint_time = seconds_per_sample * self.checkpoint_every_x_samples
+            self.avg_sec_per_checkpoint = (
+                checkpoint_time / self.checkpoint_every_x_samples
+            )
+
+            ############################################################
             # Log to wandb #############################################
             ############################################################
             if self.global_rank == 0:
@@ -577,6 +595,8 @@ class Trainer:
                         "training/total_batches_remaining": self.total_batches
                         - self.total_batches_trained,
                         "training/learning_rate": lr,
+                        "training/avg_sec_per_1m_samples": self.avg_sec_per_1m_samples,
+                        "training/avg_sec_per_checkpoint": self.avg_sec_per_checkpoint,
                     },
                     commit=False,
                 )
@@ -593,6 +613,19 @@ class Trainer:
                 if self.ddp_enabled:
                     dist.barrier()
 
+            ############################################################
+            # Shut down if next checkpoint would exceed time limit
+            ############################################################
+            time_remaining = self.time_limit - (time.time() - self.start_time)
+            time_needed = (
+                self.avg_sec_per_checkpoint + self.avg_sec_per_val_cycle
+            ) * 1.1
+            if time_remaining < time_needed:
+                self.shutdown_flag = True  # set flag to tell outer loop to shut down
+                self.log_msg(
+                    "Summary: Next checkpoint would exceed time limit, shutting down"
+                )
+                break
         ############################################################
         # Visualize predictions ####################################
         ############################################################
@@ -639,6 +672,7 @@ class Trainer:
 
         samples_validated = 0
         batches_validated = 0
+        start_val_time = time.time()
         with torch.inference_mode():
             for x, target in self.val_loader:
                 x = x.to(self.device)
@@ -709,6 +743,14 @@ class Trainer:
                 self.log_msg(f"Error type: {type(e)}")
                 self.log_msg(f"Error args: {e.args}")
 
+        ############################################################
+        # Calculate average time per cycle #########################
+        ############################################################
+        duration = time.time() - start_val_time
+        self.avg_sec_per_val_cycle = (
+            self.avg_sec_per_val_cycle * (self.num_cycles - 1) + duration
+        ) / self.num_cycles
+
         # Calculate average loss per batch
         for loss_name, loss in loss_per_cycle.items():
             loss_per_cycle[loss_name] /= batches_validated
@@ -721,11 +763,12 @@ class Trainer:
         # we use this to count the number of cycles of this training run
         # this is used to calculate the projected time remaining. If we use cycle idx and do a
         # restart, the projected time remaining will be wrong.
-        num_cycles = 0
+        self.num_cycles = 0
+        self.start_time = time.time()
         while self.total_samples_trained < self.total_samples:
-            num_cycles += 1
+            self.num_cycles += 1
             self.cycle_idx += 1
-            start_epoch_time = time.time()
+            start_cycle_time = time.time()
             self.val_dir = self.log_dir / f"{self.cycle_name}{self.cycle_idx:04d}"
             self.val_dir.mkdir(parents=True, exist_ok=True)
             ######################################################################
@@ -783,16 +826,19 @@ class Trainer:
                     self.total_batches_trained
                 )
                 val_losses_wandb["validation-summary/cycle_idx"] = self.cycle_idx
+                val_losses_wandb["validation-summary/avg_sec_per_val_cycle"] = (
+                    self.avg_sec_per_val_cycle
+                )
                 self.wandb_run.log(val_losses_wandb, commit=True)
 
             ############################################################
-            # Calculate average time per epoch #########################
+            # Calculate average time per cycle #########################
             ############################################################
-            duration = time.time() - start_epoch_time
+            duration = time.time() - start_cycle_time
             self.log_msg(f"Summary: Training cycle took {duration / 60:.2f} minutes")
             self.avg_sec_per_cycle = (
-                self.avg_sec_per_cycle * (num_cycles - 1) + duration
-            ) / num_cycles
+                self.avg_sec_per_cycle * (self.num_cycles - 1) + duration
+            ) / self.num_cycles
 
             self.log_msg(
                 f"Summary: Average time per cycle: {self.avg_sec_per_cycle / 60:.2f} minutes"
@@ -822,6 +868,7 @@ class Trainer:
                         "summary/minutes_per_cycle": duration / 60,
                         "summary/avg_minutes_per_cycle": self.avg_sec_per_cycle / 60,
                         "summary/projected_minutes_remaining": proj_time_remaining / 60,
+                        "summary/seconds_per_1m_samples": self.avg_sec_per_1m_samples,
                     },
                     commit=True,
                 )
@@ -839,14 +886,23 @@ class Trainer:
             ############################################################
             # Shut down if time limit is set and next cycle would exceed it
             ############################################################
-            if self.time_limit is not None:
-                time_passed = time.time() - self.start_time
-                time_remaining = self.time_limit - time_passed
-                if time_remaining < self.avg_sec_per_cycle:
-                    self.log_msg(
-                        "Summary: Next cycle would exceed time limit, shutting down"
-                    )
-                    break
+            # if self.time_limit is not None:
+            #     time_passed = time.time() - self.start_time
+            #     time_remaining = self.time_limit - time_passed
+            #     if time_remaining < self.avg_sec_per_cycle:
+            #         self.log_msg(
+            #             "Summary: Next cycle would exceed time limit, shutting down"
+            #         )
+            #         break
+
+            ############################################################
+            # Shut down if next checkpoint would exceed time limit
+            ############################################################
+            if self.shutdown_flag:
+                self.log_msg(
+                    "Summary: Next checkpoint would exceed time limit, shutting down"
+                )
+                break
 
         self.cleanup()
 
