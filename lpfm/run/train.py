@@ -248,7 +248,7 @@ class Trainer:
         ################################################################
         self.log_msg(f"Number of unique training batches: {len(self.train_loader)}")
         self.log_msg(
-            f"Number of unique training samples: {len(self.train_loader) * self.config['training']['batch_size']}"
+            f"Number of unique training samples: {len(self.train_loader) * self.batch_size}"
         )
 
         self.log_msg(f"Training for {self.h_log_state.total_samples} samples")
