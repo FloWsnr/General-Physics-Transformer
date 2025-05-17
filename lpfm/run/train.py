@@ -92,6 +92,7 @@ class Trainer:
         self.avg_sec_per_checkpoint = 0
         self.avg_sec_per_1k_samples = 0
         self.avg_sec_per_val_cycle = 0
+        self.shutdown_flag = False
 
         if "time_limit" in self.config["training"]:
             self.time_limit = self.config["training"]["time_limit"]
