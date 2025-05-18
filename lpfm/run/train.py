@@ -466,6 +466,7 @@ class Trainer:
         }
 
         samples_trained = 0
+        train_time = time.time()
         # check that num_samples does not exceed self.total_samples
         num_samples = min(num_samples, self.total_samples - self.total_samples_trained)
 
@@ -574,13 +575,12 @@ class Trainer:
             ############################################################
             ############ Update time estimates ########################
             ############################################################
-            total_train_duration = time.time() - self.start_time
-            seconds_per_sample = total_train_duration / self.total_samples_trained
+            total_train_duration = time.time() - train_time
+            seconds_per_sample = total_train_duration / samples_trained
             self.avg_sec_per_1m_samples = seconds_per_sample * 1000000
 
-            checkpoint_time = seconds_per_sample * self.checkpoint_every_x_samples
             self.avg_sec_per_checkpoint = (
-                checkpoint_time / self.checkpoint_every_x_samples
+                seconds_per_sample * self.checkpoint_every_x_samples
             )
 
             ############################################################
@@ -620,7 +620,7 @@ class Trainer:
             time_remaining = self.time_limit - (time.time() - self.start_time)
             time_needed = (
                 self.avg_sec_per_checkpoint + self.avg_sec_per_val_cycle
-            ) * 1.5
+            ) * 1.2
             if time_remaining < time_needed:
                 self.shutdown_flag = True  # set flag to tell outer loop to shut down
                 self.log_msg(
