@@ -620,7 +620,7 @@ class Trainer:
             time_remaining = self.time_limit - (time.time() - self.start_time)
             time_needed = (
                 self.avg_sec_per_checkpoint + self.avg_sec_per_val_cycle
-            ) * 1.1
+            ) * 1.5
             if time_remaining < time_needed:
                 self.shutdown_flag = True  # set flag to tell outer loop to shut down
                 self.log_msg(
