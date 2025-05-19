@@ -445,7 +445,10 @@ class Trainer:
     def _get_lr(self) -> float:
         """Get the learning rate."""
         if isinstance(self.optimizer, torch.optim.AdamW):
-            return self.scheduler.get_last_lr()[0]
+            if self.scheduler is not None:
+                return self.scheduler.get_last_lr()[0]
+            else:
+                return self.optimizer.param_groups[0]["lr"]
 
         elif isinstance(self.optimizer, dadaptation.DAdaptAdam):
             return (
