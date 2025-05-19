@@ -7,8 +7,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import wandb
-from PIL import Image
 
 
 def visualize_predictions(
@@ -217,30 +215,3 @@ def visualize_predictions(
             fig_path = fig_dir / f"{fig_name}.svg"
             fig.savefig(fig_path, bbox_inches="tight")
         plt.close(fig)
-
-
-def log_predictions_wandb(
-    run,
-    image_path: Path,
-    name_prefix: str,
-):
-    """
-    Log the predictions and targets to wandb.
-
-    Parameters
-    ----------
-    run : wandb.wandb_run.Run
-        The wandb run.
-    image_path: Path
-        path to the images
-    name_prefix: str
-        prefix for the image names
-    """
-
-    data = {}
-    for image in image_path.glob("**/*.png"):
-        img = Image.open(image)
-        data[f"{name_prefix}/{image.name}"] = wandb.Image(
-            img, file_type="png", mode="RGB"
-        )
-    run.log(data)

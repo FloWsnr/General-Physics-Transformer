@@ -13,16 +13,12 @@ import platform
 import math
 from dataclasses import dataclass
 
-import wandb
-import wandb.wandb_run
-
 import yaml
 
 try:
     from yaml import CLoader as Loader
 except ImportError:
     from yaml import Loader
-
 
 from dotenv import load_dotenv
 
@@ -39,8 +35,9 @@ import prodigyopt
 
 from lpfm.data.dataset_utils import get_dataloader
 from lpfm.model.transformer.model import get_model
-from lpfm.utils.train_vis import log_predictions_wandb, visualize_predictions
+from lpfm.utils.train_vis import visualize_predictions
 from lpfm.utils.logger import get_logger
+from lpfm.utils.wandb_logger import WandbLogger
 from lpfm.model.transformer.loss_fns import RMSE
 from lpfm.run.run_utils import (
     find_checkpoint,
@@ -124,9 +121,13 @@ class Trainer:
             self.cycle_name = "val_"
 
         if self.global_rank == 0:
-            self.wandb_run = login_wandb(self.config)
+            self.wandb_logger = WandbLogger(
+                config=self.config,
+                log_file=self.config["logging"]["log_file"],
+                log_level=self.config["logging"]["log_level"],
+            )
         else:
-            self.wandb_run = None
+            self.wandb_logger = None
 
         ################################################################
         ############# Log ddp info ####################################
@@ -151,11 +152,10 @@ class Trainer:
 
         total_params = sum(p.numel() for p in self.model.parameters())
         self.log_msg(f"Model size: {total_params / 1e6:.2f}M parameters")
-        # self.log_msg(f"Model architecture: {self.model}")
 
         if self.global_rank == 0:
-            self.wandb_run.config.update(
-                {"model/model_size [M]": total_params / 1e6}, allow_val_change=True
+            self.wandb_logger.update_config(
+                {"model/model_size [M]": total_params / 1e6}
             )
 
         # print the model architecture
@@ -270,7 +270,7 @@ class Trainer:
         )
 
         if self.global_rank == 0:
-            self.wandb_run.config.update(
+            self.wandb_logger.update_config(
                 {
                     "training/total_samples": self.total_samples,
                     "training/samples_per_batch": self.batch_size,
@@ -279,7 +279,6 @@ class Trainer:
                     "training/num_val_samples": total_val_samples,
                     "training/slurm_id": os.environ.get("SLURM_JOB_ID", ""),
                 },
-                allow_val_change=True,
             )
 
         ################################################################
@@ -322,11 +321,11 @@ class Trainer:
         ########### Watch model ########################################
         ################################################################
         if self.global_rank == 0:
-            self.wandb_run.watch(
-                self.model,
+            self.wandb_logger.watch(
+                model=self.model,
                 criterion=self.criterion,
                 log=self.config["wandb"]["log_model"],
-                log_freq=self.val_every_x_batches,
+                log_freq=self.checkpoint_every_x_samples,
             )
 
     def log_msg(self, msg: str):
@@ -587,7 +586,7 @@ class Trainer:
             # Log to wandb #############################################
             ############################################################
             if self.global_rank == 0:
-                self.wandb_run.log(
+                self.wandb_logger.log(
                     {
                         "training/total_batches_trained": self.total_batches_trained,
                         "training/total_samples_trained": self.total_samples_trained,
@@ -601,7 +600,7 @@ class Trainer:
                     },
                     commit=False,
                 )
-                self.wandb_run.log(wandb_log_losses, commit=True)
+                self.wandb_logger.log(wandb_log_losses, commit=True)
             ############################################################
             # Save checkpoint ##########################################
             ############################################################
@@ -621,7 +620,13 @@ class Trainer:
             time_needed = (
                 self.avg_sec_per_checkpoint + self.avg_sec_per_val_cycle
             ) * 1.2
-            if time_remaining < time_needed:
+
+            # only check if we have already trained for at least one cycle to make sure
+            # the estimate is not too far off
+            if (
+                time_remaining < time_needed
+                and samples_trained > self.checkpoint_every_x_samples / 2
+            ):
                 self.shutdown_flag = True  # set flag to tell outer loop to shut down
                 self.log_msg(
                     "Summary: Next checkpoint would exceed time limit, shutting down"
@@ -641,8 +646,7 @@ class Trainer:
                     num_samples=4,
                     svg=True,
                 )
-                log_predictions_wandb(
-                    run=self.wandb_run,
+                self.wandb_logger.log_predictions(
                     image_path=vis_path.parent,
                     name_prefix=f"cycle_{self.cycle_idx}",
                 )
@@ -734,8 +738,7 @@ class Trainer:
                     num_samples=4,
                     svg=True,
                 )
-                log_predictions_wandb(
-                    run=self.wandb_run,
+                self.wandb_logger.log_predictions(
                     image_path=vis_path.parent,
                     name_prefix=f"cycle_{self.cycle_idx}",
                 )
@@ -796,7 +799,7 @@ class Trainer:
                     self.total_samples - self.total_samples_trained
                 )
                 train_losses_wandb["training-summary/cycle_idx"] = self.cycle_idx
-                self.wandb_run.log(train_losses_wandb, commit=True)
+                self.wandb_logger.log(train_losses_wandb, commit=True)
             ######################################################################
             ########### Save checkpoint ########################################
             ######################################################################
@@ -830,7 +833,7 @@ class Trainer:
                 val_losses_wandb["validation-summary/avg_sec_per_val_cycle"] = (
                     self.avg_sec_per_val_cycle
                 )
-                self.wandb_run.log(val_losses_wandb, commit=True)
+                self.wandb_logger.log(val_losses_wandb, commit=True)
 
             ############################################################
             # Calculate average time per cycle #########################
@@ -861,7 +864,7 @@ class Trainer:
             ########### Wandb logging ###########################################
             ######################################################################
             if self.global_rank == 0:
-                self.wandb_run.log(
+                self.wandb_logger.log(
                     {
                         "summary/cycle_idx": self.cycle_idx,
                         "summary/samples_trained": self.total_samples_trained,
@@ -885,18 +888,6 @@ class Trainer:
                     self.log_msg(f"Model saved with loss: {best_loss:.8f}")
 
             ############################################################
-            # Shut down if time limit is set and next cycle would exceed it
-            ############################################################
-            # if self.time_limit is not None:
-            #     time_passed = time.time() - self.start_time
-            #     time_remaining = self.time_limit - time_passed
-            #     if time_remaining < self.avg_sec_per_cycle:
-            #         self.log_msg(
-            #             "Summary: Next cycle would exceed time limit, shutting down"
-            #         )
-            #         break
-
-            ############################################################
             # Shut down if next checkpoint would exceed time limit
             ############################################################
             if self.shutdown_flag:
@@ -908,8 +899,9 @@ class Trainer:
         self.cleanup()
 
     def cleanup(self):
+        """Clean up resources."""
         if self.global_rank == 0:
-            self.wandb_run.finish()
+            self.wandb_logger.finish()
         if self.ddp_enabled:
             dist.destroy_process_group()
 
@@ -970,22 +962,6 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
         raise ValueError(f"Optimizer {config['name']} not supported")
 
     return optimizer
-
-
-def login_wandb(config: dict) -> wandb.wandb_run.Run:
-    """Log into wandb."""
-    wandb_id = config["wandb"]["id"]
-    wandb.login()
-    run = wandb.init(
-        project=config["wandb"]["project"],
-        entity=config["wandb"]["entity"],
-        config=config,
-        id=wandb_id,
-        tags=config["wandb"]["tags"],
-        notes=config["wandb"]["notes"],
-        resume="allow",
-    )
-    return run
 
 
 def setup_ddp():
