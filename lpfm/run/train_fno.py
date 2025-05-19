@@ -28,7 +28,6 @@ import torch.optim as optim
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.elastic.multiprocessing.errors import record
-from torch.amp.grad_scaler import GradScaler
 
 import dadaptation
 import prodigyopt
@@ -182,16 +181,6 @@ class Trainer:
         # print the model architecture
         self.model.to(self.device)
         torch.set_float32_matmul_precision("high")
-        if self.config["training"]["compile"] and not platform.system() == "Windows":
-            self.log_msg("Compiling model")
-            self.model = torch.compile(self.model)
-        if self.config["training"]["amp"] and torch.cuda.is_available():
-            self.log_msg("Using AMP")
-            self.use_amp = True
-            self.grad_scaler = GradScaler()
-        else:
-            self.use_amp = False
-            self.grad_scaler = None
 
         if self.ddp_enabled:
             self.model = DDP(
@@ -378,8 +367,6 @@ class Trainer:
         ##################################################################
         self.model.load_state_dict(checkpoint["model_state_dict"], strict=True)
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        if self.grad_scaler is not None:
-            self.grad_scaler.load_state_dict(checkpoint["grad_scaler_state_dict"])
         if self.scheduler is not None and restart:
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
         elif self.scheduler is not None and new_training:
@@ -403,8 +390,6 @@ class Trainer:
             "optimizer_state_dict": self.optimizer.state_dict(),
             "config": path_to_string(self.config),
         }
-        if self.grad_scaler is not None:
-            checkpoint["grad_scaler_state_dict"] = self.grad_scaler.state_dict()
         if self.scheduler is not None:
             checkpoint["scheduler_state_dict"] = self.scheduler.state_dict()
 
