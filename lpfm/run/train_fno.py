@@ -62,7 +62,7 @@ class LogState:
 class FNOConfig:
     in_channels: int = 5
     out_channels: int = 5
-    hidden_channels: int = 32
+    hidden_channels: int = 64
     n_layers: int = 4
     n_modes_height: int = 12
     n_modes_width: int = 12
