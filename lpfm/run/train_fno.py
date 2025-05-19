@@ -464,6 +464,20 @@ class Trainer:
         else:
             return self.optimizer.param_groups[0]["lr"]
 
+    def _interpolate(
+        self, x: torch.Tensor, target: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Interpolate the input and target to the desired shape."""
+        input_steps = x.shape[2]
+        target_steps = target.shape[2]
+        x = torch.nn.functional.interpolate(
+            x, size=(input_steps, 128, 64), mode="trilinear"
+        )
+        target = torch.nn.functional.interpolate(
+            target, size=(target_steps, 128, 64), mode="trilinear"
+        )
+        return x, target
+
     def train_for_x_samples(self, num_samples: int) -> float:
         """Train the model for a given number of samples.
 
@@ -509,10 +523,7 @@ class Trainer:
             x = x.permute(0, 4, 1, 2, 3)
             target = target.permute(0, 4, 1, 2, 3)
 
-            x = torch.nn.functional.interpolate(x, size=(4, 128, 64), mode="trilinear")
-            target = torch.nn.functional.interpolate(
-                target, size=(1, 128, 64), mode="trilinear"
-            )
+            x, target = self._interpolate(x, target)
 
             self.optimizer.zero_grad()
 
@@ -707,12 +718,8 @@ class Trainer:
                 x = x.permute(0, 4, 1, 2, 3)
                 target = target.permute(0, 4, 1, 2, 3)
 
-                x = torch.nn.functional.interpolate(
-                    x, size=(4, 128, 64), mode="trilinear"
-                )
-                target = torch.nn.functional.interpolate(
-                    target, size=(1, 128, 64), mode="trilinear"
-                )
+                x, target = self._interpolate(x, target)
+
                 output = self.model(x)
                 # use only the last time step as comparison, but keep the time dimension
                 output = output[:, :, -1, :, :].unsqueeze(2)
