@@ -7,7 +7,7 @@
 #SBATCH --job-name=train_lpfm
 
 ### Output file
-#SBATCH --output=/home/zsa8rk/Coding/Large-Physics-Foundation-Model/logs/slrm_logs/train_lpfm_%j.out
+#SBATCH --output=/scratch/zsa8rk/logs/00_slrm_logs/train_lpfm_%j.out
 
 ### Number of nodes
 #SBATCH --nodes=1
@@ -147,4 +147,4 @@ fi
 torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args
 
 # move the output file to the sim_dir
-mv ${log_dir}/slrm_logs/${sim_name}_${SLURM_JOB_ID}.out $sim_dir
+mv ${log_dir}/00_slrm_logs/${sim_name}_${SLURM_JOB_ID}.out $sim_dir
