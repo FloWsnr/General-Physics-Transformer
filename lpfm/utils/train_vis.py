@@ -52,7 +52,11 @@ def visualize_predictions(
     if num_samples > inputs.shape[0]:
         num_samples = inputs.shape[0]
 
-    for sample_idx in range(num_samples):
+    # get random sample idx
+    sample_indices = torch.randint(
+        0, inputs.shape[0], (num_samples,), device="cpu"
+    ).numpy()
+    for sample_idx in sample_indices:
         sample_inputs = inputs[sample_idx, ...]
         sample_predictions = predictions[sample_idx, ...]
         sample_targets = targets[sample_idx, ...]
