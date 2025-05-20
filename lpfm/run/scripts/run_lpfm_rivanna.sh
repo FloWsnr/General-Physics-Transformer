@@ -59,7 +59,7 @@ conda activate lpfm
 # Set up paths
 base_dir="/home/zsa8rk/Coding/Large-Physics-Foundation-Model"
 python_exec="${base_dir}/lpfm/run/train.py"
-log_dir="${base_dir}/logs"
+log_dir="/scratch/zsa8rk/logs"
 base_config_file="${base_dir}/lpfm/run/scripts/config.yaml"
 data_dir="/scratch/zsa8rk/datasets"
 # sim_name (same as wandb id)
