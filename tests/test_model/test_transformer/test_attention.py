@@ -186,6 +186,35 @@ class TestAttentionBlock:
         # Check output shape
         assert output.shape == (batch_size, time, height, width, channels)
 
+    def test_stochastic_depth(self):
+        """Test stochastic depth functionality in AttentionBlock."""
+        batch_size = 2
+        channels = 96
+        mlp_dim = 256
+        time = 3
+        height = 8
+        width = 8
+        num_heads = 4
+        dropout = 0.0
+        stochastic_depth_rate = 1
+
+        # Create input tensor
+        x = torch.randn(batch_size, time, height, width, channels)
+
+        # Create block with stochastic depth
+        block = AttentionBlock(
+            att_type="full",
+            hidden_dim=channels,
+            mlp_dim=mlp_dim,
+            num_heads=num_heads,
+            dropout=dropout,
+            stochastic_depth_rate=stochastic_depth_rate,
+        )
+
+        # output should be the same as the input since stochastic depth rate is 1
+        output = block(x)
+        assert torch.allclose(output, x)
+
 
 if __name__ == "__main__":
     test = TestCausalSpatioTemporalAttention()

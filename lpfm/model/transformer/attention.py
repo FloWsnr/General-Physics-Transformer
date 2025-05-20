@@ -4,10 +4,11 @@ By: Florian Wiesner
 Date: 2025-03-31
 """
 
-import torch
-import torch.nn as nn
 from typing import Optional
 
+import torch
+import torch.nn as nn
+from torchvision.ops import StochasticDepth
 from einops import rearrange
 
 from lpfm.model.transformer.pos_encodings import RotaryPositionalEmbedding
@@ -316,6 +317,7 @@ class AttentionBlock(nn.Module):
         height: Optional[int] = None,
         width: Optional[int] = None,
         dropout: float = 0.0,
+        stochastic_depth_rate: float = 0.0,
         pe: Optional[RotaryPositionalEmbedding] = None,
     ):
         super().__init__()
@@ -338,10 +340,14 @@ class AttentionBlock(nn.Module):
         self.norm1 = nn.LayerNorm(hidden_dim)
         self.norm2 = nn.LayerNorm(hidden_dim)
         self.mlp = MLP(hidden_dim, mlp_dim, dropout)
+        self.sd = StochasticDepth(stochastic_depth_rate, mode="row")
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        # skip connection across attention and norm (with stochastic depth)
         x = self.norm1(input)
-        att = self.attention(x) + input  # skip connection across attention and norm
+        att = self.sd(self.attention(x)) + input
+
+        # skip connection across MLP and norm (with stochastic depth)
         x = self.norm2(att)
-        x = self.mlp(x) + att  # skip connection across MLP and norm
+        x = self.sd(self.mlp(x)) + att
         return x

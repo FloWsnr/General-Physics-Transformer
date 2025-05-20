@@ -3,8 +3,6 @@ from typing import Optional, Literal
 import torch
 import torch.nn as nn
 
-from torchvision.ops import stochastic_depth
-
 from lpfm.model.transformer.attention import AttentionBlock
 from lpfm.model.transformer.pos_encodings import (
     RotaryPositionalEmbedding,
@@ -199,6 +197,7 @@ class PhysicsTransformer(nn.Module):
                     height=n_patch_h,
                     width=n_patch_w,
                     dropout=dropout,
+                    stochastic_depth_rate=stochastic_depth_rate,
                     pe=att_pos_encodings,
                 )
                 for _ in range(num_layers)
@@ -217,8 +216,6 @@ class PhysicsTransformer(nn.Module):
             img_size=img_size,
         )
 
-        self.stochastic_depth_rate = stochastic_depth_rate
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert not torch.isnan(x).any(), "Input contains NaNs"
 
@@ -236,9 +233,6 @@ class PhysicsTransformer(nn.Module):
         # Apply N attention blocks (norm, att, norm, mlp)
         for block in self.attention_blocks:
             x = block(x)
-            x = stochastic_depth(
-                x, p=self.stochastic_depth_rate, mode="row", training=self.training
-            )
 
         # # Apply de-patching
         x = self.detokenizer(x)
