@@ -24,7 +24,7 @@ def load_stored_model(
         Checkpoint
     """
     torch.serialization.add_safe_globals([pathlib.PosixPath, pathlib.WindowsPath])
-    checkpoint = torch.load(checkpoint_path, weights_only=True, map_location=device)
+    checkpoint = torch.load(checkpoint_path, weights_only=False, map_location=device)
     new_state_dict = {}
     if remove_ddp:
         for key, value in checkpoint["model_state_dict"].items():
