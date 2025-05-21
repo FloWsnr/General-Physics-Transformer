@@ -62,11 +62,10 @@ def load_model(
     checkpoint_path = find_checkpoint(
         model_dir, subdir_name=subdir_name, specific_checkpoint=checkpoint_name
     )
-    data = load_stored_model(checkpoint_path, device, remove_ddp=True)
     model = get_model(model_config)
-    model.load_state_dict(data["model_state_dict"], strict=True)
     model.to(device)
-    model.eval()
+    data = load_stored_model(checkpoint_path, device, remove_ddp=True)
+    model.load_state_dict(data["model_state_dict"], strict=True)
     return model
 
 
@@ -75,24 +74,31 @@ class Evaluator:
 
     Parameters
     ----------
-    base_path : Path
-        Path to the base directory of the model
-
-    batch_size : int
-        Batch size
-    num_workers : int
-        Number of workers for the dataloader
-    checkpoint_name : str
-        Name of the checkpoint to evaluate
+    model : torch.nn.Module
+        The model to evaluate
+    datasets : dict[str, PhysicsDataset]
+        Dictionary of datasets to evaluate on
+    eval_dir : Path
+        Directory to save evaluation results
+    batch_size : int, optional
+        Batch size for evaluation, by default 256
+    num_workers : int, optional
+        Number of workers for dataloader, by default 4
+    global_rank : int, optional
+        Global rank for distributed training, by default 0
+    local_rank : int, optional
+        Local rank for distributed training, by default 0
+    world_size : int, optional
+        World size for distributed training, by default 1
     """
 
     def __init__(
         self,
-        base_path: Path,
-        batch_size: int = 256,
-        num_workers: int = 4,
-        checkpoint_name: str = "best_model",
-        wandb_run: wandb.Run | None = None,
+        model: torch.nn.Module,
+        datasets: dict[str, PhysicsDataset],
+        eval_dir: Path,
+        batch_size: int = 1,
+        num_workers: int = 0,
         global_rank: int = 0,
         local_rank: int = 0,
         world_size: int = 1,
@@ -107,43 +113,90 @@ class Evaluator:
             else torch.device("cpu")
         )
         self.ddp_enabled = dist.is_initialized()
+
         self.logger = get_logger(
             "Evaluator",
-            log_file=self.config["logging"]["log_file"],
-            log_level=self.config["logging"]["log_level"],
+            log_file=None,
+            log_level=log_level,
         )
 
-        self.config = load_config(base_path)
-        self.model = load_model(
-            base_path, self.device, self.config["model"], checkpoint_name
-        )
-
-        # print the model architecture
-        self.model.to(self.device)
-        torch.set_float32_matmul_precision("high")
-        if not platform.system() == "Windows":
-            self.log_msg("Compiling model")
-            self.model = torch.compile(self.model)
-        if torch.cuda.is_available():
-            self.log_msg("Using AMP")
-            self.use_amp = True
-        else:
-            self.use_amp = False
-
-        if self.ddp_enabled:
-            self.model = DDP(
-                self.model,
-                device_ids=[self.local_rank],
-                output_device=self.device,
-            )
+        self.model = model
         self.model.eval()
+        self.model.to(self.device)
 
-        self.datasets = get_dt_datasets(self.config["data"], split="test")
-
-        self.eval_dir = base_path / "eval"
+        self.datasets = datasets
+        self.eval_dir = eval_dir
         self.eval_dir.mkdir(parents=True, exist_ok=True)
         self.batch_size = batch_size
         self.num_workers = num_workers
+
+    @classmethod
+    def from_checkpoint(
+        cls,
+        base_path: Path,
+        batch_size: int = 256,
+        num_workers: int = 4,
+        checkpoint_name: str = "best_model",
+        global_rank: int = 0,
+        local_rank: int = 0,
+        world_size: int = 1,
+    ) -> "Evaluator":
+        """Create an Evaluator instance from a checkpoint.
+
+        Parameters
+        ----------
+        base_path : Path
+            Path to the base directory of the model
+        batch_size : int, optional
+            Batch size for evaluation, by default 256
+        num_workers : int, optional
+            Number of workers for dataloader, by default 4
+        checkpoint_name : str, optional
+            Name of the checkpoint to load, by default "best_model"
+        global_rank : int, optional
+            Global rank for distributed training, by default 0
+        local_rank : int, optional
+            Local rank for distributed training, by default 0
+        world_size : int, optional
+            World size for distributed training, by default 1
+
+        Returns
+        -------
+        Evaluator
+            Initialized Evaluator instance
+        """
+        config = load_config(base_path)
+        device = (
+            torch.device(f"cuda:{local_rank}")
+            if torch.cuda.is_available()
+            else torch.device("cpu")
+        )
+        model = load_model(base_path, device, config["model"], checkpoint_name)
+        model.eval()
+        datasets = get_dt_datasets(config["data"], split="test")
+
+        # print the model architecture
+        torch.set_float32_matmul_precision("high")
+        if not platform.system() == "Windows":
+            model = torch.compile(model, mode="max-autotune")
+
+        if dist.is_initialized():
+            model = DDP(
+                model,
+                device_ids=[local_rank],
+                output_device=device,
+            )
+
+        return cls(
+            model=model,
+            datasets=datasets,
+            eval_dir=base_path / "eval",
+            batch_size=batch_size,
+            num_workers=num_workers,
+            global_rank=global_rank,
+            local_rank=local_rank,
+            world_size=world_size,
+        )
 
     def _get_dataloader(self, dataset: PhysicsDataset, is_distributed: bool = False):
         if is_distributed:
@@ -160,49 +213,53 @@ class Evaluator:
             sampler=sampler,
         )
 
-    def eval_on_dataset(self, dataset: PhysicsDataset):
+    def _log_msg(self, msg: str):
+        """Log a message."""
+        if self.global_rank == 0:
+            self.logger.info(msg)
+
+    @torch.inference_mode()
+    def eval_on_dataset(self, dataset: PhysicsDataset) -> torch.Tensor:
         criterion = torch.nn.MSELoss(reduction="none")
+        loader = self._get_dataloader(dataset, is_distributed=self.ddp_enabled)
 
-        loader = self._get_dataloader(dataset, is_distributed=False)
         losses = []
-        with torch.inference_mode():
-            for i, (x, target) in enumerate(loader):
-                x = x.to(self.device)
-                target = target.to(self.device)
-                with torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    # shape of x is (batch_size, T, H, W, C)
-                    # shape of target is (batch_size, 1, H, W, C)
-                    y = self.model(x)
-                    loss = criterion(y, target).squeeze()  # remove T dimension
-                # get the loss of each sample, dont average accross batches (h,w,c)
-                loss = torch.mean(loss, dim=(1, 2, 3))
-                losses.append(loss.detach())
+        for i, (x, target) in enumerate(loader):
+            self._log_msg(f"Processing batch {i}")
 
-        # send losses to all GPUs
-        if self.ddp_enabled:
-            # Gather losses from all GPUs to rank 0
-            gathered_losses = [
-                torch.zeros_like(losses[0]) for _ in range(self.world_size)
-            ]
-            dist.gather(losses[0], gathered_losses, dst=0)
+            x = x.to(self.device)
+            target = target.to(self.device)
+            with torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16):
+                y = self.model(x)
+                loss = criterion(y, target).squeeze(1)  # remove T dimension
+            # get the loss of each sample, dont average accross batches only h,w,c
+            loss = torch.mean(loss, dim=(1, 2, 3))
+
+            # gather losses from all GPUs
+            if self.ddp_enabled:
+                gathered_losses = [
+                    torch.zeros_like(loss) for _ in range(self.world_size)
+                ]
+                dist.gather(loss, gathered_losses, dst=0)
+                if self.global_rank == 0:
+                    loss = torch.cat(gathered_losses, dim=0)
+
             if self.global_rank == 0:
-                # Concatenate all gathered losses
-                losses = torch.cat(gathered_losses, dim=0)
-            else:
-                losses = None
+                # Concatenate all gathered losses for this batch
+                # Convert to DataFrame and append
+                losses.append(loss.cpu())
 
-        return losses
+        return torch.cat(losses, dim=0)
 
     def main(self):
         all_losses = {}
         for name, dataset in self.datasets.items():
+            self._log_msg(f"Evaluating on dataset {name}")
             losses = self.eval_on_dataset(dataset)
             all_losses[name] = losses
 
         # insert losses into df, each col is a dataset, set the name of the col to the dataset name
         df = pd.DataFrame(all_losses)
-        df.columns = list(self.datasets.keys())
-
         df.to_csv(self.eval_dir / "losses.csv", index=False)
 
     def _log_losses(self, df: pd.DataFrame):
