@@ -186,8 +186,8 @@ class PhysicsTransformer(nn.Module):
             raise ValueError(f"Invalid positional encoding mode: {pos_enc_mode}")
 
         # Initialize attention blocks
-        self.attention_blocks = nn.ModuleList(
-            [
+        self.attention_blocks = nn.Sequential(
+            *[
                 AttentionBlock(
                     att_type=att_mode,
                     hidden_dim=hidden_dim,
@@ -231,8 +231,7 @@ class PhysicsTransformer(nn.Module):
             x = self.init_pos_encodings(x)
 
         # Apply N attention blocks (norm, att, norm, mlp)
-        for block in self.attention_blocks:
-            x = block(x)
+        x = self.attention_blocks(x)
 
         # # Apply de-patching
         x = self.detokenizer(x)
