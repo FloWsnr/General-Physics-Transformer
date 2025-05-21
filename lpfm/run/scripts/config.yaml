@@ -39,6 +39,7 @@ training:
   compile: true
   tf32: true # use tf32 for faster matrix multiplications
   amp: true # use automatic mixed precision training
+  mem_budget: 1 # memory budget in percent of total memory. # if below 1, use gradient checkpointing
   seed: 42
   batch_size: 256 # batch size per GPU
   samples: 200e6 # number of samples to use for training

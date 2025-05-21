@@ -29,6 +29,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.amp.grad_scaler import GradScaler
+import torch._functorch.config
 
 import dadaptation
 import prodigyopt
@@ -161,9 +162,17 @@ class Trainer:
         # print the model architecture
         self.model.to(self.device)
         torch.set_float32_matmul_precision("high")
+        if "mem_budget" in self.config["training"]:
+            mem_budget = self.config["training"]["mem_budget"]
+            if mem_budget < 1:
+                self.log_msg(
+                    f"Using gradient checkpointing: {mem_budget * 100}% of total memory"
+                )
+                torch._functorch.config.activation_memory_budget = mem_budget
+
         if self.config["training"]["compile"] and not platform.system() == "Windows":
             self.log_msg("Compiling model")
-            self.model = torch.compile(self.model)
+            self.model = torch.compile(self.model, mode="max-autotune")
         if self.config["training"]["amp"] and torch.cuda.is_available():
             self.log_msg("Using AMP")
             self.use_amp = True
