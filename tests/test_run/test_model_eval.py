@@ -39,7 +39,7 @@ class MockDataset(torch.utils.data.Dataset):
 def test_model_eval(tmp_path: Path, mock_model: torch.nn.Module):
     dataset = MockDataset()
     evaluator = Evaluator(mock_model, {"test": dataset}, tmp_path)
-    losses = evaluator.eval_on_dataset(dataset)
+    losses = evaluator._eval_on_dataset(dataset)
     assert losses.shape == (10,)
 
 

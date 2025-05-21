@@ -6,6 +6,9 @@ Date: 2025-05-01
 
 from pathlib import Path
 import platform
+import argparse
+import os
+import numpy as np
 
 import yaml
 
@@ -16,9 +19,6 @@ except ImportError:
 
 import pandas as pd
 import matplotlib.pyplot as plt
-
-import wandb
-import wandb.wandb_run
 
 import torch
 from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
@@ -219,7 +219,7 @@ class Evaluator:
             self.logger.info(msg)
 
     @torch.inference_mode()
-    def eval_on_dataset(self, dataset: PhysicsDataset) -> torch.Tensor:
+    def _eval_on_dataset(self, dataset: PhysicsDataset) -> torch.Tensor:
         criterion = torch.nn.MSELoss(reduction="none")
         loader = self._get_dataloader(dataset, is_distributed=self.ddp_enabled)
 
@@ -229,7 +229,7 @@ class Evaluator:
 
             x = x.to(self.device)
             target = target.to(self.device)
-            with torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16):
+            with torch.amp.autocast(device_type=self.device.type, dtype=torch.bfloat16):
                 y = self.model(x)
                 loss = criterion(y, target).squeeze(1)  # remove T dimension
             # get the loss of each sample, dont average accross batches only h,w,c
@@ -251,35 +251,253 @@ class Evaluator:
 
         return torch.cat(losses, dim=0)
 
+    @torch.inference_mode()
+    def _rollout(
+        self, dataset: PhysicsDataset, traj_idx: int = 0, rollout: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Rollout the model on a trajectory.
+
+        Parameters
+        ----------
+        dataset : PhysicsDataset
+            The dataset to evaluate on
+        traj_idx : int, optional
+            The index of the trajectory to evaluate on, by default 0
+        rollout : bool, optional
+            Whether to rollout the full trajectory, by default False
+
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+            Tuple containing the predicted outputs,
+            the ground truth, and the loss at each timestep
+        """
+        criterion = torch.nn.MSELoss(reduction="none")
+
+        # get first trajectory
+        traj_idx = min(traj_idx, len(dataset) - 1)
+        input, full_traj = dataset[traj_idx]
+
+        input = input.to(self.device)
+        full_traj = full_traj.to(self.device)
+
+        # add batch dimension
+        input = input.unsqueeze(0)
+        full_traj = full_traj.unsqueeze(0)
+
+        B, T, H, W, C = full_traj.shape
+
+        outputs = []
+        with torch.autocast(
+            device_type=self.device.type,
+            dtype=torch.bfloat16,
+        ):
+            for i in range(T):  # T-1 because we predict the next step
+                # Predict next timestep
+                output = self.model(input)
+                # if the output is nan, stop the rollout
+                if torch.isnan(output).any() or torch.isinf(output).any():
+                    break
+
+                outputs.append(output)
+                # Update input
+                if rollout:
+                    input = torch.cat([input[:, 1:, ...], output], dim=1)
+                else:
+                    input = torch.cat(
+                        [input[:, 1:, ...], full_traj[:, i, ...].unsqueeze(1)], dim=1
+                    )
+
+        outputs = torch.cat(outputs, dim=1)
+        # remove batch dimension
+        outputs = outputs.squeeze(0)
+        full_traj = full_traj.squeeze(0)
+
+        # loss is still a tensor of shape (T, H, W, C)
+        loss = criterion(outputs, full_traj)
+        # reduce over H and W
+        loss = torch.mean(loss, dim=(1, 2))  # (T, C)
+
+        # Return predictions and ground truth (excluding first timestep)
+        return outputs, full_traj, loss
+
+    def eval_all(self, datasets: dict[str, PhysicsDataset]) -> pd.DataFrame:
+        all_losses = {}
+        for name, dataset in datasets.items():
+            self._log_msg(f"Evaluating on dataset {name}")
+            losses = self._eval_on_dataset(dataset)
+            all_losses[name] = losses
+        df = pd.DataFrame(all_losses)
+        return df
+
+    def rollout_all(self, datasets: dict[str, PhysicsDataset], num_samples: int = 10):
+        all_losses = {}
+        for name, dataset in datasets.items():
+            self._log_msg(f"Rolling out on dataset {name}")
+
+            # random trajectory indices
+            indices = np.arange(len(dataset))
+            if num_samples > len(indices):
+                num_samples = len(indices)
+            traj_idxs = np.random.choice(indices, size=num_samples, replace=False)
+
+            traj_losses = []
+            for traj_idx in traj_idxs:
+                _, _, loss = self._rollout(dataset, traj_idx)
+                traj_losses.append(loss)
+
+            # (samples, T, C)
+            traj_losses = torch.stack(traj_losses, dim=0)
+            # mean, std and median over the samples
+            mean_loss = torch.mean(traj_losses, dim=0)
+            std_loss = torch.std(traj_losses, dim=0)
+            median_loss = torch.median(traj_losses, dim=0)
+
+            all_losses[name] = {
+                "mean": mean_loss,
+                "std": std_loss,
+                "median": median_loss,
+            }
+
+        df = pd.DataFrame(all_losses)
+        return df
+
     def main(self):
         all_losses = {}
         for name, dataset in self.datasets.items():
             self._log_msg(f"Evaluating on dataset {name}")
-            losses = self.eval_on_dataset(dataset)
+            losses = self._eval_on_dataset(dataset)
             all_losses[name] = losses
-
         # insert losses into df, each col is a dataset, set the name of the col to the dataset name
         df = pd.DataFrame(all_losses)
         df.to_csv(self.eval_dir / "losses.csv", index=False)
 
-    def _log_losses(self, df: pd.DataFrame):
-        # compute mean and std of losses
-        mean_losses = df.mean(axis=0)
-        std_losses = df.std(axis=0)
+        # rollout
+        for name, dataset in self.datasets.items():
+            for traj_idx in range(len(dataset)):
+                self._log_msg(f"Rolling out on dataset {name}, trajectory {traj_idx}")
+                outputs, full_traj, loss = self._rollout(dataset, traj_idx)
+                all_losses[name] = loss
+        df = pd.DataFrame(all_losses)
+        df.to_csv(self.eval_dir / "rollout_losses.csv", index=False)
 
-        self.wandb_run.log({"validation-summary/eval-loss-mean": mean_losses})
-        self.wandb_run.log({"validation-summary/eval-loss-std": std_losses})
+
+def setup_ddp():
+    """Initialize distributed data parallel training."""
+    dist.init_process_group()
+
+
+def main(
+    config_path: Path,
+    log_dir: Path | None,
+    checkpoint_name: str,
+    sim_name: str | None,
+    data_dir: Path | None,
+    global_rank: int,
+    local_rank: int,
+    world_size: int,
+):
+    """Main evaluation function.
+
+    Parameters
+    ----------
+    config_path : Path
+        Path to the config file
+    log_dir : Path | None
+        Path to the log directory
+    checkpoint_name : str
+        Name of the checkpoint to load
+    sim_name : str | None
+        Name of the simulation
+    data_dir : Path | None
+        Path to the data directory
+    global_rank : int
+        Global rank for distributed training
+    local_rank : int
+        Local rank for distributed training
+    world_size : int
+        World size for distributed training
+    """
+    # Set cuda device
+    if torch.cuda.is_available():
+        torch.cuda.set_device(local_rank)
+
+    # Load config
+    config_path = Path(config_path)
+    with open(config_path, "r") as f:
+        config = yaml.load(f, Loader=Loader)
+
+    ####################################################################
+    ########### Augment config #########################################
+    ####################################################################
+
+    if log_dir is not None:
+        log_dir = Path(log_dir)
+        config["logging"]["log_dir"] = log_dir
+
+    if data_dir is not None:
+        data_dir = Path(data_dir)
+        config["data"]["data_dir"] = data_dir
+
+    if sim_name is not None:
+        config["wandb"]["id"] = sim_name
+
+    ####################################################################
+    ########### Initialize evaluator ###################################
+    ####################################################################
+    if world_size > 1:
+        setup_ddp()
+
+    evaluator = Evaluator.from_checkpoint(
+        base_path=log_dir / sim_name,
+        batch_size=config["training"]["batch_size"],
+        num_workers=config["training"]["num_workers"],
+        checkpoint_name=checkpoint_name,
+        global_rank=global_rank,
+        local_rank=local_rank,
+        world_size=world_size,
+    )
+    evaluator.main()
 
 
 if __name__ == "__main__":
-    # import os
-    # set cuda visible devices
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-    base_path = Path("logs")
-    model_name = "ti-main-run-0008"
-    loss_evaluator = Evaluator(
-        base_path=base_path / model_name,
-        batch_size=256,
-        num_workers=8,
+    ############################################################
+    ########### Default arguments ##############################
+    ############################################################
+    default_config_path = Path("lpfm/run/scripts/config.yaml")
+    default_log_dir = Path("logs")
+    default_sim_name = None
+    default_data_dir = Path("data/datasets")
+    default_checkpoint_name = "best_model"
+
+    ############################################################
+    ########### Parse arguments ################################
+    ############################################################
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config_file", type=str, default=default_config_path)
+    parser.add_argument("--log_dir", type=str, default=default_log_dir)
+    parser.add_argument("--checkpoint_name", type=str, default=default_checkpoint_name)
+    parser.add_argument("--sim_name", type=str, default=default_sim_name)
+    parser.add_argument("--data_dir", type=str, default=default_data_dir)
+    args = parser.parse_args()
+
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    global_rank = int(os.environ.get("RANK", 0))
+
+    config_path = args.config_file
+    log_dir = args.log_dir
+    sim_name = args.sim_name
+    data_dir = args.data_dir
+    checkpoint_name = args.checkpoint_name
+
+    main(
+        config_path=config_path,
+        log_dir=log_dir,
+        sim_name=sim_name,
+        data_dir=data_dir,
+        checkpoint_name=checkpoint_name,
+        global_rank=global_rank,
+        local_rank=local_rank,
+        world_size=world_size,
     )
-    loss_evaluator.main()
