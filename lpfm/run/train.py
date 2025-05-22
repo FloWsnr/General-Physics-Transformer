@@ -300,11 +300,11 @@ class Trainer:
         }
 
         if self.config["training"]["criterion"] == "MSE":
-            self.criterion = self.loss_fns.pop("MSE")
+            self.criterion = self.loss_fns["MSE"]
         elif self.config["training"]["criterion"] == "RMSE":
-            self.criterion = self.loss_fns.pop("RMSE")
+            self.criterion = self.loss_fns["RMSE"]
         elif self.config["training"]["criterion"] == "MAE":
-            self.criterion = self.loss_fns.pop("MAE")
+            self.criterion = self.loss_fns["MAE"]
         else:
             raise ValueError(
                 f"Criterion {self.config['training']['criterion']} not supported"
@@ -502,7 +502,7 @@ class Trainer:
 
             # Log training loss
             log_losses = self._compute_log_metrics(output.detach(), target.detach())
-            log_losses[self.config["training"]["criterion"]] = raw_loss.detach()
+            # log_losses[self.config["training"]["criterion"]] = raw_loss.detach()
 
             if self.use_amp:
                 # Scale loss, backpropagate, unscale, clip, step, update
@@ -675,6 +675,7 @@ class Trainer:
 
         return loss_per_cycle
 
+    @torch.inference_mode()
     def validate(self) -> float:
         """Validate the model."""
         self.model.eval()
@@ -690,50 +691,48 @@ class Trainer:
         samples_validated = 0
         batches_validated = 0
         start_val_time = time.time()
-        with torch.inference_mode():
-            for x, target in self.val_loader:
-                x = x.to(self.device)
-                target = target.to(self.device)
+        for x, target in self.val_loader:
+            x = x.to(self.device)
+            target = target.to(self.device)
 
-                with torch.autocast(
-                    device_type=self.device.type,
-                    dtype=torch.bfloat16,
-                    enabled=self.use_amp,
-                ):
-                    output = self.model(x)
-                    raw_loss = self.criterion(output, target)
+            with torch.autocast(
+                device_type=self.device.type,
+                dtype=torch.bfloat16,
+                enabled=self.use_amp,
+            ):
+                output = self.model(x)
 
-                # Log validation loss
-                log_losses = self._compute_log_metrics(output.detach(), target.detach())
-                log_losses[self.config["training"]["criterion"]] = raw_loss.detach()
-                ###############################################################
-                # Accumulate losses ###########################################
-                ###############################################################
-                if self.ddp_enabled:
-                    # average the losses across all GPUs
-                    log_losses = self._reduce_all_losses(log_losses)
+            # Log validation loss
+            log_losses = self._compute_log_metrics(output.detach(), target.detach())
+            # log_losses[self.config["training"]["criterion"]] = raw_loss.detach()
+            ###############################################################
+            # Accumulate losses ###########################################
+            ###############################################################
+            if self.ddp_enabled:
+                # average the losses across all GPUs
+                log_losses = self._reduce_all_losses(log_losses)
 
-                for loss_name, log_loss in log_losses.items():
-                    loss_per_cycle[f"total-{loss_name}"] += log_loss
+            for loss_name, log_loss in log_losses.items():
+                loss_per_cycle[f"total-{loss_name}"] += log_loss
 
-                ####################################################
-                # Update cycle index #################################
-                ####################################################
-                samples_validated += self.batch_size
-                batches_validated += 1
-                ####################################################
-                # Log validation progress ##########################
-                ####################################################
-                s_cycle_validated_human = human_format(samples_validated)
-                b_cycle_validated_human = human_format(batches_validated)
-                s_cycle_human = self.h_log_state.val_samples
-                b_cycle_human = self.h_log_state.val_batches
-                self.log_msg(
-                    f"Validation - Cycle: {self.cycle_idx} "
-                    f"Samples: {s_cycle_validated_human}/{s_cycle_human}, "
-                    f"Batches: {b_cycle_validated_human}/{b_cycle_human}, "
-                )
-                self.log_msg("")
+            ####################################################
+            # Update cycle index #################################
+            ####################################################
+            samples_validated += self.batch_size
+            batches_validated += 1
+            ####################################################
+            # Log validation progress ##########################
+            ####################################################
+            s_cycle_validated_human = human_format(samples_validated)
+            b_cycle_validated_human = human_format(batches_validated)
+            s_cycle_human = self.h_log_state.val_samples
+            b_cycle_human = self.h_log_state.val_batches
+            self.log_msg(
+                f"Validation - Cycle: {self.cycle_idx} "
+                f"Samples: {s_cycle_validated_human}/{s_cycle_human}, "
+                f"Batches: {b_cycle_validated_human}/{b_cycle_human}, "
+            )
+            self.log_msg("")
 
         ############################################################
         # Visualize predictions ####################################
