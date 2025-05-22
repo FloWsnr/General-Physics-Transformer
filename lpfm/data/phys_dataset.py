@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 from pathlib import Path
 
 import torch
@@ -79,6 +79,18 @@ class PhysicsDataset(WellDataset):
         max_rollout_steps: int = 10000,
         nan_to_zero: bool = True,
     ):
+        self.config = {
+            "data_dir": data_dir,
+            "n_steps_input": n_steps_input,
+            "n_steps_output": n_steps_output,
+            "use_normalization": use_normalization,
+            "dt_stride": dt_stride,
+            "include_field_names": include_field_names,
+            "full_trajectory_mode": full_trajectory_mode,
+            "max_rollout_steps": max_rollout_steps,
+            "nan_to_zero": nan_to_zero,
+        }
+
         if isinstance(dt_stride, list):
             min_dt_stride = dt_stride[0]
             max_dt_stride = dt_stride[1]
@@ -98,6 +110,30 @@ class PhysicsDataset(WellDataset):
             max_rollout_steps=max_rollout_steps,
         )
         self.nan_to_zero = nan_to_zero
+
+    def copy(self, overwrites: dict[str, Any] = {}) -> "PhysicsDataset":
+        """Copy the dataset with optional overwrites.
+
+        Useful for creating a new dataset with slightly different parameters.
+
+        Parameters
+        ----------
+        overwrites : dict[str, Any]
+            Dictionary of overwrites for the config.
+        """
+        config = self.config.copy()
+        config.update(overwrites)
+        return PhysicsDataset(
+            data_dir=config["data_dir"],
+            n_steps_input=config["n_steps_input"],
+            n_steps_output=config["n_steps_output"],
+            use_normalization=config["use_normalization"],
+            dt_stride=config["dt_stride"],
+            include_field_names=config["include_field_names"],
+            full_trajectory_mode=config["full_trajectory_mode"],
+            max_rollout_steps=config["max_rollout_steps"],
+            nan_to_zero=config["nan_to_zero"],
+        )
 
     def __len__(self):
         return super().__len__()

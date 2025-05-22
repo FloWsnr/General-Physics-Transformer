@@ -81,6 +81,41 @@ def test_physics_dataset_nan_to_zero(dummy_datapath: Path):
     assert not torch.any(torch.isnan(y))
 
 
+def test_physics_dataset_copy(dummy_datapath: Path):
+    """Test that PhysicsDataset.copy() creates a new dataset with correct parameters."""
+    # Create original dataset
+    original_dataset = PhysicsDataset(
+        dummy_datapath.parent,
+        n_steps_input=2,
+        n_steps_output=2,
+        dt_stride=[1, 4],
+        nan_to_zero=True,
+    )
+
+    # Test copying without changes
+    copied_dataset = original_dataset.copy()
+    assert copied_dataset.config == original_dataset.config
+    assert copied_dataset.data_path == original_dataset.data_path
+    assert copied_dataset.nan_to_zero == original_dataset.nan_to_zero
+
+    # Test copying with overwrites
+    overwrites = {
+        "n_steps_input": 3,
+        "n_steps_output": 1,
+        "nan_to_zero": False,
+    }
+    modified_dataset = original_dataset.copy(overwrites)
+    assert modified_dataset.config["n_steps_input"] == 3
+    assert modified_dataset.config["n_steps_output"] == 1
+    assert modified_dataset.nan_to_zero is False
+    assert modified_dataset.data_path == original_dataset.data_path
+
+    # Verify the original dataset was not modified
+    assert original_dataset.config["n_steps_input"] == 2
+    assert original_dataset.config["n_steps_output"] == 2
+    assert original_dataset.nan_to_zero is True
+
+
 class TestSuperDataset:
     """Tests for the SuperDataset class."""
 
@@ -345,6 +380,3 @@ class TestSuperDataset:
         for i in range(len(super_dataset)):
             x, _ = super_dataset[i]
             assert x.shape == (1, 32, 32, 6)
-
-
-    
