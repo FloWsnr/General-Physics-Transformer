@@ -18,7 +18,6 @@ except ImportError:
     from yaml import Loader
 
 import pandas as pd
-import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
@@ -528,23 +527,14 @@ def main(
 
 if __name__ == "__main__":
     ############################################################
-    ########### Default arguments ##############################
-    ############################################################
-    default_config_path = Path("lpfm/run/scripts/config.yaml")
-    default_log_dir = Path("logs")
-    default_sim_name = None
-    default_data_dir = Path("data/datasets")
-    default_checkpoint_name = "best_model"
-
-    ############################################################
     ########### Parse arguments ################################
     ############################################################
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config_file", type=str, default=default_config_path)
-    parser.add_argument("--log_dir", type=str, default=default_log_dir)
-    parser.add_argument("--checkpoint_name", type=str, default=default_checkpoint_name)
-    parser.add_argument("--sim_name", type=str, default=default_sim_name)
-    parser.add_argument("--data_dir", type=str, default=default_data_dir)
+    parser.add_argument("--config_file", type=str)
+    parser.add_argument("--log_dir", type=str)
+    parser.add_argument("--checkpoint_name", type=str)
+    parser.add_argument("--sim_name", type=str)
+    parser.add_argument("--data_dir", type=str)
     args = parser.parse_args()
 
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
