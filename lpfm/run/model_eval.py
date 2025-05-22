@@ -224,7 +224,7 @@ class Evaluator:
 
         losses = []
         for i, (x, target) in enumerate(loader):
-            self._log_msg(f"Processing batch {i}")
+            self._log_msg(f"  Batch {i}/{len(loader)}")
 
             x = x.to(self.device)
             target = target.to(self.device)
@@ -377,6 +377,7 @@ class Evaluator:
 
             traj_losses = []
             for traj_idx in traj_idxs:
+                self._log_msg(f"  Trajectory {traj_idx}/{num_samples}")
                 _, _, loss = self._rollout(dataset, traj_idx)  # loss is (T, C)
                 max_timesteps = max(max_timesteps, loss.shape[0])
                 traj_losses.append(loss)
@@ -438,9 +439,9 @@ class Evaluator:
         return df
 
     def main(self):
-        # Evaluate on all datasets
-        df = self.eval_all(self.datasets)
-        df.to_csv(self.eval_dir / "losses.csv", index=False)
+        # # Evaluate on all datasets
+        # df = self.eval_all(self.datasets)
+        # df.to_csv(self.eval_dir / "losses.csv", index=False)
 
         # Rollout on all datasets
         df = self.rollout_all(self.datasets)
