@@ -251,6 +251,27 @@ class Evaluator:
 
         return torch.cat(losses, dim=0)
 
+    def eval_all(self, datasets: dict[str, PhysicsDataset]) -> pd.DataFrame:
+        all_losses = {}
+        max_timesteps = 0
+        for name, dataset in datasets.items():
+            self._log_msg(f"Evaluating on dataset {name}")
+            losses = self._eval_on_dataset(dataset)
+            max_timesteps = max(max_timesteps, losses.shape[0])
+            all_losses[name] = losses.cpu().numpy()
+
+        # pad all losses to max timesteps
+        for name, losses in all_losses.items():
+            losses = np.pad(
+                losses,
+                (0, max_timesteps - losses.shape[0]),
+                mode="constant",
+                constant_values=np.nan,
+            )
+            all_losses[name] = losses
+        df = pd.DataFrame(all_losses)
+        return df
+
     @torch.inference_mode()
     def _rollout(
         self, dataset: PhysicsDataset, traj_idx: int = 0, rollout: bool = False
@@ -294,7 +315,7 @@ class Evaluator:
         ):
             for i in range(T):  # T-1 because we predict the next step
                 # Predict next timestep
-                output = self.model(input)
+                output = self.model(input)  # (B, 1T, H, W, C)
                 # if the output is nan, stop the rollout
                 if torch.isnan(output).any() or torch.isinf(output).any():
                     break
@@ -308,10 +329,23 @@ class Evaluator:
                         [input[:, 1:, ...], full_traj[:, i, ...].unsqueeze(1)], dim=1
                     )
 
-        outputs = torch.cat(outputs, dim=1)
         # remove batch dimension
+        outputs = torch.cat(outputs, dim=1)
         outputs = outputs.squeeze(0)
         full_traj = full_traj.squeeze(0)
+
+        # pad outputs to T timesteps to make sure all trajectories have the same length
+        pad = torch.full(
+            (
+                T - outputs.shape[0],
+                outputs.shape[1],
+                outputs.shape[2],
+                outputs.shape[3],
+            ),
+            float("nan"),
+            device=outputs.device,
+        )
+        outputs = torch.cat([outputs, pad], dim=0)
 
         # loss is still a tensor of shape (T, H, W, C)
         loss = criterion(outputs, full_traj)
@@ -321,18 +355,19 @@ class Evaluator:
         # Return predictions and ground truth (excluding first timestep)
         return outputs, full_traj, loss
 
-    def eval_all(self, datasets: dict[str, PhysicsDataset]) -> pd.DataFrame:
+    def rollout_all(
+        self, datasets: dict[str, PhysicsDataset], num_samples: int = 10
+    ) -> pd.DataFrame:
         all_losses = {}
+        max_timesteps = 0
         for name, dataset in datasets.items():
-            self._log_msg(f"Evaluating on dataset {name}")
-            losses = self._eval_on_dataset(dataset)
-            all_losses[name] = losses
-        df = pd.DataFrame(all_losses)
-        return df
-
-    def rollout_all(self, datasets: dict[str, PhysicsDataset], num_samples: int = 10):
-        all_losses = {}
-        for name, dataset in datasets.items():
+            # copy the dataset with max rollout steps and full trajectory mode
+            dataset = dataset.copy(
+                overwrites={
+                    "max_rollout_steps": 1000,
+                    "full_trajectory_mode": True,
+                }
+            )
             self._log_msg(f"Rolling out on dataset {name}")
 
             # random trajectory indices
@@ -343,15 +378,17 @@ class Evaluator:
 
             traj_losses = []
             for traj_idx in traj_idxs:
-                _, _, loss = self._rollout(dataset, traj_idx)
+                _, _, loss = self._rollout(dataset, traj_idx)  # loss is (T, C)
+                max_timesteps = max(max_timesteps, loss.shape[0])
                 traj_losses.append(loss)
 
             # (samples, T, C)
             traj_losses = torch.stack(traj_losses, dim=0)
-            # mean, std and median over the samples
-            mean_loss = torch.mean(traj_losses, dim=0)
-            std_loss = torch.std(traj_losses, dim=0)
-            median_loss = torch.median(traj_losses, dim=0)
+            traj_losses = traj_losses.cpu().numpy()
+            # mean, std and median over the samples (T, C)
+            mean_loss = np.nanmean(traj_losses, axis=0)
+            std_loss = np.nanstd(traj_losses, axis=0)
+            median_loss = np.nanmedian(traj_losses, axis=0)
 
             all_losses[name] = {
                 "mean": mean_loss,
@@ -359,26 +396,55 @@ class Evaluator:
                 "median": median_loss,
             }
 
-        df = pd.DataFrame(all_losses)
+        # pad all losses to max timesteps
+        for _, metrics in all_losses.items():
+            metrics["mean"] = np.pad(
+                metrics["mean"],
+                ((0, max_timesteps - metrics["mean"].shape[0]), (0, 0)),
+                mode="constant",
+                constant_values=np.nan,
+            )
+            metrics["std"] = np.pad(
+                metrics["std"],
+                ((0, max_timesteps - metrics["std"].shape[0]), (0, 0)),
+                mode="constant",
+                constant_values=np.nan,
+            )
+            metrics["median"] = np.pad(
+                metrics["median"],
+                ((0, max_timesteps - metrics["median"].shape[0]), (0, 0)),
+                mode="constant",
+                constant_values=np.nan,
+            )
+
+        # Create multi-level index DataFrame
+        # First create a list of tuples for the multi-index
+        index_tuples = []
+        data = []
+
+        for dataset_name, metrics in all_losses.items():
+            for metric_name, array in metrics.items():
+                for channel in range(array.shape[1]):
+                    index_tuples.append((dataset_name, metric_name, channel))
+                    data.append(array[:, channel])
+
+        # Create the multi-index
+        index = pd.MultiIndex.from_tuples(
+            index_tuples, names=["dataset", "metric", "channel"]
+        )
+
+        # Create DataFrame with multi-index columns
+        df = pd.DataFrame(data, index=index).T
+
         return df
 
     def main(self):
-        all_losses = {}
-        for name, dataset in self.datasets.items():
-            self._log_msg(f"Evaluating on dataset {name}")
-            losses = self._eval_on_dataset(dataset)
-            all_losses[name] = losses
-        # insert losses into df, each col is a dataset, set the name of the col to the dataset name
-        df = pd.DataFrame(all_losses)
+        # Evaluate on all datasets
+        df = self.eval_all(self.datasets)
         df.to_csv(self.eval_dir / "losses.csv", index=False)
 
-        # rollout
-        for name, dataset in self.datasets.items():
-            for traj_idx in range(len(dataset)):
-                self._log_msg(f"Rolling out on dataset {name}, trajectory {traj_idx}")
-                outputs, full_traj, loss = self._rollout(dataset, traj_idx)
-                all_losses[name] = loss
-        df = pd.DataFrame(all_losses)
+        # Rollout on all datasets
+        df = self.rollout_all(self.datasets)
         df.to_csv(self.eval_dir / "rollout_losses.csv", index=False)
 
 
