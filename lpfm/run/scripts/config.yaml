@@ -69,12 +69,12 @@ training:
     # betas: [0.9, 0.999]
   criterion: MSE # MSE or MAE
 
-  # lr_scheduler:
-  #   first_stage:
-  #     name: LinearLR # linear warmup scheduler
-  #     start_factor: 0.001
-  #     end_factor: 1.0
-  #     num_updates: 300 # number of updates for linear warmup
+  lr_scheduler:
+    first_stage:
+      name: LinearLR # linear warmup scheduler
+      start_factor: 0.001
+      end_factor: 1.0
+      num_updates: 10000 # number of updates for linear warmup
     # first_stage:
     #   name: CosineAnnealingLR # cosine annealing scheduler
     #   num_updates: -1 # num batches for cosine annealing, -1 means use all remaining batches
