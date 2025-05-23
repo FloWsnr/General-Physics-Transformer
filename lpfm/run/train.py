@@ -225,27 +225,24 @@ class Trainer:
         self.total_samples_trained = 0
         self.cycle_idx = 0
 
-        self.total_samples = int(float(self.config["training"]["samples"]))
-        self.total_batches = self.total_samples // self.batch_size
+        # Change from samples to batches
+        self.total_batches = int(float(self.config["training"]["batches"]))
+        self.total_samples = self.total_batches * self.batch_size
 
         #################################################################
         ########### Initialize validation parameters ##################
         #################################################################
         val_batches = len(self.val_loader)
         total_val_samples = val_batches * self.batch_size
-        # num training samples per validation loop
-        self.val_every_x_samples = int(
-            float(self.config["training"]["val_every_samples"])
+        # num training batches per validation loop
+        self.val_every_x_batches = int(
+            float(self.config["training"]["val_every_batches"])
         )
-        self.val_every_x_batches = self.val_every_x_samples // self.batch_size
+        self.val_every_x_samples = self.val_every_x_batches * self.batch_size
 
-        # check if checkpoint_every_samples is present in config
-        if "checkpoint_every_samples" in self.config["training"]:
-            self.checkpoint_every_x_samples = int(
-                float(self.config["training"]["checkpoint_every_samples"])
-            )
-        else:
-            self.checkpoint_every_x_samples = self.val_every_x_samples
+        self.checkpoint_every_x_batches = int(
+            float(self.config["training"]["checkpoint_every_batches"])
+        )
 
         ###################################################################
         self.h_log_state = LogState(
@@ -272,7 +269,7 @@ class Trainer:
         self.log_msg(f"Validating on {self.h_log_state.val_samples} samples")
         self.log_msg(f"Validating on {self.h_log_state.val_batches} batches")
         self.log_msg(
-            f"Checkpoint every {self.config['training']['checkpoint_every_samples']} samples"
+            f"Checkpoint every {self.config['training']['checkpoint_every_batches']} batches"
         )
         self.log_msg(
             f"Running {self.config['training']['num_workers']} dataloader workers per GPU"
@@ -283,8 +280,8 @@ class Trainer:
                 {
                     "training/total_samples": self.total_samples,
                     "training/samples_per_batch": self.batch_size,
-                    "training/val_every_samples": self.val_every_x_samples,
-                    "training/checkpoint_every_samples": self.checkpoint_every_x_samples,
+                    "training/val_every_batches": self.val_every_x_batches,
+                    "training/checkpoint_every_batches": self.checkpoint_every_x_batches,
                     "training/num_val_samples": total_val_samples,
                     "training/slurm_id": os.environ.get("SLURM_JOB_ID", ""),
                 },
@@ -334,7 +331,7 @@ class Trainer:
                 model=self.model,
                 criterion=self.criterion,
                 log=self.config["wandb"]["log_model"],
-                log_freq=self.checkpoint_every_x_samples,
+                log_freq=self.checkpoint_every_x_batches,
             )
 
     def log_msg(self, msg: str):
@@ -452,18 +449,18 @@ class Trainer:
         else:
             return self.optimizer.param_groups[0]["lr"]
 
-    def train_for_x_samples(self, num_samples: int) -> float:
-        """Train the model for a given number of samples.
+    def train_for_x_batches(self, num_batches: int) -> float:
+        """Train the model for a given number of batches.
 
         Parameters
         ----------
-        num_samples : int
-            Number of samples to train for
+        num_batches : int
+            Number of batches to train for
 
         Returns
         -------
         float
-            Average training loss for the samples
+            Average training loss for the batches
         """
         self.model.train()
 
@@ -478,12 +475,12 @@ class Trainer:
 
         samples_trained = 0
         train_time = time.time()
-        # check that num_samples does not exceed self.total_samples
-        num_samples = min(num_samples, self.total_samples - self.total_samples_trained)
+        # check that num_batches does not exceed remaining batches
+        num_batches = min(num_batches, self.total_batches - self.total_batches_trained)
 
         batches_trained = 0
         train_iter = iter(self.train_loader)
-        while samples_trained < num_samples:
+        while batches_trained < num_batches:
             try:
                 x, target = next(train_iter)
             except StopIteration:
@@ -502,7 +499,6 @@ class Trainer:
 
             # Log training loss
             log_losses = self._compute_log_metrics(output.detach(), target.detach())
-            # log_losses[self.config["training"]["criterion"]] = raw_loss.detach()
 
             if self.use_amp:
                 # Scale loss, backpropagate, unscale, clip, step, update
@@ -587,11 +583,11 @@ class Trainer:
             ############ Update time estimates ########################
             ############################################################
             total_train_duration = time.time() - train_time
-            seconds_per_sample = total_train_duration / samples_trained
-            self.avg_sec_per_1m_samples = seconds_per_sample * 1000000
+            seconds_per_batch = total_train_duration / batches_trained
+            self.avg_sec_per_1k_batches = seconds_per_batch * 1000
 
             self.avg_sec_per_checkpoint = (
-                seconds_per_sample * self.checkpoint_every_x_samples
+                seconds_per_batch * self.checkpoint_every_x_batches
             )
 
             ############################################################
@@ -607,7 +603,7 @@ class Trainer:
                         "training/total_batches_remaining": self.total_batches
                         - self.total_batches_trained,
                         "training/learning_rate": lr,
-                        "training/avg_sec_per_1m_samples": self.avg_sec_per_1m_samples,
+                        "training/avg_sec_per_1k_batches": self.avg_sec_per_1k_batches,
                         "training/avg_sec_per_checkpoint": self.avg_sec_per_checkpoint,
                     },
                     commit=False,
@@ -617,9 +613,9 @@ class Trainer:
             # Save checkpoint ##########################################
             ############################################################
             next_checkpoint = (
-                self.total_samples_trained // self.checkpoint_every_x_samples + 1
-            ) * self.checkpoint_every_x_samples
-            if self.total_samples_trained >= next_checkpoint - self.batch_size:
+                self.total_batches_trained // self.checkpoint_every_x_batches + 1
+            ) * self.checkpoint_every_x_batches
+            if self.total_batches_trained >= next_checkpoint - 1:
                 if self.global_rank == 0:
                     self.save_checkpoint(path=self.log_dir / "last_checkpoint.pth")
                 if self.ddp_enabled:
@@ -637,7 +633,7 @@ class Trainer:
             # the estimate is not too far off
             if (
                 time_remaining < time_needed
-                and samples_trained > self.checkpoint_every_x_samples / 2
+                and batches_trained > self.checkpoint_every_x_batches / 2
             ):
                 self.shutdown_flag = True  # set flag to tell outer loop to shut down
                 self.log_msg(
@@ -780,7 +776,7 @@ class Trainer:
         # restart, the projected time remaining will be wrong.
         self.num_cycles = 0
         self.start_time = time.time()
-        while self.total_samples_trained < self.total_samples:
+        while self.total_batches_trained < self.total_batches:
             self.num_cycles += 1
             self.cycle_idx += 1
             start_cycle_time = time.time()
@@ -791,8 +787,8 @@ class Trainer:
             ######################################################################
             self.log_msg("=" * 100)
             self.log_msg(f"Training - Cycle {self.cycle_idx}")
-            self.log_msg(f"Training - train on next {self.val_every_x_samples} samples")
-            train_losses = self.train_for_x_samples(self.val_every_x_samples)
+            self.log_msg(f"Training - train on next {self.val_every_x_batches} batches")
+            train_losses = self.train_for_x_batches(self.val_every_x_batches)
             self.log_msg("=" * 100)
             log_string = "Training - Losses: "
             for loss_name, loss in train_losses.items():
@@ -803,11 +799,14 @@ class Trainer:
                 train_losses_wandb = {
                     f"training-summary/{k}": v for k, v in train_losses.items()
                 }
+                train_losses_wandb["training-summary/batches_trained"] = (
+                    self.total_batches_trained
+                )
+                train_losses_wandb["training-summary/batches_remaining"] = (
+                    self.total_batches - self.total_batches_trained
+                )
                 train_losses_wandb["training-summary/samples_trained"] = (
                     self.total_samples_trained
-                )
-                train_losses_wandb["training-summary/samples_remaining"] = (
-                    self.total_samples - self.total_samples_trained
                 )
                 train_losses_wandb["training-summary/cycle_idx"] = self.cycle_idx
                 self.wandb_logger.log(train_losses_wandb, commit=True)
@@ -862,8 +861,8 @@ class Trainer:
             # Calculate time remaining #################################
             ############################################################
             rem_cycles = (
-                self.total_samples - self.total_samples_trained
-            ) / self.val_every_x_samples
+                self.total_batches - self.total_batches_trained
+            ) / self.val_every_x_batches
             # round up to nearest integer
             rem_cycles = math.ceil(rem_cycles)
 
@@ -883,7 +882,7 @@ class Trainer:
                         "summary/minutes_per_cycle": duration / 60,
                         "summary/avg_minutes_per_cycle": self.avg_sec_per_cycle / 60,
                         "summary/projected_minutes_remaining": proj_time_remaining / 60,
-                        "summary/seconds_per_1m_samples": self.avg_sec_per_1m_samples,
+                        "summary/seconds_per_1k_batches": self.avg_sec_per_1k_batches,
                     },
                     commit=True,
                 )
