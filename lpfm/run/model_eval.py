@@ -439,9 +439,9 @@ class Evaluator:
         return df
 
     def main(self):
-        # # Evaluate on all datasets
-        # df = self.eval_all(self.datasets)
-        # df.to_csv(self.eval_dir / "losses.csv", index=False)
+        # Evaluate on all datasets
+        df = self.eval_all(self.datasets)
+        df.to_csv(self.eval_dir / "losses.csv", index=False)
 
         # Rollout on all datasets
         df = self.rollout_all(self.datasets)
