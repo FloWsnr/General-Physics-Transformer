@@ -90,7 +90,7 @@ class Trainer:
         self.avg_sec_per_checkpoint = 0
         self.avg_sec_per_1k_samples = 0
         self.avg_sec_per_val_cycle = 0
-        self.shutdown_flag = False
+        self.shutdown_flag = torch.tensor(False, device=self.device)
 
         if "time_limit" in self.config["training"]:
             self.time_limit = self.config["training"]["time_limit"]
@@ -480,7 +480,7 @@ class Trainer:
 
         batches_trained = 0
         train_iter = iter(self.train_loader)
-        while batches_trained < num_batches:
+        while (batches_trained < num_batches) and not self.shutdown_flag.item():
             try:
                 x, target = next(train_iter)
             except StopIteration:
@@ -635,11 +635,16 @@ class Trainer:
                 time_remaining < time_needed
                 and batches_trained > self.checkpoint_every_x_batches / 2
             ):
-                self.shutdown_flag = True  # set flag to tell outer loop to shut down
+                self.shutdown_flag = torch.tensor(
+                    True, device=self.device
+                )  # set flag to tell outer loop to shut down
+                if self.ddp_enabled:
+                    dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.OR)
                 self.log_msg(
                     "Summary: Next checkpoint would exceed time limit, shutting down"
                 )
-                break
+            if self.ddp_enabled:
+                dist.barrier()
         ############################################################
         # Visualize predictions ####################################
         ############################################################
@@ -658,6 +663,7 @@ class Trainer:
                     image_path=vis_path.parent,
                     name_prefix=f"cycle_{self.cycle_idx}",
                 )
+                self.log_msg("Predictions visualized and logged to wandb")
             except Exception as e:
                 self.log_msg(f"Error visualizing predictions: {e}")
                 self.log_msg(f"Error type: {type(e)}")
@@ -776,7 +782,9 @@ class Trainer:
         # restart, the projected time remaining will be wrong.
         self.num_cycles = 0
         self.start_time = time.time()
-        while self.total_batches_trained < self.total_batches:
+        while (
+            self.total_batches_trained < self.total_batches
+        ) and not self.shutdown_flag.item():
             self.num_cycles += 1
             self.cycle_idx += 1
             start_cycle_time = time.time()
@@ -900,11 +908,19 @@ class Trainer:
             ############################################################
             # Shut down if next checkpoint would exceed time limit
             ############################################################
-            if self.shutdown_flag:
+            time_remaining = self.time_limit - (time.time() - self.start_time)
+            time_needed = (
+                self.avg_sec_per_checkpoint * 1.2
+            )  # time needed for next checkpoint
+            if time_remaining < time_needed:
+                self.shutdown_flag = torch.tensor(True, device=self.device)
+                if self.ddp_enabled:
+                    dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.OR)
                 self.log_msg(
                     "Summary: Next checkpoint would exceed time limit, shutting down"
                 )
-                break
+            if self.ddp_enabled:
+                dist.barrier()
 
         self.cleanup()
 
