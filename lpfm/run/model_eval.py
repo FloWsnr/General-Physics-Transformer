@@ -319,7 +319,7 @@ class Evaluator:
                 if torch.isnan(output).any() or torch.isinf(output).any():
                     break
 
-                outputs.append(output)
+                outputs.append(output.clone())
                 # Update input
                 if rollout:
                     input = torch.cat([input[:, 1:, ...], output], dim=1)
