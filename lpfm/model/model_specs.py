@@ -18,6 +18,7 @@ class LPFM_S:
     num_layers: int = 12
     conv_channels: tuple[int, int] = (64, 128)
 
+
 @dataclass
 class LPFM_M:
     hidden_dim: int = 768
@@ -25,6 +26,7 @@ class LPFM_M:
     num_heads: int = 12
     num_layers: int = 12
     conv_channels: tuple[int, int] = (64, 128)
+
 
 @dataclass
 class LPFM_L:
@@ -34,10 +36,11 @@ class LPFM_L:
     num_layers: int = 24
     conv_channels: tuple[int, int] = (64, 128)
 
+
 @dataclass
 class LPFM_XL:
     hidden_dim: int = 1280
     mlp_dim: int = 5120
-    num_heads: int = 20
+    num_heads: int = 16
     num_layers: int = 32
     conv_channels: tuple[int, int] = (64, 128)

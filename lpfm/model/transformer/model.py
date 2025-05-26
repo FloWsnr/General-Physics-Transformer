@@ -28,6 +28,10 @@ def get_model(model_config: dict):
         lpfm_config = model_specs.LPFM_M()
     elif transformer_config["model_size"] == "LPFM_L":
         lpfm_config = model_specs.LPFM_L()
+    elif transformer_config["model_size"] == "LPFM_XL":
+        lpfm_config = model_specs.LPFM_XL()
+    else:
+        raise ValueError(f"Invalid model size: {transformer_config['model_size']}")
 
     return PhysicsTransformer(
         num_fields=transformer_config["input_channels"],
