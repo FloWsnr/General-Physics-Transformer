@@ -9,6 +9,8 @@ import platform
 import argparse
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
 
 import yaml
 
@@ -273,7 +275,11 @@ class Evaluator:
 
     @torch.inference_mode()
     def _rollout(
-        self, dataset: PhysicsDataset, traj_idx: int = 0, rollout: bool = False
+        self,
+        dataset: PhysicsDataset,
+        traj_idx: int = 0,
+        num_timesteps: int = -1,
+        rollout: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Rollout the model on a trajectory.
 
@@ -283,6 +289,9 @@ class Evaluator:
             The dataset to evaluate on
         traj_idx : int, optional
             The index of the trajectory to evaluate on, by default 0
+        num_timesteps : int, optional
+            The number of timesteps to rollout, by default 50
+            if -1, rollout until the end of the trajectory
         rollout : bool, optional
             Whether to rollout the full trajectory, by default False
 
@@ -306,13 +315,15 @@ class Evaluator:
         full_traj = full_traj.unsqueeze(0)
 
         B, T, H, W, C = full_traj.shape
+        if num_timesteps == -1:
+            num_timesteps = T
 
         outputs = []
         with torch.autocast(
             device_type=self.device.type,
             dtype=torch.bfloat16,
         ):
-            for i in range(T):  # T-1 because we predict the next step
+            for i in range(num_timesteps):
                 # Predict next timestep
                 output = self.model(input)  # (B, 1T, H, W, C)
                 # if the output is nan, stop the rollout
@@ -354,8 +365,97 @@ class Evaluator:
         # Return predictions and ground truth (excluding first timestep)
         return outputs, full_traj, loss
 
+    def visualize_rollout(
+        self,
+        dataset: PhysicsDataset,
+        num_timesteps: int,
+        save_path: Path,
+        traj_idx: int = 0,
+        rollout: bool = False,
+    ) -> None:
+        """Visualize the model predictions for a trajectory.
+
+        Parameters
+        ----------
+        dataset : PhysicsDataset
+            The dataset to evaluate on
+        num_timesteps : int
+            The number of timesteps to rollout
+        save_path : Path | None, optional
+            Path to save the visualizations, by default None
+        traj_idx : int, optional
+            The index of the trajectory to evaluate on, by default 0
+        rollout : bool, optional
+            Whether to rollout the full trajectory, by default False
+        """
+        # Get predictions and ground truth
+        predictions, ground_truth, loss = self._rollout(
+            dataset, traj_idx, num_timesteps, rollout
+        )
+
+        # Convert to numpy and transpose to match visualization format
+        predictions = predictions.cpu().numpy()
+        ground_truth = ground_truth.cpu().numpy()
+
+        # Transpose to match visualization format (T, H, W, C) -> (T, W, H, C)
+        predictions = predictions.transpose(0, 2, 1, 3)
+        ground_truth = ground_truth.transpose(0, 2, 1, 3)
+
+        # Calculate velocity magnitude
+        vel_mag_pred = np.linalg.norm(predictions[..., -2:], axis=-1)
+        vel_mag_gt = np.linalg.norm(ground_truth[..., -2:], axis=-1)
+
+        # Add velocity magnitude as a new channel
+        predictions = np.concatenate([predictions, vel_mag_pred[..., None]], axis=-1)
+        ground_truth = np.concatenate([ground_truth, vel_mag_gt[..., None]], axis=-1)
+
+        # Field names and colormaps
+        field_names = [
+            "pressure",
+            "density",
+            "temperature",
+            "velocity_x",
+            "velocity_y",
+            "velocity_mag",
+        ]
+
+        # Create save directory if needed
+        if save_path is not None:
+            save_path.mkdir(parents=True, exist_ok=True)
+
+        # Visualize each field
+        for i, field in enumerate(field_names):
+            # Get min and max values for consistent color scaling
+            vmin = min(np.nanmin(predictions[..., i]), np.nanmin(ground_truth[..., i]))
+            vmax = max(np.nanmax(predictions[..., i]), np.nanmax(ground_truth[..., i]))
+
+            for t in range(predictions.shape[0]):
+                # Normalize the data to 0-255 range
+                pred_norm = (
+                    (predictions[t, ..., i] - vmin) / (vmax - vmin) * 255
+                ).astype(np.uint8)
+                gt_norm = (
+                    (ground_truth[t, ..., i] - vmin) / (vmax - vmin) * 255
+                ).astype(np.uint8)
+
+                # Create PIL images
+                pred_img = Image.fromarray(pred_norm)
+                gt_img = Image.fromarray(gt_norm)
+
+                # Save prediction
+                pred_path = save_path / f"{field}_pred_t{t}.png"
+                pred_img.save(pred_path)
+
+                # Save ground truth
+                gt_path = save_path / f"{field}_gt_t{t}.png"
+                gt_img.save(gt_path)
+
     def rollout_all(
-        self, datasets: dict[str, PhysicsDataset], num_samples: int = 10
+        self,
+        datasets: dict[str, PhysicsDataset],
+        num_samples: int = 10,
+        num_timesteps: int = -1,
+        rollout: bool = False,
     ) -> pd.DataFrame:
         all_losses = {}
         max_timesteps = 0
@@ -363,7 +463,7 @@ class Evaluator:
             # copy the dataset with max rollout steps and full trajectory mode
             dataset = dataset.copy(
                 overwrites={
-                    "max_rollout_steps": 1000,
+                    "max_rollout_steps": num_timesteps,
                     "full_trajectory_mode": True,
                 }
             )
@@ -378,7 +478,9 @@ class Evaluator:
             traj_losses = []
             for traj_idx in traj_idxs:
                 self._log_msg(f"  Trajectory {traj_idx}/{num_samples}")
-                _, _, loss = self._rollout(dataset, traj_idx)  # loss is (T, C)
+                _, _, loss = self._rollout(
+                    dataset, traj_idx, num_timesteps, rollout
+                )  # loss is (T, C)
                 max_timesteps = max(max_timesteps, loss.shape[0])
                 traj_losses.append(loss)
 
@@ -444,8 +546,24 @@ class Evaluator:
         df.to_csv(self.eval_dir / "losses.csv", index=False)
 
         # Rollout on all datasets
-        df = self.rollout_all(self.datasets)
+        df = self.rollout_all(
+            self.datasets, num_samples=10, num_timesteps=10, rollout=False
+        )
+        df.to_csv(self.eval_dir / "single_step_losses.csv", index=False)
+
+        df = self.rollout_all(
+            self.datasets, num_samples=10, num_timesteps=10, rollout=True
+        )
         df.to_csv(self.eval_dir / "rollout_losses.csv", index=False)
+
+        # Visualize rollout on all datasets
+        for name, dataset in self.datasets.items():
+            self.visualize_rollout(
+                dataset,
+                num_timesteps=10,
+                save_path=self.eval_dir / name,
+                rollout=True,
+            )
 
 
 def setup_ddp():
