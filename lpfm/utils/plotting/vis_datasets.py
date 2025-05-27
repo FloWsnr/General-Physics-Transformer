@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from lpfm.data.phys_dataset import PhysicsDataset
 
 # Dictionary mapping field names to colormap names
@@ -16,21 +16,23 @@ FIELD_COLORS = OrderedDict(
     ]
 )
 
-datasets = [
-    ("cooled_object_pipe_flow_air", 10),
-    ("heated_object_pipe_flow_air", 10),
-    ("object_sym_flow_air", 10),
-    ("object_sym_flow_water", 10),
-    ("object_periodic_flow_water", 10),
-    ("cylinder_sym_flow_water", 10),
-    ("cylinder_pipe_flow_water", 10),
-    ("euler_multi_quadrants_periodicBC", 10),
-    ("turbulent_radiative_layer_2D", 10),
-    ("rayleigh_benard", 10),
-    ("shear_flow", 10),
-    ("twophase_flow", 10),
-    ("rayleigh_benard_obstacle", 10),
-    ("acoustic_scattering_inclusions", 10),
+DatasetInfo = namedtuple("DatasetInfo", ["name", "traj_idx"])
+
+DATASETS = [
+    DatasetInfo("cooled_object_pipe_flow_air", 10),
+    DatasetInfo("heated_object_pipe_flow_air", 10),
+    DatasetInfo("object_sym_flow_air", 10),
+    DatasetInfo("object_sym_flow_water", 10),
+    DatasetInfo("object_periodic_flow_water", 10),
+    DatasetInfo("cylinder_sym_flow_water", 10),
+    DatasetInfo("cylinder_pipe_flow_water", 10),
+    DatasetInfo("euler_multi_quadrants_periodicBC", 10),
+    DatasetInfo("turbulent_radiative_layer_2D", 10),
+    DatasetInfo("rayleigh_benard", 10),
+    DatasetInfo("shear_flow", 10),
+    DatasetInfo("twophase_flow", 10),
+    DatasetInfo("rayleigh_benard_obstacle", 10),
+    DatasetInfo("acoustic_scattering_inclusions", 10),
 ]
 
 
@@ -76,7 +78,7 @@ include_field_names = {
 def main():
     base_path = Path("data/datasets")
     split = "train"
-    for dataset, traj_idx in datasets:
+    for dataset, traj_idx in DATASETS:
         print(f"Processing {dataset}")
         dataset_path = base_path / f"{dataset}/data/{split}"
         if not dataset_path.exists():
