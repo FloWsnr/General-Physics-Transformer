@@ -333,6 +333,7 @@ def test_twophase_flow_dataset():
         assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
         assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
 
+
 @pytest.mark.skip(reason="Takes too long to run")
 def test_twophase_flow_dataset_full_integrity():
     """Test TwophaseFlowDataset returns correct tensor shapes and field order."""
@@ -349,6 +350,32 @@ def test_twophase_flow_dataset_full_integrity():
         x, y = dataset[i]
         assert x.shape == (1, 256, 128, 5)
         assert y.shape == (1, 256, 128, 5)
+
+
+def test_supersonic_flow_dataset():
+    """Test SupersonicFlowDataset returns correct tensor shapes and field order."""
+    path = Path("/scratch/zsa8rk/datasets/supersonic_flow/data/train")
+    include_field_names = {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    }
+    dataset = PhysicsDataset(data_dir=path, include_field_names=include_field_names)
+
+    # Test 4 random indices
+    for _ in range(4):
+        idx = random.randint(0, len(dataset) - 1)
+        x, y = dataset[idx]
+
+        # Check shapes - should now have 5 channels (pressure, density, temperature, velocity)
+        assert x.shape == (1, 256, 128, 5)
+        assert y.shape == (1, 256, 128, 5)
+
+        # check that the pressure and density is not zero
+        assert not torch.allclose(x[:, :, :, 0], torch.zeros_like(x[:, :, :, 0]))
+        assert not torch.allclose(x[:, :, :, 1], torch.zeros_like(x[:, :, :, 1]))
+        # check that the temperature is zero
+        assert torch.allclose(x[:, :, :, 2], torch.zeros_like(x[:, :, :, 2]))
+
 
 if __name__ == "__main__":
     test_twophase_flow_dataset_full_integrity()
