@@ -540,30 +540,42 @@ class Evaluator:
 
         return df
 
-    def main(self):
-        # Evaluate on all datasets
-        df = self.eval_all(self.datasets)
-        df.to_csv(self.eval_dir / "losses.csv", index=False)
+    def main(self, overwrite: bool = True):
+        if not overwrite and (self.eval_dir / "losses.csv").exists():
+            self.logger.info("Losses already evaluated, skipping...")
+        else:
+            # Evaluate on all datasets
+            df = self.eval_all(self.datasets)
+            df.to_csv(self.eval_dir / "losses.csv", index=False)
 
-        # Rollout on all datasets
-        df = self.rollout_all(
-            self.datasets, num_samples=10, num_timesteps=10, rollout=False
-        )
-        df.to_csv(self.eval_dir / "single_step_losses.csv", index=False)
-
-        df = self.rollout_all(
-            self.datasets, num_samples=10, num_timesteps=10, rollout=True
-        )
-        df.to_csv(self.eval_dir / "rollout_losses.csv", index=False)
-
-        # Visualize rollout on all datasets
-        for name, dataset in self.datasets.items():
-            self.visualize_rollout(
-                dataset,
-                num_timesteps=10,
-                save_path=self.eval_dir / name,
-                rollout=True,
+        if not overwrite and (self.eval_dir / "single_step_losses.csv").exists():
+            self.logger.info("Single step losses already evaluated, skipping...")
+        else:
+            # Rollout on all datasets
+            df = self.rollout_all(
+                self.datasets, num_samples=10, num_timesteps=50, rollout=False
             )
+            df.to_csv(self.eval_dir / "single_step_losses.csv", index=False)
+
+        if not overwrite and (self.eval_dir / "rollout_losses.csv").exists():
+            self.logger.info("Rollout losses already evaluated, skipping...")
+        else:
+            df = self.rollout_all(
+                self.datasets, num_samples=10, num_timesteps=50, rollout=True
+            )
+            df.to_csv(self.eval_dir / "rollout_losses.csv", index=False)
+
+        try:
+            # Visualize rollout on all datasets
+            for name, dataset in self.datasets.items():
+                self.visualize_rollout(
+                    dataset,
+                    num_timesteps=50,
+                    save_path=self.eval_dir / name,
+                    rollout=True,
+                )
+        except Exception as e:
+            self.logger.error(f"Error visualizing rollout: {e}")
 
 
 def setup_ddp():
