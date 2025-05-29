@@ -287,7 +287,7 @@ class Trainer:
         self.log_msg(f"Validating on {self.h_log_state.val_samples} samples")
         self.log_msg(f"Validating on {self.h_log_state.val_batches} batches")
         self.log_msg(
-            f"Checkpoint every {self.config['training']['checkpoint_every_samples']} samples"
+            f"Checkpoint every {self.config['training']['checkpoint_every_batches']} batches"
         )
         self.log_msg(
             f"Running {self.config['training']['num_workers']} dataloader workers per GPU"
@@ -349,7 +349,7 @@ class Trainer:
                 model=self.model,
                 criterion=self.criterion,
                 log=self.config["wandb"]["log_model"],
-                log_freq=self.checkpoint_every_x_samples,
+                log_freq=self.checkpoint_every_x_batches,
             )
 
     def log_msg(self, msg: str):
