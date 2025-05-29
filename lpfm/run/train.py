@@ -90,7 +90,7 @@ class Trainer:
         self.avg_sec_per_checkpoint = 0
         self.avg_sec_per_1k_samples = 0
         self.avg_sec_per_val_cycle = 0
-        self.shutdown_flag = torch.tensor(False, device=self.device)
+        self.shutdown_flag = torch.tensor(0, device=self.device)
 
         if "time_limit" in self.config["training"]:
             self.time_limit = self.config["training"]["time_limit"]
@@ -480,7 +480,7 @@ class Trainer:
 
         batches_trained = 0
         train_iter = iter(self.train_loader)
-        while (batches_trained < num_batches) and not self.shutdown_flag.item():
+        while (batches_trained < num_batches) and self.shutdown_flag.item() == 0:
             try:
                 x, target = next(train_iter)
             except StopIteration:
@@ -636,10 +636,10 @@ class Trainer:
                 and batches_trained > self.checkpoint_every_x_batches / 2
             ):
                 self.shutdown_flag = torch.tensor(
-                    True, device=self.device
+                    1, device=self.device
                 )  # set flag to tell outer loop to shut down
                 if self.ddp_enabled:
-                    dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.OR)
+                    dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.SUM)
                 self.log_msg(
                     "Summary: Next checkpoint would exceed time limit, shutting down"
                 )
@@ -784,7 +784,7 @@ class Trainer:
         self.start_time = time.time()
         while (
             self.total_batches_trained < self.total_batches
-        ) and not self.shutdown_flag.item():
+        ) and self.shutdown_flag.item() == 0:
             self.num_cycles += 1
             self.cycle_idx += 1
             start_cycle_time = time.time()
@@ -913,9 +913,11 @@ class Trainer:
                 self.avg_sec_per_checkpoint * 1.2
             )  # time needed for next checkpoint
             if time_remaining < time_needed:
-                self.shutdown_flag = torch.tensor(True, device=self.device)
+                self.shutdown_flag = torch.tensor(
+                    1, device=self.device
+                )  # set flag to tell outer loop to shut down
                 if self.ddp_enabled:
-                    dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.OR)
+                    dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.SUM)
                 self.log_msg(
                     "Summary: Next checkpoint would exceed time limit, shutting down"
                 )
