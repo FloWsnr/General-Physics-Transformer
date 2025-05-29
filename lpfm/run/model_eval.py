@@ -513,36 +513,40 @@ class Evaluator:
 
         # Field names and colormaps
         field_names = [
-            "pressure",
-            "density",
-            "temperature",
-            "velocity_x",
-            "velocity_y",
-            "velocity_mag",
+            ("pressure", "inferno"),
+            ("density", "viridis"),
+            ("temperature", "magma"),
+            ("velocity_x", "viridis"),
+            ("velocity_y", "viridis"),
+            ("velocity_mag", "viridis"),
         ]
 
         # Create save directory if needed
-        if save_path is not None:
-            save_path.mkdir(parents=True, exist_ok=True)
+        save_path.mkdir(parents=True, exist_ok=True)
 
         # Visualize each field
-        for i, field in enumerate(field_names):
+        for i, (field, colormap) in enumerate(field_names):
             # Get min and max values for consistent color scaling
             vmin = min(np.nanmin(predictions[..., i]), np.nanmin(ground_truth[..., i]))
             vmax = max(np.nanmax(predictions[..., i]), np.nanmax(ground_truth[..., i]))
 
             for t in range(predictions.shape[0]):
-                # Normalize the data to 0-255 range
-                pred_norm = (
-                    (predictions[t, ..., i] - vmin) / (vmax - vmin) * 255
-                ).astype(np.uint8)
-                gt_norm = (
-                    (ground_truth[t, ..., i] - vmin) / (vmax - vmin) * 255
-                ).astype(np.uint8)
+                # Normalize the data to 0-1 range for colormap
+                pred_norm = (predictions[t, ..., i] - vmin) / (vmax - vmin)
+                gt_norm = (ground_truth[t, ..., i] - vmin) / (vmax - vmin)
+
+                # Apply viridis colormap
+                colormap = plt.get_cmap(colormap)
+                pred_rgb = colormap(pred_norm)[..., :3]  # Get RGB channels
+                gt_rgb = colormap(gt_norm)[..., :3]  # Get RGB channels
+
+                # Convert to uint8 for PIL
+                pred_rgb = (pred_rgb * 255).astype(np.uint8)
+                gt_rgb = (gt_rgb * 255).astype(np.uint8)
 
                 # Create PIL images
-                pred_img = Image.fromarray(pred_norm)
-                gt_img = Image.fromarray(gt_norm)
+                pred_img = Image.fromarray(pred_rgb)
+                gt_img = Image.fromarray(gt_rgb)
 
                 # Save prediction
                 pred_path = save_path / f"{field}_pred_t{t}.png"

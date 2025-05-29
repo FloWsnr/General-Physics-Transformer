@@ -116,4 +116,4 @@ exec_args="--config_file $config_file \
 torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args
 
 # move the output file to the sim_dir
-mv ${log_dir}/slrm_logs/eval_lpfm_${SLURM_JOB_ID}.out $sim_dir 
+mv ${log_dir}/slrm_logs/eval_${sim_name}_${SLURM_JOB_ID}.out $sim_dir 
