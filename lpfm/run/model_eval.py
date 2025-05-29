@@ -33,9 +33,8 @@ from lpfm.utils.logger import get_logger
 from lpfm.run.run_utils import load_stored_model, find_checkpoint
 
 
-def load_config(model_path: Path) -> dict:
-    config_path = model_path / "config.yaml"
-    with open(config_path, "r") as f:
+def load_config(path: Path) -> dict:
+    with open(path, "r") as f:
         config = yaml.load(f, Loader=Loader)
     return config
 
@@ -135,7 +134,9 @@ class Evaluator:
     def from_checkpoint(
         cls,
         base_path: Path,
-        batch_size: int = 256,
+        data_config: dict,
+        model_config: dict,
+        batch_size: int = 64,
         num_workers: int = 4,
         checkpoint_name: str = "best_model",
         global_rank: int = 0,
@@ -148,6 +149,10 @@ class Evaluator:
         ----------
         base_path : Path
             Path to the base directory of the model
+        data_config : dict
+            Data configuration dictionary
+        model_config : dict
+            Model configuration dictionary
         batch_size : int, optional
             Batch size for evaluation, by default 256
         num_workers : int, optional
@@ -166,15 +171,14 @@ class Evaluator:
         Evaluator
             Initialized Evaluator instance
         """
-        config = load_config(base_path)
         device = (
             torch.device(f"cuda:{local_rank}")
             if torch.cuda.is_available()
             else torch.device("cpu")
         )
-        model = load_model(base_path, device, config["model"], checkpoint_name)
+        model = load_model(base_path, device, model_config, checkpoint_name)
         model.eval()
-        datasets = get_dt_datasets(config["data"], split="test")
+        datasets = get_dt_datasets(data_config, split="test")
 
         # print the model architecture
         torch.set_float32_matmul_precision("high")
@@ -660,10 +664,21 @@ def main(
     if world_size > 1:
         setup_ddp()
 
+    model_config = config["model"]
+    data_config = config["data"]
+
+    eval_ds = [
+        "supersonic_flow",
+    ]
+
+    data_config["datasets"] = data_config["datasets"] + eval_ds
+
     evaluator = Evaluator.from_checkpoint(
         base_path=log_dir / sim_name,
-        batch_size=config["training"]["batch_size"],
-        num_workers=config["training"]["num_workers"],
+        data_config=data_config,
+        model_config=model_config,
+        batch_size=data_config["batch_size"],
+        num_workers=data_config["num_workers"],
         checkpoint_name=checkpoint_name,
         global_rank=global_rank,
         local_rank=local_rank,
