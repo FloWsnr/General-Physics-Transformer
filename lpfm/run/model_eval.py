@@ -317,6 +317,10 @@ class Evaluator:
         B, T, H, W, C = full_traj.shape
         if num_timesteps == -1:
             num_timesteps = T
+        else:
+            num_timesteps = min(
+                num_timesteps, T
+            )  # Ensure we don't exceed trajectory length
 
         outputs = []
         with torch.autocast(
@@ -476,8 +480,8 @@ class Evaluator:
             traj_idxs = np.random.choice(indices, size=num_samples, replace=False)
 
             traj_losses = []
-            for traj_idx in traj_idxs:
-                self._log_msg(f"  Trajectory {traj_idx}/{num_samples}")
+            for i, traj_idx in enumerate(traj_idxs):
+                self._log_msg(f"  Trajectory {i}/{num_samples}")
                 _, _, loss = self._rollout(
                     dataset, traj_idx, num_timesteps, rollout
                 )  # loss is (T, C)
@@ -540,7 +544,7 @@ class Evaluator:
 
         return df
 
-    def main(self, overwrite: bool = True):
+    def main(self, overwrite: bool = False):
         if not overwrite and (self.eval_dir / "losses.csv").exists():
             self.logger.info("Losses already evaluated, skipping...")
         else:
