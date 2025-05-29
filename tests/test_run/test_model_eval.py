@@ -117,3 +117,21 @@ def test_model_eval_main(tmp_path: Path, mock_model: torch.nn.Module):
 
     df = pd.read_csv(tmp_path / "rollout_losses.csv", header=[0, 1, 2])
     assert df.shape == (14, len(datasets) * 3 * 5)
+
+
+def test_model_eval_visualize_rollout(tmp_path: Path, mock_model: torch.nn.Module):
+    datasets = {
+        "test": MockDataset(length=10),
+        "test2": MockDataset(length=12),
+        "test3": MockDataset(length=14),
+    }
+    evaluator = Evaluator(mock_model, datasets, tmp_path)
+    evaluator.visualize_rollout(
+        datasets["test"], num_timesteps=50, save_path=tmp_path / "images"
+    )
+
+    assert (tmp_path / "images" / "pressure_pred_t0.png").exists()
+    assert (tmp_path / "images" / "pressure_gt_t0.png").exists()
+
+    assert (tmp_path / "images" / "velocity_x_pred_t3.png").exists()
+    assert (tmp_path / "images" / "velocity_x_gt_t3.png").exists()

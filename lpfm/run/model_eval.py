@@ -369,91 +369,6 @@ class Evaluator:
         # Return predictions and ground truth (excluding first timestep)
         return outputs, full_traj, loss
 
-    def visualize_rollout(
-        self,
-        dataset: PhysicsDataset,
-        num_timesteps: int,
-        save_path: Path,
-        traj_idx: int = 0,
-        rollout: bool = False,
-    ) -> None:
-        """Visualize the model predictions for a trajectory.
-
-        Parameters
-        ----------
-        dataset : PhysicsDataset
-            The dataset to evaluate on
-        num_timesteps : int
-            The number of timesteps to rollout
-        save_path : Path | None, optional
-            Path to save the visualizations, by default None
-        traj_idx : int, optional
-            The index of the trajectory to evaluate on, by default 0
-        rollout : bool, optional
-            Whether to rollout the full trajectory, by default False
-        """
-        # Get predictions and ground truth
-        predictions, ground_truth, loss = self._rollout(
-            dataset, traj_idx, num_timesteps, rollout
-        )
-
-        # Convert to numpy and transpose to match visualization format
-        predictions = predictions.cpu().numpy()
-        ground_truth = ground_truth.cpu().numpy()
-
-        # Transpose to match visualization format (T, H, W, C) -> (T, W, H, C)
-        predictions = predictions.transpose(0, 2, 1, 3)
-        ground_truth = ground_truth.transpose(0, 2, 1, 3)
-
-        # Calculate velocity magnitude
-        vel_mag_pred = np.linalg.norm(predictions[..., -2:], axis=-1)
-        vel_mag_gt = np.linalg.norm(ground_truth[..., -2:], axis=-1)
-
-        # Add velocity magnitude as a new channel
-        predictions = np.concatenate([predictions, vel_mag_pred[..., None]], axis=-1)
-        ground_truth = np.concatenate([ground_truth, vel_mag_gt[..., None]], axis=-1)
-
-        # Field names and colormaps
-        field_names = [
-            "pressure",
-            "density",
-            "temperature",
-            "velocity_x",
-            "velocity_y",
-            "velocity_mag",
-        ]
-
-        # Create save directory if needed
-        if save_path is not None:
-            save_path.mkdir(parents=True, exist_ok=True)
-
-        # Visualize each field
-        for i, field in enumerate(field_names):
-            # Get min and max values for consistent color scaling
-            vmin = min(np.nanmin(predictions[..., i]), np.nanmin(ground_truth[..., i]))
-            vmax = max(np.nanmax(predictions[..., i]), np.nanmax(ground_truth[..., i]))
-
-            for t in range(predictions.shape[0]):
-                # Normalize the data to 0-255 range
-                pred_norm = (
-                    (predictions[t, ..., i] - vmin) / (vmax - vmin) * 255
-                ).astype(np.uint8)
-                gt_norm = (
-                    (ground_truth[t, ..., i] - vmin) / (vmax - vmin) * 255
-                ).astype(np.uint8)
-
-                # Create PIL images
-                pred_img = Image.fromarray(pred_norm)
-                gt_img = Image.fromarray(gt_norm)
-
-                # Save prediction
-                pred_path = save_path / f"{field}_pred_t{t}.png"
-                pred_img.save(pred_path)
-
-                # Save ground truth
-                gt_path = save_path / f"{field}_gt_t{t}.png"
-                gt_img.save(gt_path)
-
     def rollout_all(
         self,
         datasets: dict[str, PhysicsDataset],
@@ -544,6 +459,99 @@ class Evaluator:
 
         return df
 
+    def visualize_rollout(
+        self,
+        dataset: PhysicsDataset,
+        num_timesteps: int,
+        save_path: Path,
+        traj_idx: int = 0,
+        rollout: bool = False,
+    ) -> None:
+        """Visualize the model predictions for a trajectory.
+
+        Parameters
+        ----------
+        dataset : PhysicsDataset
+            The dataset to evaluate on
+        num_timesteps : int
+            The number of timesteps to rollout
+        save_path : Path | None, optional
+            Path to save the visualizations, by default None
+        traj_idx : int, optional
+            The index of the trajectory to evaluate on, by default 0
+        rollout : bool, optional
+            Whether to rollout the full trajectory, by default False
+        """
+        # copy the dataset with max rollout steps and full trajectory mode
+        dataset = dataset.copy(
+            overwrites={
+                "max_rollout_steps": num_timesteps,
+                "full_trajectory_mode": True,
+            }
+        )
+
+        # Get predictions and ground truth
+        predictions, ground_truth, loss = self._rollout(
+            dataset, traj_idx, num_timesteps, rollout
+        )
+
+        # Convert to numpy and transpose to match visualization format
+        predictions = predictions.cpu().numpy()
+        ground_truth = ground_truth.cpu().numpy()
+
+        # Transpose to match visualization format (T, H, W, C) -> (T, W, H, C)
+        predictions = predictions.transpose(0, 2, 1, 3)
+        ground_truth = ground_truth.transpose(0, 2, 1, 3)
+
+        # Calculate velocity magnitude
+        vel_mag_pred = np.linalg.norm(predictions[..., -2:], axis=-1)
+        vel_mag_gt = np.linalg.norm(ground_truth[..., -2:], axis=-1)
+
+        # Add velocity magnitude as a new channel
+        predictions = np.concatenate([predictions, vel_mag_pred[..., None]], axis=-1)
+        ground_truth = np.concatenate([ground_truth, vel_mag_gt[..., None]], axis=-1)
+
+        # Field names and colormaps
+        field_names = [
+            "pressure",
+            "density",
+            "temperature",
+            "velocity_x",
+            "velocity_y",
+            "velocity_mag",
+        ]
+
+        # Create save directory if needed
+        if save_path is not None:
+            save_path.mkdir(parents=True, exist_ok=True)
+
+        # Visualize each field
+        for i, field in enumerate(field_names):
+            # Get min and max values for consistent color scaling
+            vmin = min(np.nanmin(predictions[..., i]), np.nanmin(ground_truth[..., i]))
+            vmax = max(np.nanmax(predictions[..., i]), np.nanmax(ground_truth[..., i]))
+
+            for t in range(predictions.shape[0]):
+                # Normalize the data to 0-255 range
+                pred_norm = (
+                    (predictions[t, ..., i] - vmin) / (vmax - vmin) * 255
+                ).astype(np.uint8)
+                gt_norm = (
+                    (ground_truth[t, ..., i] - vmin) / (vmax - vmin) * 255
+                ).astype(np.uint8)
+
+                # Create PIL images
+                pred_img = Image.fromarray(pred_norm)
+                gt_img = Image.fromarray(gt_norm)
+
+                # Save prediction
+                pred_path = save_path / f"{field}_pred_t{t}.png"
+                pred_img.save(pred_path)
+
+                # Save ground truth
+                gt_path = save_path / f"{field}_gt_t{t}.png"
+                gt_img.save(gt_path)
+
     def main(self, overwrite: bool = False):
         if not overwrite and (self.eval_dir / "losses.csv").exists():
             self.logger.info("Losses already evaluated, skipping...")
@@ -575,7 +583,7 @@ class Evaluator:
                 self.visualize_rollout(
                     dataset,
                     num_timesteps=50,
-                    save_path=self.eval_dir / name,
+                    save_path=self.eval_dir / "images" / name,
                     rollout=True,
                 )
         except Exception as e:
