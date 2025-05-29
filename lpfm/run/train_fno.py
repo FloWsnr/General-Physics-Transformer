@@ -9,7 +9,6 @@ import os
 from pathlib import Path
 import time
 import argparse
-import platform
 import math
 from dataclasses import dataclass
 
@@ -59,17 +58,28 @@ class LogState:
 
 
 @dataclass
-class FNOConfig:
+class FNO_M:
+    in_channels: int = 5
+    out_channels: int = 5
+    hidden_channels: int = 128
+    n_layers: int = 4
+    n_modes_height: int = 15
+    n_modes_width: int = 15
+    n_time_steps: int = 15
+
+
+@dataclass
+class FNO_S:
     in_channels: int = 5
     out_channels: int = 5
     hidden_channels: int = 64
     n_layers: int = 4
-    n_modes_height: int = 12
-    n_modes_width: int = 12
-    n_time_steps: int = 12
+    n_modes_height: int = 10
+    n_modes_width: int = 10
+    n_time_steps: int = 10
 
 
-def get_fno_model(config: FNOConfig) -> nn.Module:
+def get_fno_model(config: FNO_M | FNO_S) -> nn.Module:
     model = TFNO3d(
         n_modes_height=config.n_modes_height,
         n_modes_width=config.n_modes_width,
@@ -113,7 +123,7 @@ class Trainer:
         self.avg_sec_per_checkpoint = 0
         self.avg_sec_per_1k_samples = 0
         self.avg_sec_per_val_cycle = 0
-        self.shutdown_flag = False
+        self.shutdown_flag = torch.tensor(0, device=self.device)
 
         if "time_limit" in self.config["training"]:
             self.time_limit = self.config["training"]["time_limit"]
@@ -168,7 +178,14 @@ class Trainer:
         ########### Initialize model ##################################
         ################################################################
         self.log_msg(f"Using device: {self.device}")
-        self.model = get_fno_model(FNOConfig())
+
+        # check if model is FNO_M or FNO_S
+        if self.config["model"] == "fno-M":
+            self.model = get_fno_model(FNO_M())
+        elif self.config["model"] == "fno-S":
+            self.model = get_fno_model(FNO_S())
+        else:
+            raise ValueError(f"Model {self.config['model']} not supported")
 
         total_params = sum(p.numel() for p in self.model.parameters())
         self.log_msg(f"Model size: {total_params / 1e6:.2f}M parameters")
@@ -226,27 +243,24 @@ class Trainer:
         self.total_samples_trained = 0
         self.cycle_idx = 0
 
-        self.total_samples = int(float(self.config["training"]["samples"]))
-        self.total_batches = self.total_samples // self.batch_size
+        # Change from samples to batches
+        self.total_batches = int(float(self.config["training"]["batches"]))
+        self.total_samples = self.total_batches * self.batch_size
 
         #################################################################
         ########### Initialize validation parameters ##################
         #################################################################
         val_batches = len(self.val_loader)
         total_val_samples = val_batches * self.batch_size
-        # num training samples per validation loop
-        self.val_every_x_samples = int(
-            float(self.config["training"]["val_every_samples"])
+        # num training batches per validation loop
+        self.val_every_x_batches = int(
+            float(self.config["training"]["val_every_batches"])
         )
-        self.val_every_x_batches = self.val_every_x_samples // self.batch_size
+        self.val_every_x_samples = self.val_every_x_batches * self.batch_size
 
-        # check if checkpoint_every_samples is present in config
-        if "checkpoint_every_samples" in self.config["training"]:
-            self.checkpoint_every_x_samples = int(
-                float(self.config["training"]["checkpoint_every_samples"])
-            )
-        else:
-            self.checkpoint_every_x_samples = self.val_every_x_samples
+        self.checkpoint_every_x_batches = int(
+            float(self.config["training"]["checkpoint_every_batches"])
+        )
 
         ###################################################################
         self.h_log_state = LogState(
@@ -284,8 +298,8 @@ class Trainer:
                 {
                     "training/total_samples": self.total_samples,
                     "training/samples_per_batch": self.batch_size,
-                    "training/val_every_samples": self.val_every_x_samples,
-                    "training/checkpoint_every_samples": self.checkpoint_every_x_samples,
+                    "training/val_every_batches": self.val_every_x_batches,
+                    "training/checkpoint_every_batches": self.checkpoint_every_x_batches,
                     "training/num_val_samples": total_val_samples,
                     "training/slurm_id": os.environ.get("SLURM_JOB_ID", ""),
                 },
@@ -301,11 +315,11 @@ class Trainer:
         }
 
         if self.config["training"]["criterion"] == "MSE":
-            self.criterion = self.loss_fns.pop("MSE")
+            self.criterion = self.loss_fns["MSE"]
         elif self.config["training"]["criterion"] == "RMSE":
-            self.criterion = self.loss_fns.pop("RMSE")
+            self.criterion = self.loss_fns["RMSE"]
         elif self.config["training"]["criterion"] == "MAE":
-            self.criterion = self.loss_fns.pop("MAE")
+            self.criterion = self.loss_fns["MAE"]
         else:
             raise ValueError(
                 f"Criterion {self.config['training']['criterion']} not supported"
@@ -463,13 +477,13 @@ class Trainer:
         )
         return x, target
 
-    def train_for_x_samples(self, num_samples: int) -> float:
+    def train_for_x_batches(self, num_batches: int) -> float:
         """Train the model for a given number of samples.
 
         Parameters
         ----------
-        num_samples : int
-            Number of samples to train for
+        num_batches : int
+            Number of batches to train for
 
         Returns
         -------
@@ -489,12 +503,12 @@ class Trainer:
 
         samples_trained = 0
         train_time = time.time()
-        # check that num_samples does not exceed self.total_samples
-        num_samples = min(num_samples, self.total_samples - self.total_samples_trained)
+        # check that num_batches does not exceed remaining batches
+        num_batches = min(num_batches, self.total_batches - self.total_batches_trained)
 
         batches_trained = 0
         train_iter = iter(self.train_loader)
-        while samples_trained < num_samples:
+        while (batches_trained < num_batches) and self.shutdown_flag.item() == 0:
             try:
                 x, target = next(train_iter)
             except StopIteration:
@@ -508,7 +522,7 @@ class Trainer:
             x = x.permute(0, 4, 1, 2, 3)
             target = target.permute(0, 4, 1, 2, 3)
 
-            x, target = self._interpolate(x, target)
+            # x, target = self._interpolate(x, target)#
 
             self.optimizer.zero_grad()
 
@@ -591,11 +605,11 @@ class Trainer:
             ############ Update time estimates ########################
             ############################################################
             total_train_duration = time.time() - train_time
-            seconds_per_sample = total_train_duration / samples_trained
-            self.avg_sec_per_1m_samples = seconds_per_sample * 1000000
+            seconds_per_batch = total_train_duration / batches_trained
+            self.avg_sec_per_1k_batches = seconds_per_batch * 1000
 
             self.avg_sec_per_checkpoint = (
-                seconds_per_sample * self.checkpoint_every_x_samples
+                seconds_per_batch * self.checkpoint_every_x_batches
             )
 
             ############################################################
@@ -611,7 +625,7 @@ class Trainer:
                         "training/total_batches_remaining": self.total_batches
                         - self.total_batches_trained,
                         "training/learning_rate": lr,
-                        "training/avg_sec_per_1m_samples": self.avg_sec_per_1m_samples,
+                        "training/avg_sec_per_1k_batches": self.avg_sec_per_1k_batches,
                         "training/avg_sec_per_checkpoint": self.avg_sec_per_checkpoint,
                     },
                     commit=False,
@@ -621,9 +635,9 @@ class Trainer:
             # Save checkpoint ##########################################
             ############################################################
             next_checkpoint = (
-                self.total_samples_trained // self.checkpoint_every_x_samples + 1
-            ) * self.checkpoint_every_x_samples
-            if self.total_samples_trained >= next_checkpoint - self.batch_size:
+                self.total_batches_trained // self.checkpoint_every_x_batches + 1
+            ) * self.checkpoint_every_x_batches
+            if self.total_batches_trained >= next_checkpoint - 1:
                 if self.global_rank == 0:
                     self.save_checkpoint(path=self.log_dir / "last_checkpoint.pth")
                 if self.ddp_enabled:
@@ -641,19 +655,27 @@ class Trainer:
             # the estimate is not too far off
             if (
                 time_remaining < time_needed
-                and samples_trained > self.checkpoint_every_x_samples / 2
+                and batches_trained > self.checkpoint_every_x_batches / 2
             ):
-                self.shutdown_flag = True  # set flag to tell outer loop to shut down
+                self.shutdown_flag = torch.tensor(
+                    1, device=self.device
+                )  # set flag to tell outer loop to shut down
+                if self.ddp_enabled:
+                    dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.SUM)
                 self.log_msg(
                     "Summary: Next checkpoint would exceed time limit, shutting down"
                 )
-                break
+            if self.ddp_enabled:
+                dist.barrier()
         ############################################################
         # Visualize predictions ####################################
         ############################################################
         if self.global_rank == 0:
             vis_path = self.val_dir / "train.png"
             try:
+                # revert permutation of x and target
+                x = x.permute(0, 2, 3, 4, 1)
+                target = target.permute(0, 2, 3, 4, 1)
                 visualize_predictions(
                     vis_path,
                     x.float(),
@@ -666,6 +688,7 @@ class Trainer:
                     image_path=vis_path.parent,
                     name_prefix=f"cycle_{self.cycle_idx}",
                 )
+                self.log_msg("Predictions visualized and logged to wandb")
             except Exception as e:
                 self.log_msg(f"Error visualizing predictions: {e}")
                 self.log_msg(f"Error type: {type(e)}")
@@ -679,6 +702,7 @@ class Trainer:
 
         return loss_per_cycle
 
+    @torch.inference_mode()
     def validate(self) -> float:
         """Validate the model."""
         self.model.eval()
@@ -694,53 +718,49 @@ class Trainer:
         samples_validated = 0
         batches_validated = 0
         start_val_time = time.time()
-        with torch.inference_mode():
-            for x, target in self.val_loader:
-                x = x.to(self.device)
-                target = target.to(self.device)
+        for x, target in self.val_loader:
+            x = x.to(self.device)
+            target = target.to(self.device)
 
-                # rearrange x and y to be (batch_size, n_channels, n_time_steps, n_height, n_width)
-                x = x.permute(0, 4, 1, 2, 3)
-                target = target.permute(0, 4, 1, 2, 3)
+            # rearrange x and y to be (batch_size, n_channels, n_time_steps, n_height, n_width)
+            x = x.permute(0, 4, 1, 2, 3)
+            target = target.permute(0, 4, 1, 2, 3)
 
-                x, target = self._interpolate(x, target)
+            # x, target = self._interpolate(x, target)
 
-                output = self.model(x)
-                # use only the last time step as comparison, but keep the time dimension
-                output = output[:, :, -1, :, :].unsqueeze(2)
-                raw_loss = self.criterion(output, target)
+            output = self.model(x)
+            # use only the last time step as comparison, but keep the time dimension
+            output = output[:, :, -1, :, :].unsqueeze(2)
+            # Log validation loss
+            log_losses = self._compute_log_metrics(output.detach(), target.detach())
+            ###############################################################
+            # Accumulate losses ###########################################
+            ###############################################################
+            if self.ddp_enabled:
+                # average the losses across all GPUs
+                log_losses = self._reduce_all_losses(log_losses)
 
-                # Log validation loss
-                log_losses = self._compute_log_metrics(output.detach(), target.detach())
-                log_losses[self.config["training"]["criterion"]] = raw_loss.detach()
-                ###############################################################
-                # Accumulate losses ###########################################
-                ###############################################################
-                if self.ddp_enabled:
-                    # average the losses across all GPUs
-                    log_losses = self._reduce_all_losses(log_losses)
+            for loss_name, log_loss in log_losses.items():
+                loss_per_cycle[f"total-{loss_name}"] += log_loss
 
-                for loss_name, log_loss in log_losses.items():
-                    loss_per_cycle[f"total-{loss_name}"] += log_loss
-
-                ####################################################
-                # Update cycle index #################################
-                ####################################################
-                samples_validated += self.batch_size
-                batches_validated += 1
-                ####################################################
-                # Log validation progress ##########################
-                ####################################################
-                s_cycle_validated_human = human_format(samples_validated)
-                b_cycle_validated_human = human_format(batches_validated)
-                s_cycle_human = self.h_log_state.val_samples
-                b_cycle_human = self.h_log_state.val_batches
-                self.log_msg(
-                    f"Validation - Cycle: {self.cycle_idx} "
-                    f"Samples: {s_cycle_validated_human}/{s_cycle_human}, "
-                    f"Batches: {b_cycle_validated_human}/{b_cycle_human}, "
-                )
-                self.log_msg("")
+            ####################################################
+            # Update cycle index #################################
+            ####################################################
+            samples_validated += self.batch_size
+            batches_validated += 1
+            ####################################################
+            # Log validation progress ##########################
+            ####################################################
+            s_cycle_validated_human = human_format(samples_validated)
+            b_cycle_validated_human = human_format(batches_validated)
+            s_cycle_human = self.h_log_state.val_samples
+            b_cycle_human = self.h_log_state.val_batches
+            self.log_msg(
+                f"Validation - Cycle: {self.cycle_idx} "
+                f"Samples: {s_cycle_validated_human}/{s_cycle_human}, "
+                f"Batches: {b_cycle_validated_human}/{b_cycle_human}, "
+            )
+            self.log_msg("")
 
         ############################################################
         # Visualize predictions ####################################
@@ -749,6 +769,9 @@ class Trainer:
             # Visualize predictions
             vis_path = self.val_dir / "val.png"
             try:
+                # revert permutation of x and target
+                x = x.permute(0, 2, 3, 4, 1)
+                target = target.permute(0, 2, 3, 4, 1)
                 visualize_predictions(
                     vis_path,
                     x.float(),
@@ -788,7 +811,9 @@ class Trainer:
         # restart, the projected time remaining will be wrong.
         self.num_cycles = 0
         self.start_time = time.time()
-        while self.total_samples_trained < self.total_samples:
+        while (
+            self.total_batches_trained < self.total_batches
+        ) and self.shutdown_flag.item() == 0:
             self.num_cycles += 1
             self.cycle_idx += 1
             start_cycle_time = time.time()
@@ -799,8 +824,8 @@ class Trainer:
             ######################################################################
             self.log_msg("=" * 100)
             self.log_msg(f"Training - Cycle {self.cycle_idx}")
-            self.log_msg(f"Training - train on next {self.val_every_x_samples} samples")
-            train_losses = self.train_for_x_samples(self.val_every_x_samples)
+            self.log_msg(f"Training - train on next {self.val_every_x_batches} batches")
+            train_losses = self.train_for_x_batches(self.val_every_x_batches)
             self.log_msg("=" * 100)
             log_string = "Training - Losses: "
             for loss_name, loss in train_losses.items():
@@ -811,11 +836,14 @@ class Trainer:
                 train_losses_wandb = {
                     f"training-summary/{k}": v for k, v in train_losses.items()
                 }
+                train_losses_wandb["training-summary/batches_trained"] = (
+                    self.total_batches_trained
+                )
+                train_losses_wandb["training-summary/batches_remaining"] = (
+                    self.total_batches - self.total_batches_trained
+                )
                 train_losses_wandb["training-summary/samples_trained"] = (
                     self.total_samples_trained
-                )
-                train_losses_wandb["training-summary/samples_remaining"] = (
-                    self.total_samples - self.total_samples_trained
                 )
                 train_losses_wandb["training-summary/cycle_idx"] = self.cycle_idx
                 self.wandb_logger.log(train_losses_wandb, commit=True)
@@ -870,8 +898,8 @@ class Trainer:
             # Calculate time remaining #################################
             ############################################################
             rem_cycles = (
-                self.total_samples - self.total_samples_trained
-            ) / self.val_every_x_samples
+                self.total_batches - self.total_batches_trained
+            ) / self.val_every_x_batches
             # round up to nearest integer
             rem_cycles = math.ceil(rem_cycles)
 
@@ -891,7 +919,7 @@ class Trainer:
                         "summary/minutes_per_cycle": duration / 60,
                         "summary/avg_minutes_per_cycle": self.avg_sec_per_cycle / 60,
                         "summary/projected_minutes_remaining": proj_time_remaining / 60,
-                        "summary/seconds_per_1m_samples": self.avg_sec_per_1m_samples,
+                        "summary/seconds_per_1k_batches": self.avg_sec_per_1k_batches,
                     },
                     commit=True,
                 )
@@ -909,11 +937,21 @@ class Trainer:
             ############################################################
             # Shut down if next checkpoint would exceed time limit
             ############################################################
-            if self.shutdown_flag:
+            time_remaining = self.time_limit - (time.time() - self.start_time)
+            time_needed = (
+                self.avg_sec_per_checkpoint * 1.2
+            )  # time needed for next checkpoint
+            if time_remaining < time_needed:
+                self.shutdown_flag = torch.tensor(
+                    1, device=self.device
+                )  # set flag to tell outer loop to shut down
+                if self.ddp_enabled:
+                    dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.SUM)
                 self.log_msg(
                     "Summary: Next checkpoint would exceed time limit, shutting down"
                 )
-                break
+            if self.ddp_enabled:
+                dist.barrier()
 
         self.cleanup()
 
