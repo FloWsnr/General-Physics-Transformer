@@ -18,7 +18,7 @@ We are using conda and pip to manage the dependencies.
 conda create -n lpfm python=3.12
 conda activate lpfm
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-pip install einops h5py imageio ipykernel matplotlib neuraloperator pandas the-well tqdm dadaptation wandb dotenv prodigyopt
+pip install einops h5py imageio ipykernel matplotlib neuraloperator pandas the-well tqdm dadaptation wandb dotenv prodigyopt torchtnt
 pip install -e .
 ```
 
