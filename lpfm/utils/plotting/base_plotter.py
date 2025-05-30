@@ -1,3 +1,7 @@
+from collections import OrderedDict
+from itertools import cycle
+from typing import Literal
+
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
@@ -5,10 +9,7 @@ from matplotlib.ticker import ScalarFormatter
 from pathlib import Path
 
 import numpy as np
-from itertools import cycle
-from typing import Literal
-from collections import OrderedDict
-
+import pandas as pd
 
 # Load the CVT style
 white_style = Path(__file__).parent / "white.mplstyle"
@@ -413,3 +414,120 @@ class BasePlotter:
 
     def close(self):
         plt.close(self.fig)
+
+
+def calculate_combined_stats(
+    df: pd.DataFrame, column_patterns: list[str], level: int = 0
+) -> pd.DataFrame:
+    """
+    Calculate the mean, median, and standard deviation of columns that match specific patterns.
+    Is used to combine statistics of the same dataset with different delta t values.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input DataFrame containing the data
+    column_patterns : list of str
+        List of dataset names to combine statistics for
+    level : int
+        Level of the column to match
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing the combined statistics for each pattern
+    """
+    results = []
+    for pattern in column_patterns:
+        # Find columns that match the pattern exactly
+        matching_cols = [
+            col
+            for col in df.columns.get_level_values(level)
+            if col.startswith(pattern + "_") or col == pattern
+        ]
+        if matching_cols:
+            # Calculate statistics across matching columns
+            combined_mean = df[matching_cols].mean(axis=1).mean()
+            combined_median = df[matching_cols].median(axis=1).median()
+            combined_std = df[matching_cols].std(axis=1).mean()
+            results.append(
+                {
+                    "Pattern": pattern,
+                    "Combined Mean": combined_mean,
+                    "Combined Median": combined_median,
+                    "Combined Std": combined_std,
+                }
+            )
+
+    results = pd.DataFrame(results)
+    # Calculate overall statistics across all columns
+    overall_stats = pd.DataFrame(
+        [
+            {
+                "Pattern": "OVERALL",
+                "Combined Mean": np.nanmean(df.values),
+                "Combined Median": np.nanmedian(df.values),
+                "Combined Std": np.nanstd(df.values),
+            }
+        ]
+    )
+    data = pd.concat([results, overall_stats], ignore_index=True).T
+    return data
+
+
+def calculate_combined_stats_rollout(
+    df: pd.DataFrame, column_patterns: list[str], level: int = 0
+) -> pd.DataFrame:
+    """
+    Calculate statistics for multi-level columns while preserving the second level structure.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input DataFrame containing multi-level column data
+    column_patterns : list of str
+        List of dataset names to combine statistics for
+    level : int
+        Level of the column to match (default=0 for first level)
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing the combined statistics for each pattern,
+        preserving the second level column structure
+    """
+    data = []
+    index = []
+    for pattern in column_patterns:
+        # Find columns that match the pattern exactly in the first level
+        matching_cols = [
+            col
+            for col in df.columns.get_level_values(level)
+            if col.startswith(pattern + "_") or col == pattern
+        ]
+        if matching_cols:
+            # Get all second level columns for the matching first level columns
+            second_level_cols = df.columns.get_level_values(1).unique()
+            third_level_cols = df.columns.get_level_values(2).unique()
+
+            # Calculate statistics for each second level column
+            for second_col in second_level_cols:
+                for third_col in third_level_cols:
+                    # Get all columns that match both the pattern and second level
+                    cols_to_combine = [
+                        col
+                        for col in df.columns
+                        if col[0] in matching_cols
+                        and col[1] == second_col
+                        and col[2] == third_col
+                    ]
+
+                    if cols_to_combine:
+                        index.append((pattern, second_col, third_col))
+                        # Calculate statistics across matching columns
+                        data.append(df[cols_to_combine].mean(axis=1))
+
+    index = pd.MultiIndex.from_tuples(index, names=["pattern", "metric", "channel"])
+    df = pd.DataFrame(data, index=index).T
+
+    return df
