@@ -8,6 +8,7 @@ from pathlib import Path
 import platform
 import argparse
 import os
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -37,36 +38,6 @@ def load_config(path: Path) -> dict:
     with open(path, "r") as f:
         config = yaml.load(f, Loader=Loader)
     return config
-
-
-def load_model(
-    model_dir: Path, device: torch.device, model_config: dict, checkpoint_name: str
-) -> torch.nn.Module:
-    """Load a model from a checkpoint.
-
-    Parameters
-    ----------
-    model_path : Path
-        Path to the model checkpoint
-    device : torch.device
-        Device to load the model to
-    model_config : dict
-        Model configuration dictionary
-
-    Returns
-    -------
-    torch.nn.Module
-        Loaded model
-    """
-    subdir_name = "val_"
-    checkpoint_path = find_checkpoint(
-        model_dir, subdir_name=subdir_name, specific_checkpoint=checkpoint_name
-    )
-    model = get_model(model_config)
-    model.to(device)
-    data = load_stored_model(checkpoint_path, device, remove_ddp=True)
-    model.load_state_dict(data["model_state_dict"], strict=True)
-    return model
 
 
 class Evaluator:
@@ -176,7 +147,9 @@ class Evaluator:
             if torch.cuda.is_available()
             else torch.device("cpu")
         )
-        model = load_model(base_path, device, model_config, checkpoint_name)
+        model, checkpoint_info = cls._load_checkpoint(
+            base_path, device, model_config, checkpoint_name
+        )
         model.eval()
         datasets = get_dt_datasets(data_config, split="test")
 
@@ -195,6 +168,10 @@ class Evaluator:
         eval_dir = base_path / "eval" / checkpoint_name
         eval_dir.mkdir(parents=True, exist_ok=True)
 
+        # save the checkpoint info
+        with open(eval_dir / "checkpoint_info.json", "w") as f:
+            json.dump(checkpoint_info, f)
+
         return cls(
             model=model,
             datasets=datasets,
@@ -205,6 +182,47 @@ class Evaluator:
             local_rank=local_rank,
             world_size=world_size,
         )
+
+    @staticmethod
+    def _load_checkpoint(
+        path: Path,
+        device: torch.device,
+        model_config: dict,
+        checkpoint_name: str,
+    ) -> tuple[torch.nn.Module, dict]:
+        """Load a model from a checkpoint.
+
+        Parameters
+        ----------
+        path : Path
+            Path to the checkpoint
+        device : torch.device
+            Device to load the model to
+        model_config : dict
+            Model configuration dictionary
+
+        Returns
+        -------
+        tuple[torch.nn.Module, dict]
+            Loaded model and checkpoint information
+        """
+        subdir_name = "val_"
+        checkpoint_path = find_checkpoint(
+            path, subdir_name=subdir_name, specific_checkpoint=checkpoint_name
+        )
+        model = get_model(model_config)
+        model.to(device)
+        data = load_stored_model(checkpoint_path, device, remove_ddp=True)
+        model.load_state_dict(data["model_state_dict"], strict=True)
+
+        checkpoint = torch.load(checkpoint_path, weights_only=False)
+        checkpoint_info = {
+            "samples_trained": checkpoint["samples_trained"],
+            "batches_trained": checkpoint["batches_trained"],
+            "cycle_idx": checkpoint["cycle_idx"],
+        }
+
+        return model, checkpoint_info
 
     def _get_dataloader(self, dataset: PhysicsDataset, is_distributed: bool = False):
         if is_distributed:
