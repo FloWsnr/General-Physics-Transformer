@@ -47,7 +47,9 @@ def load_stored_model(
 
 
 def find_checkpoint(
-    sim_dir: Path, subdir_name: str, specific_checkpoint: str = "last_checkpoint"
+    sim_dir: Path,
+    subdir_name: str,
+    specific_checkpoint: str = "last_checkpoint",
 ) -> Path:
     """Find a specific checkpoint in the simulation directory.
 
@@ -61,7 +63,7 @@ def find_checkpoint(
 
     specific_checkpoint : str
         Specific checkpoint to look for, either "last_checkpoint",
-        "best_model", or a number of a epoch directory
+        "best_model", or a number of a epoch directory as string
 
     Returns
     -------
@@ -80,27 +82,25 @@ def find_checkpoint(
         else:
             print(f"No last checkpoint found at {last_checkpoint_path}")
             print("Checking for epoch directories")
-            return _find_checkpoint_in_epoch_dir(sim_dir, subdir_name)
-
-    else:
-        if specific_checkpoint == "best_model":
-            best_model_path = sim_dir / "best_model.pth"
-            if best_model_path.exists():
-                return best_model_path
-            else:
-                return None
+            return _search_last_dir(sim_dir, subdir_name)
+    elif specific_checkpoint == "best_model":
+        best_model_path = sim_dir / "best_model.pth"
+        if best_model_path.exists():
+            return best_model_path
         else:
-            # try to find the checkpoint in the epoch directory
-            checkpoint_path = (
-                sim_dir / f"epoch_{specific_checkpoint}" / "checkpoint.pth"
-            )
-            if checkpoint_path.exists():
-                return checkpoint_path
-            else:
-                return None
+            return None
+    else:
+        # try to find the checkpoint in the epoch directory
+        checkpoint_path = (
+            sim_dir / f"{subdir_name}{specific_checkpoint}" / "checkpoint.pth"
+        )
+        if checkpoint_path.exists():
+            return checkpoint_path
+        else:
+            return None
 
 
-def _find_checkpoint_in_epoch_dir(sim_dir: Path, subdir_name: str) -> Path:
+def _search_last_dir(sim_dir: Path, subdir_name: str) -> Path:
     """Find a checkpoint in an epoch directory.
 
     The format of the epoch directories is "epoch_XXXX" where XXXX is a number.

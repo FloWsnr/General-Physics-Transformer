@@ -58,7 +58,7 @@ def load_model(
     torch.nn.Module
         Loaded model
     """
-    subdir_name = "val"
+    subdir_name = "val_"
     checkpoint_path = find_checkpoint(
         model_dir, subdir_name=subdir_name, specific_checkpoint=checkpoint_name
     )
@@ -192,10 +192,13 @@ class Evaluator:
                 output_device=device,
             )
 
+        eval_dir = base_path / "eval" / checkpoint_name
+        eval_dir.mkdir(parents=True, exist_ok=True)
+
         return cls(
             model=model,
             datasets=datasets,
-            eval_dir=base_path / "eval",
+            eval_dir=eval_dir,
             batch_size=batch_size,
             num_workers=num_workers,
             global_rank=global_rank,
