@@ -108,6 +108,7 @@ def get_dataloader(
         pin_memory=True,
         sampler=sampler,
         prefetch_factor=prefetch_factor,
+        drop_last=True,
     )
 
     return dataloader

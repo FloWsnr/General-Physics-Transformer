@@ -676,6 +676,7 @@ class Trainer:
                 # revert permutation of x and target
                 x = x.permute(0, 2, 3, 4, 1)
                 target = target.permute(0, 2, 3, 4, 1)
+                output = output.permute(0, 2, 3, 4, 1)
                 visualize_predictions(
                     vis_path,
                     x.float(),
@@ -772,6 +773,7 @@ class Trainer:
                 # revert permutation of x and target
                 x = x.permute(0, 2, 3, 4, 1)
                 target = target.permute(0, 2, 3, 4, 1)
+                output = output.permute(0, 2, 3, 4, 1)
                 visualize_predictions(
                     vis_path,
                     x.float(),
