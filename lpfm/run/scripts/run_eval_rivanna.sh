@@ -36,11 +36,6 @@
 ### create time series, i.e. 100 jobs one after another. Each runs for 24 hours
 ##SBATCH --array=1-10%1
 
-### Set the time limit for the job, allows for graceful shutdown
-### Should be lower than the time limit of the partition
-### Format: HH:MM:SS
-time_limit="24:00:00"
-
 #####################################################################################
 ############################# Setup #################################################
 #####################################################################################
@@ -60,7 +55,6 @@ conda activate lpfm
 base_dir="/home/zsa8rk/Coding/Large-Physics-Foundation-Model"
 python_exec="${base_dir}/lpfm/run/model_eval.py"
 log_dir="/scratch/zsa8rk/logs"
-base_config_file="${base_dir}/lpfm/run/scripts/config.yaml"
 data_dir="/scratch/zsa8rk/datasets"
 # sim_name (same as wandb id)
 sim_name="m-main-4-1"
@@ -90,10 +84,10 @@ mkdir -p $sim_dir
 cp "$0" "${sim_dir}/slurm_eval_script.sh"
 
 # Try to find config file in sim_dir
-config_file="${sim_dir}/config.yaml"
+config_file="${sim_dir}/config_eval.yaml"
 if [ ! -f "$config_file" ]; then
-    echo "No config file found in $sim_dir, copying base config..."
-    cp $base_config_file $sim_dir
+    echo "No config_eval.yaml file found in $sim_dir, aborting..."
+    exit 1
 fi
 
 #####################################################################################

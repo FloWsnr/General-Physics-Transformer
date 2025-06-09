@@ -687,19 +687,20 @@ def main(
 
     model_config = config["model"]
     data_config = config["data"]
+    training_config = config["training"]
 
-    eval_ds = [
-        "supersonic_flow",
-    ]
+    # eval_ds = [
+    #     "supersonic_flow",
+    # ]
 
-    data_config["datasets"] = data_config["datasets"] + eval_ds
+    data_config["datasets"] = data_config["datasets"]  # + eval_ds
 
     evaluator = Evaluator.from_checkpoint(
         base_path=log_dir / sim_name,
         data_config=data_config,
         model_config=model_config,
-        batch_size=data_config["batch_size"],
-        num_workers=data_config["num_workers"],
+        batch_size=training_config["batch_size"],
+        num_workers=training_config["num_workers"],
         checkpoint_name=checkpoint_name,
         global_rank=global_rank,
         local_rank=local_rank,
