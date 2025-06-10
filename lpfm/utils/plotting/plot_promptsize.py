@@ -47,7 +47,7 @@ class PromptSizePlotter(BasePlotter):
 
 
 if __name__ == "__main__":
-    RUNS = ["m-main-4-1"]
+    # RUNS = ["m-main-4-1"]
 
     base_dir = Path("/scratch/zsa8rk/logs")
     plotter = PromptSizePlotter()
@@ -55,15 +55,16 @@ if __name__ == "__main__":
     losses = []
     steps = [1, 2, 4, 8]
     for step, run in zip(steps, RUNS):
+        print(f"Processing {run}")
         run_dir = base_dir / run / "eval"
         eval_dir = sorted(run_dir.iterdir())[-1]
-        
+
         with open(eval_dir / "checkpoint_info.json", "r") as f:
             checkpoint_info = json.load(f)
         # load df
         df = pd.read_csv(eval_dir / "losses.csv", index_col=0)
         stats = calculate_combined_stats(df, DATASETS)
-        loss = stats.loc["OVERALL", "Combined Median"]
+        loss = stats.loc["OVERALL", "Combined Mean"]
         losses.append(loss)
 
     # plot
