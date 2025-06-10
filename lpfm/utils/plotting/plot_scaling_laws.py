@@ -35,7 +35,7 @@ class ScalingLawPlotter(BasePlotter):
         super().__init__()
 
         x_ticks = [1e4, 1e5, 1e6]
-        y_ticks = [1e-3, 1e-4, 1e-5]
+        y_ticks = [1e-4, 1e-3, 1e-2, 1e-1]
         self.setup_figure(
             x_ticks=x_ticks,
             y_ticks=y_ticks,
@@ -47,6 +47,8 @@ class ScalingLawPlotter(BasePlotter):
 
 
 if __name__ == "__main__":
+    RUNS = ["m-main-4-1"]
+
     base_dir = Path("/scratch/zsa8rk/logs")
     plotter = ScalingLawPlotter()
     for run in RUNS:
@@ -56,20 +58,26 @@ if __name__ == "__main__":
         num_samples = []
         losses = []
 
-        for eval_checkpoint in run_dir.iterdir():
+        for eval_checkpoint in sorted(run_dir.iterdir()):
             if not eval_checkpoint.is_dir():
                 continue
-            print(eval_checkpoint.name)
             with open(eval_checkpoint / "checkpoint_info.json", "r") as f:
                 checkpoint_info = json.load(f)
-            num_updates.append(checkpoint_info["batches_trained"])
-            num_samples.append(checkpoint_info["samples_trained"])
+            batches = checkpoint_info["batches_trained"]
+            samples = checkpoint_info["samples_trained"]
+            num_updates.append(batches)
+            num_samples.append(samples)
 
             # load df
             df = pd.read_csv(eval_checkpoint / "losses.csv", index_col=0)
             stats = calculate_combined_stats(df, DATASETS)
-            loss = stats["OVERALL"].loc["Combined Mean"]
+            loss = stats.loc["OVERALL", "Combined Median"]
             losses.append(loss)
-
+            # printing
+            print(
+                f"Checkpoint {eval_checkpoint.name}: N_updates: {batches} N_samples: {samples} Loss: {loss:.2e}"
+            )
         # plot
         plotter.plot_data(num_updates, losses)
+
+    plotter.save_figure(base_dir.parent / "plots/scaling_laws.png")

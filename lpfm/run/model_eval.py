@@ -411,7 +411,7 @@ class Evaluator:
                     "full_trajectory_mode": True,
                 }
             )
-            self._log_msg(f"Rolling out on dataset {name}")
+            self._log_msg(f"Rolling out on dataset {name}. full rollout: {rollout}")
 
             # random trajectory indices
             indices = np.arange(len(dataset))

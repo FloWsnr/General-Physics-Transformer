@@ -452,7 +452,7 @@ def calculate_combined_stats(
             combined_std = df[matching_cols].std(axis=1).mean()
             results.append(
                 {
-                    "Pattern": pattern,
+                    "Dataset": pattern,
                     "Combined Mean": combined_mean,
                     "Combined Median": combined_median,
                     "Combined Std": combined_std,
@@ -464,14 +464,15 @@ def calculate_combined_stats(
     overall_stats = pd.DataFrame(
         [
             {
-                "Pattern": "OVERALL",
+                "Dataset": "OVERALL",
                 "Combined Mean": np.nanmean(df.values),
                 "Combined Median": np.nanmedian(df.values),
                 "Combined Std": np.nanstd(df.values),
             }
         ]
     )
-    data = pd.concat([results, overall_stats], ignore_index=True).T
+    data = pd.concat([results, overall_stats], ignore_index=True)
+    data = data.set_index("Dataset")
     return data
 
 
