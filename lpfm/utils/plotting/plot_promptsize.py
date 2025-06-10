@@ -1,0 +1,71 @@
+import json
+from pathlib import Path
+
+import pandas as pd
+
+from lpfm.utils.plotting.base_plotter import BasePlotter, calculate_combined_stats
+
+
+RUNS = [
+    "m-main-1-1",
+    "m-main-2-1",
+    "m-main-4-1",
+    "m-main-8-1",
+]
+
+DATASETS = [
+    "cylinder_sym_flow_water",
+    "cylinder_pipe_flow_water",
+    "object_periodic_flow_water",
+    "object_sym_flow_water",
+    "object_sym_flow_air",
+    "rayleigh_benard",
+    "rayleigh_benard_obstacle",
+    "twophase_flow",
+    "shear_flow",
+    "euler_multi_quadrants_periodicBC",
+    "heated_object_pipe_flow_air",
+    "cooled_object_pipe_flow_air",
+    "acoustic_scattering_inclusions",
+]
+
+
+class PromptSizePlotter(BasePlotter):
+    def __init__(self):
+        super().__init__()
+
+        x_ticks = [1, 2, 4, 8]
+        y_ticks = [1e-4, 1e-3, 1e-2, 1e-1]
+        self.setup_figure(
+            x_ticks=x_ticks,
+            y_ticks=y_ticks,
+            x_label="Number of input time steps",
+            y_label="Loss",
+            x_log=True,
+            y_log=True,
+        )
+
+
+if __name__ == "__main__":
+    RUNS = ["m-main-4-1"]
+
+    base_dir = Path("/scratch/zsa8rk/logs")
+    plotter = PromptSizePlotter()
+
+    losses = []
+    steps = [1, 2, 4, 8]
+    for step, run in zip(steps, RUNS):
+        run_dir = base_dir / run / "eval"
+        eval_dir = sorted(run_dir.iterdir())[-1]
+        
+        with open(eval_dir / "checkpoint_info.json", "r") as f:
+            checkpoint_info = json.load(f)
+        # load df
+        df = pd.read_csv(eval_dir / "losses.csv", index_col=0)
+        stats = calculate_combined_stats(df, DATASETS)
+        loss = stats.loc["OVERALL", "Combined Median"]
+        losses.append(loss)
+
+    # plot
+    plotter.plot_data(steps, losses)
+    plotter.save_figure(base_dir.parent / "plots/prompt_size.png")
