@@ -301,11 +301,10 @@ class Evaluator:
             x = x.to(self.device)
             target = target.to(self.device)
             # rearrange x and y to be (batch_size, n_channels, n_time_steps, n_height, n_width)
-            x = x.permute(0, 4, 1, 2, 3)
-            target = target.permute(0, 4, 1, 2, 3)
-            y = self.model(x)
+            y = self.model(x.permute(0, 4, 1, 2, 3))
             # use only the last time step as comparison, but keep the time dimension
-            y = y[:, :, -1, :, :].unsqueeze(2)
+            y = y.permute(0, 2, 3, 4, 1)
+            y = y[:, -1, :, :, :].unsqueeze(1)
             loss = criterion(y, target).squeeze(1)  # remove T dimension
             # get the loss of each sample, dont average accross batches only h,w,c
             loss = torch.mean(loss, dim=(1, 2, 3))
@@ -400,9 +399,10 @@ class Evaluator:
 
         for i in range(num_timesteps):
             # Predict next timestep
-            output = self.model(input.permute(0, 4, 1, 2, 3))  # (B, C, 1T, H, W)
+            output = self.model(input.permute(0, 4, 1, 2, 3))  # (B, C, T, H, W)
             # permute back
-            output = output.permute(0, 2, 3, 4, 1)  # (B, 1T, H, W, C)
+            output = output.permute(0, 2, 3, 4, 1)  # (B, T, H, W, C)
+            output = output[:, -1, :, :, :].unsqueeze(1)  # (B, 1, H, W, C)
             # if the output is nan, stop the rollout
             if torch.isnan(output).any() or torch.isinf(output).any():
                 break
