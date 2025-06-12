@@ -6,11 +6,17 @@ import pandas as pd
 from lpfm.utils.plotting.base_plotter import BasePlotter, calculate_combined_stats
 
 
-RUNS = [
+RUNS_PROMPT = [
     "m-main-1-1",
     "m-main-2-1",
     "m-main-4-1",
     "m-main-8-1",
+]
+
+RUNS_PATCH = [
+    "m-main-4-1",
+    "m-main-4-2",
+    "m-main-4-4",
 ]
 
 DATASETS = [
@@ -35,12 +41,28 @@ class PromptSizePlotter(BasePlotter):
         super().__init__()
 
         x_ticks = [1, 2, 4, 8]
-        y_ticks = [1e-4, 1e-3, 1e-2, 1e-1]
+        y_ticks = [1e-5, 1e-4, 1e-3]
         self.setup_figure(
             x_ticks=x_ticks,
             y_ticks=y_ticks,
-            x_label="Number of input time steps",
-            y_label="Loss",
+            x_label="N input time steps",
+            y_label="MSE",
+            x_log=True,
+            y_log=True,
+        )
+
+
+class PatchSizePlotter(BasePlotter):
+    def __init__(self):
+        super().__init__()
+
+        x_ticks = [1, 2, 4]
+        y_ticks = [1e-5, 1e-4, 1e-3]
+        self.setup_figure(
+            x_ticks=x_ticks,
+            y_ticks=y_ticks,
+            x_label="Temporal patch size",
+            y_label="MSE",
             x_log=True,
             y_log=True,
         )
@@ -54,7 +76,7 @@ if __name__ == "__main__":
 
     losses = []
     steps = [1, 2, 4, 8]
-    for step, run in zip(steps, RUNS):
+    for step, run in zip(steps, RUNS_PROMPT):
         print(f"Processing {run}")
         run_dir = base_dir / run / "eval"
         eval_dir = sorted(run_dir.iterdir())[-1]
@@ -64,9 +86,30 @@ if __name__ == "__main__":
         # load df
         df = pd.read_csv(eval_dir / "losses.csv", index_col=0)
         stats = calculate_combined_stats(df, DATASETS)
-        loss = stats.loc["OVERALL", "Combined Mean"]
+        loss = stats.loc["OVERALL", "Combined Median"]
         losses.append(loss)
 
     # plot
     plotter.plot_data(steps, losses)
     plotter.save_figure(base_dir.parent / "plots/prompt_size.png")
+
+    plotter = PatchSizePlotter()
+
+    losses = []
+    steps = [1, 2, 4]
+    for step, run in zip(steps, RUNS_PATCH):
+        print(f"Processing {run}")
+        run_dir = base_dir / run / "eval"
+        eval_dir = sorted(run_dir.iterdir())[-1]
+
+        with open(eval_dir / "checkpoint_info.json", "r") as f:
+            checkpoint_info = json.load(f)
+        # load df
+        df = pd.read_csv(eval_dir / "losses.csv", index_col=0)
+        stats = calculate_combined_stats(df, DATASETS)
+        loss = stats.loc["OVERALL", "Combined Median"]
+        losses.append(loss)
+
+    # plot
+    plotter.plot_data(steps, losses)
+    plotter.save_figure(base_dir.parent / "plots/patch_size.png")

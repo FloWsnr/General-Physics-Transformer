@@ -447,9 +447,10 @@ def calculate_combined_stats(
         ]
         if matching_cols:
             # Calculate statistics across matching columns
-            combined_mean = df[matching_cols].mean(axis=1).mean()
-            combined_median = df[matching_cols].median(axis=1).median()
-            combined_std = df[matching_cols].std(axis=1).mean()
+            matched_df = df[matching_cols]
+            combined_mean = np.nanmean(matched_df.values)
+            combined_median = np.nanmedian(matched_df.values)
+            combined_std = np.nanstd(matched_df.values)
             results.append(
                 {
                     "Dataset": pattern,
@@ -532,3 +533,17 @@ def calculate_combined_stats_rollout(
     df = pd.DataFrame(data, index=index).T
 
     return df
+
+
+def rollout_mean(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate the mean of the rollout data over the first level
+    """
+    data = []
+    lvl1_cols = df.columns.get_level_values(0).unique()
+    for lvl1_col in lvl1_cols:
+        data.append(df[lvl1_col]["mean"].values)
+
+    data = np.array(data)
+    data = data.mean(axis=0)
+    return data

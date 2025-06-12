@@ -660,8 +660,20 @@ class Evaluator:
                 self.visualize_rollout(
                     dataset,
                     num_timesteps=50,
-                    save_path=self.eval_dir / "images" / name,
+                    save_path=self.eval_dir / "images_rollout" / name,
                     rollout=True,
+                )
+        except Exception as e:
+            self.logger.error(f"Error visualizing rollout: {e}")
+
+        try:
+            # Visualize rollout on all datasets
+            for name, dataset in self.datasets.items():
+                self.visualize_rollout(
+                    dataset,
+                    num_timesteps=50,
+                    save_path=self.eval_dir / "images_single_step" / name,
+                    rollout=False,
                 )
         except Exception as e:
             self.logger.error(f"Error visualizing rollout: {e}")
@@ -754,7 +766,7 @@ def main(
         local_rank=local_rank,
         world_size=world_size,
     )
-    evaluator.main()
+    evaluator.main(overwrite=False)
 
 
 if __name__ == "__main__":
