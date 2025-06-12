@@ -7,6 +7,7 @@ from lpfm.utils.plotting.base_plotter import (
     calculate_combined_stats,
     calculate_combined_stats_rollout,
     rollout_mean,
+    rollout_median,
 )
 
 
@@ -49,19 +50,28 @@ if __name__ == "__main__":
 
         data_mean = rollout_mean(combined_df)
         x_ticks = [0, 5, 10]
-        y_ticks = [0, 0.2]
+        y_ticks = [0, 0.1, 0.2]
         plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks)
-        plotter.plot(mean_loss=data_mean, std_loss=None)
+        plotter.plot(mean_loss=data_mean[:11, :], std_loss=None)
+        # plotter.legend("Mean")
         plotter.save_figure(base_dir.parent / "plots/rollout/mean.png")
 
-        for pattern in flow_patterns:
-            data_mean = combined_df[pattern]["mean"].values
-            data_std = combined_df[pattern]["std"].values
+        data_median = rollout_median(combined_df)
+        x_ticks = [0, 5, 10]
+        y_ticks = [0, 0.01, 0.02]
+        plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks)
+        plotter.plot(mean_loss=data_median[:11, :], std_loss=None)
+        # plotter.legend("Median")
+        plotter.save_figure(base_dir.parent / "plots/rollout/median.png")
 
-            # Plot the combined dfs over time
-            x_ticks = [0, 25, 50]
-            y_ticks = [0, 0.2]
-            plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks)
-            plotter.plot(mean_loss=data_mean, std_loss=None)
-            plotter.save_figure(base_dir.parent / f"plots/rollout/{pattern}.png")
-        # plotter.legend("cylinder_sym_flow_water")
+        # for pattern in flow_patterns:
+        #     data_mean = combined_df[pattern]["mean"].values
+        #     data_std = combined_df[pattern]["std"].values
+
+        #     # Plot the combined dfs over time
+        #     x_ticks = [0, 25, 50]
+        #     y_ticks = [0, 0.2]
+        #     plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks)
+        #     plotter.plot(mean_loss=data_mean, std_loss=None)
+        #     plotter.save_figure(base_dir.parent / f"plots/rollout/{pattern}.png")
+        # # plotter.legend("cylinder_sym_flow_water")

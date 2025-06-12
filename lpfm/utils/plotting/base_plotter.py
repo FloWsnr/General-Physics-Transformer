@@ -547,3 +547,17 @@ def rollout_mean(df: pd.DataFrame) -> pd.DataFrame:
     data = np.array(data)
     data = data.mean(axis=0)
     return data
+
+
+def rollout_median(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate the median of the rollout data over the first level
+    """
+    data = []
+    lvl1_cols = df.columns.get_level_values(0).unique()
+    for lvl1_col in lvl1_cols:
+        data.append(df[lvl1_col]["median"].values)
+
+    data = np.array(data)
+    data = np.nanmedian(data, axis=0)
+    return data

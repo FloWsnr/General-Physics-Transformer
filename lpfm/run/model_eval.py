@@ -581,7 +581,11 @@ class Evaluator:
                 gt_path = save_path / f"{field}_gt_t{t}.png"
                 gt_img.save(gt_path)
 
-    def main(self, overwrite: bool = False):
+    def main(self, overwrite: bool = False, subdir_name: str | None = None):
+        if subdir_name is not None:
+            self.eval_dir = self.eval_dir / subdir_name
+            self.eval_dir.mkdir(parents=True, exist_ok=True)
+
         if not overwrite and (self.eval_dir / "losses.csv").exists():
             self.logger.info("Losses already evaluated, skipping...")
         else:
@@ -642,6 +646,7 @@ def main(
     checkpoint_name: str,
     sim_name: str | None,
     data_dir: Path | None,
+    subdir_name: str | None,
     global_rank: int,
     local_rank: int,
     world_size: int,
@@ -660,6 +665,8 @@ def main(
         Name of the simulation
     data_dir : Path | None
         Path to the data directory
+    subdir_name : str | None
+        Name of the subdirectory where the evaluation is stored
     global_rank : int
         Global rank for distributed training
     local_rank : int
@@ -718,7 +725,7 @@ def main(
         local_rank=local_rank,
         world_size=world_size,
     )
-    evaluator.main()
+    evaluator.main(subdir_name=subdir_name)
 
 
 if __name__ == "__main__":
@@ -731,6 +738,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_name", type=str)
     parser.add_argument("--sim_name", type=str)
     parser.add_argument("--data_dir", type=str)
+    parser.add_argument("--subdir_name", type=str, default=None)
     args = parser.parse_args()
 
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
@@ -742,6 +750,7 @@ if __name__ == "__main__":
     sim_name = args.sim_name
     data_dir = args.data_dir
     checkpoint_name = args.checkpoint_name
+    subdir_name = args.subdir_name
 
     main(
         config_path=config_path,
@@ -749,6 +758,7 @@ if __name__ == "__main__":
         sim_name=sim_name,
         data_dir=data_dir,
         checkpoint_name=checkpoint_name,
+        subdir_name=subdir_name,
         global_rank=global_rank,
         local_rank=local_rank,
         world_size=world_size,
