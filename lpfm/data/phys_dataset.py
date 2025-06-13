@@ -78,6 +78,7 @@ class PhysicsDataset(WellDataset):
         full_trajectory_mode: bool = False,
         max_rollout_steps: int = 10000,
         nan_to_zero: bool = True,
+        flip_x: bool = False,
     ):
         self.config = {
             "data_dir": data_dir,
@@ -89,6 +90,7 @@ class PhysicsDataset(WellDataset):
             "full_trajectory_mode": full_trajectory_mode,
             "max_rollout_steps": max_rollout_steps,
             "nan_to_zero": nan_to_zero,
+            "flip_x": flip_x,
         }
 
         if isinstance(dt_stride, list):
@@ -110,6 +112,7 @@ class PhysicsDataset(WellDataset):
             max_rollout_steps=max_rollout_steps,
         )
         self.nan_to_zero = nan_to_zero
+        self.flip_x = flip_x
 
     def copy(self, overwrites: dict[str, Any] = {}) -> "PhysicsDataset":
         """Copy the dataset with optional overwrites.
@@ -133,6 +136,7 @@ class PhysicsDataset(WellDataset):
             full_trajectory_mode=config["full_trajectory_mode"],
             max_rollout_steps=config["max_rollout_steps"],
             nan_to_zero=config["nan_to_zero"],
+            flip_x=config["flip_x"],
         )
 
     def __len__(self):
@@ -146,6 +150,13 @@ class PhysicsDataset(WellDataset):
         if self.nan_to_zero:
             x = torch.nan_to_num(x, 0)
             y = torch.nan_to_num(y, 0)
+
+        if self.flip_x:
+            x = x[:, ::-1, :, :]
+            y = y[:, ::-1, :, :]
+            # additionally, velocity vectors need to be flipped
+            x[:, :, :, -2:] = x[:, :, :, -2:] * -1
+
         return x, y
 
 
