@@ -152,8 +152,8 @@ class PhysicsDataset(WellDataset):
             y = torch.nan_to_num(y, 0)
 
         if self.flip_x:
-            x = x[:, ::-1, :, :]
-            y = y[:, ::-1, :, :]
+            x = torch.flip(x, dims=[1])
+            y = torch.flip(y, dims=[1])
             # additionally, velocity vectors need to be flipped
             x[:, :, :, -2:] = x[:, :, :, -2:] * -1
 
