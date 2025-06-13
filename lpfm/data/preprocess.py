@@ -327,7 +327,11 @@ def process_hdf5(
                         else:
                             # Get the dataset data
                             data = item[()]
-                            time_varying = item.attrs["time_varying"] if "time_varying" in item.attrs else False
+                            time_varying = (
+                                item.attrs["time_varying"]
+                                if "time_varying" in item.attrs
+                                else False
+                            )
                             # Apply transformation if provided
                             data = transform_fn_data(
                                 name, data, target_shape, swap, time_varying
@@ -401,24 +405,23 @@ def remove_fields_hdf5(
             # Start copying from root group
             copy_group(src_file, dst_file)
 
+
 def split_hdf5(
     input_path: Path,
     output_path: Path,
     num_splits: int = 2,
 ):
-    """Split the HDF5 file into two files with half of the trajectories in each file.
-    """
+    """Split the HDF5 file into two files with half of the trajectories in each file."""
 
     field_names = ["pressure", "temperature", "density", "velocity"]
 
     def copy_attr(src_attr, dst_attr):
         for attr_name, attr_value in src_attr.items():
             dst_attr[attr_name] = attr_value
-        
+
     print(f"Splitting {input_path} into {num_splits} files")
 
     with h5py.File(input_path, "r") as src_file:
-
         num_traj = src_file.attrs["n_trajectories"]
         num_traj_per_file = num_traj // num_splits
         split_idx = [0]
@@ -427,7 +430,7 @@ def split_hdf5(
         split_idx.append(num_traj)
 
         for split in range(num_splits):
-            num_traj = split_idx[split+1] - split_idx[split]
+            num_traj = split_idx[split + 1] - split_idx[split]
             dst_file_path = output_path.parent / f"{output_path.stem}_{split}.hdf5"
             print(f"Creating {dst_file_path}")
 
@@ -452,8 +455,8 @@ def split_hdf5(
                             data = item[()]
                             if name in field_names:
                                 start_idx = split_idx[split]
-                                end_idx = split_idx[split+1]
-                                data = data[start_idx:end_idx,...]
+                                end_idx = split_idx[split + 1]
+                                data = data[start_idx:end_idx, ...]
                             # Copy dataset and its attributes
                             new_dataset = dst_group.create_dataset(name, data=data)
                             copy_attr(item.attrs, new_dataset.attrs)
@@ -482,6 +485,12 @@ settings = {
         "conv_density": False,
     },
     "euler_multi_quadrants_periodicBC": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": True,
+        "conv_density": False,
+    },
+    "euler_multi_quadrants_openBC": {
         "swap": False,
         "conv_buoyancy": False,
         "conv_momentum": True,
@@ -523,6 +532,12 @@ settings = {
         "conv_momentum": False,
         "conv_density": False,
     },
+    "open_obj_water": {
+        "swap": False,
+        "conv_buoyancy": False,
+        "conv_momentum": False,
+        "conv_density": False,
+    },
     "twophase_flow": {
         "swap": False,
         "conv_buoyancy": False,
@@ -550,41 +565,38 @@ settings = {
 }
 
 if __name__ == "__main__":
-    base_path = Path(
-        "/scratch/zsa8rk/datasets"
-    )
-    dataset_name = "euler_multi_quadrants_periodicBC"
-    dataset_dir = base_path / dataset_name / "data" / "train"
+    base_path = Path("/scratch/zsa8rk/datasets")
+    dataset_name = "open_obj_water"
+    dataset_dir = base_path / dataset_name / "data" / "test"
 
     swap = settings[dataset_name]["swap"]
     conv_buoyancy = settings[dataset_name]["conv_buoyancy"]
     conv_momentum = settings[dataset_name]["conv_momentum"]
     conv_density = settings[dataset_name]["conv_density"]
 
-    # # make a safety copy of the whole directory and its contents
-    # print(f"Copying {dataset_dir} to {dataset_dir.parent / f'{dataset_dir.stem}_copy'}")
-    # shutil.copytree(dataset_dir, dataset_dir.parent / f"{dataset_dir.stem}_copy")
+    files = list(dataset_dir.glob("**/*.hdf5"))
+    files.sort()
+    print(f"Processing {len(files)} files")
+    for file in files:
+        if "new" in file.stem:
+            print("Skipping", file)
+            continue
+        new_name = file.parent / f"{file.stem}_new.hdf5"
+        process_hdf5(
+            file,
+            new_name,
+            swap,
+            conv_buoyancy=conv_buoyancy,
+            conv_momentum=conv_momentum,
+            conv_density=conv_density,
+        )
+        # break
+        # remove old file
+        file.unlink()
+        # rename new file
+        new_name.rename(file)
 
     # for file in list(dataset_dir.glob("**/*.hdf5")):
-    #     if "new" in file.stem:
-    #         print("Skipping", file)
-    #         continue
-    #     new_name = file.parent / f"{file.stem}_new.hdf5"
-    #     process_hdf5(
-    #         file,
-    #         new_name,
-    #         swap,
-    #         conv_buoyancy=conv_buoyancy,
-    #         conv_momentum=conv_momentum,
-    #         conv_density=conv_density,
-    #     )
-        # # break
-        # # remove old file
-        # file.unlink()
-        # # rename new file
-        # new_name.rename(file)
-
-    for file in list(dataset_dir.glob("**/*.hdf5")):
-        new_name = file.parent / f"{file.stem}.hdf5"
-        split_hdf5(file, new_name, num_splits=8)
-        # break
+    #     new_name = file.parent / f"{file.stem}.hdf5"
+    #     split_hdf5(file, new_name, num_splits=8)
+    #     # break
