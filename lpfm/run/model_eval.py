@@ -32,6 +32,7 @@ from lpfm.data.dataset_utils import get_dt_datasets
 from lpfm.data.phys_dataset import PhysicsDataset
 from lpfm.utils.logger import get_logger
 from lpfm.run.run_utils import load_stored_model, find_checkpoint
+from lpfm.utils.train_vis import visualize_predictions
 
 
 def load_config(path: Path) -> dict:
@@ -244,6 +245,11 @@ class Evaluator:
         if self.global_rank == 0:
             self.logger.info(msg)
 
+    def _high_loss_idx(self, losses: torch.Tensor):
+        """Get the indices of the losses that are too high."""
+        high_losses = losses > 10
+        return high_losses
+
     @torch.inference_mode()
     def _eval_on_dataset(self, dataset: PhysicsDataset) -> torch.Tensor:
         criterion = torch.nn.MSELoss(reduction="none")
@@ -259,7 +265,24 @@ class Evaluator:
                 y = self.model(x)
                 loss = criterion(y, target).squeeze(1)  # remove T dimension
             # get the loss of each sample, dont average accross batches only h,w,c
-            loss = torch.mean(loss, dim=(1, 2, 3))
+            loss = torch.mean(loss, dim=(1, 2, 3))  # B
+
+            # check losses and vis image if too high
+            high_loss_idxs = self._high_loss_idx(loss)
+            if high_loss_idxs.any():
+                x_high_loss = x[high_loss_idxs, ...]
+                target_high_loss = target[high_loss_idxs, ...]
+                y_high_loss = y[high_loss_idxs, ...]
+
+                # visualize the image
+                visualize_predictions(
+                    self.eval_dir
+                    / f"images_highloss/{dataset.dataset_name}_batch{i}.png",
+                    x_high_loss,
+                    y_high_loss,
+                    target_high_loss,
+                    num_samples=4,
+                )
 
             # gather losses from all GPUs
             if self.ddp_enabled:
@@ -707,10 +730,6 @@ def main(
     model_config = config["model"]
     data_config = config["data"]
     training_config = config["training"]
-
-    # eval_ds = [
-    #     "supersonic_flow",
-    # ]
 
     data_config["datasets"] = data_config["datasets"]  # + eval_ds
 
