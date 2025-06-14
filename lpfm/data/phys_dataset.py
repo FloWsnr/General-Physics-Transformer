@@ -65,6 +65,12 @@ class PhysicsDataset(WellDataset):
     nan_to_zero: bool
         Whether to replace NaNs with 0
         By default True
+    flip_x: bool
+        Whether to flip the x-axis of the data
+        By default False
+    flip_y: bool
+        Whether to flip the y-axis of the data
+        By default False
     """
 
     def __init__(
@@ -79,6 +85,7 @@ class PhysicsDataset(WellDataset):
         max_rollout_steps: int = 10000,
         nan_to_zero: bool = True,
         flip_x: bool = False,
+        flip_y: bool = False,
     ):
         self.config = {
             "data_dir": data_dir,
@@ -91,6 +98,7 @@ class PhysicsDataset(WellDataset):
             "max_rollout_steps": max_rollout_steps,
             "nan_to_zero": nan_to_zero,
             "flip_x": flip_x,
+            "flip_y": flip_y,
         }
 
         if isinstance(dt_stride, list):
@@ -113,6 +121,7 @@ class PhysicsDataset(WellDataset):
         )
         self.nan_to_zero = nan_to_zero
         self.flip_x = flip_x
+        self.flip_y = flip_y
 
     def copy(self, overwrites: dict[str, Any] = {}) -> "PhysicsDataset":
         """Copy the dataset with optional overwrites.
@@ -137,6 +146,7 @@ class PhysicsDataset(WellDataset):
             max_rollout_steps=config["max_rollout_steps"],
             nan_to_zero=config["nan_to_zero"],
             flip_x=config["flip_x"],
+            flip_y=config["flip_y"],
         )
 
     def __len__(self):
