@@ -38,26 +38,28 @@ DATASETS = [
 
 class PromptSizePlotter(BasePlotter):
     def __init__(self):
-        super().__init__()
+        super().__init__(figsize=(4.3, 4.3 / 2))
 
         x_ticks = [1, 2, 4, 8]
-        y_ticks = [1e-5, 1e-4, 1e-3]
+        y_ticks = [1e-4, 1e-3]
         self.setup_figure(
             x_ticks=x_ticks,
             y_ticks=y_ticks,
-            x_label="N input time steps",
+            x_label=r"$\mathregular{N_{input}}$",
             y_label="MSE",
             x_log=True,
             y_log=True,
+            padding_factor=(0.1, 0.22),
+            minor_ticks=False,
         )
 
 
 class PatchSizePlotter(BasePlotter):
     def __init__(self):
-        super().__init__()
+        super().__init__(figsize=(4.3, 4.3 / 2))
 
         x_ticks = [1, 2, 4]
-        y_ticks = [1e-5, 1e-4, 1e-3]
+        y_ticks = [1e-4, 1e-3]
         self.setup_figure(
             x_ticks=x_ticks,
             y_ticks=y_ticks,
@@ -65,13 +67,15 @@ class PatchSizePlotter(BasePlotter):
             y_label="MSE",
             x_log=True,
             y_log=True,
+            padding_factor=(0.1, 0.22),
+            minor_ticks=False,
         )
 
 
 if __name__ == "__main__":
+    base_dir = Path("/scratch/zsa8rk/logs")
     # RUNS = ["m-main-4-1"]
 
-    base_dir = Path("/scratch/zsa8rk/logs")
     plotter = PromptSizePlotter()
 
     losses = []

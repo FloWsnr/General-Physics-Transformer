@@ -139,6 +139,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
     dt_stride = data_config["dt_stride"]
     use_normalization = data_config.get("use_normalization", False)
     flip_x = data_config.get("flip_x", False)
+    flip_y = data_config.get("flip_y", False)
     datasets = {}
     dataset_list: list[str] = data_config["datasets"].copy()
 
@@ -153,6 +154,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             include_field_names=include_field_names,
             use_normalization=use_normalization,
             flip_x=flip_x,
+            flip_y=flip_y,
         )
         datasets[dataset_name] = dataset
 

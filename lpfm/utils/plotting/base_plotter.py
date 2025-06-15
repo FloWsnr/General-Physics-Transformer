@@ -1,11 +1,10 @@
 from collections import OrderedDict
 from itertools import cycle
-from typing import Literal
+from typing import Literal, Optional
 
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.ticker import AutoMinorLocator
-from matplotlib.ticker import ScalarFormatter
+from matplotlib.ticker import AutoMinorLocator, ScalarFormatter, LogLocator, NullLocator
 from pathlib import Path
 
 import numpy as np
@@ -17,7 +16,11 @@ black_style = Path(__file__).parent / "black.mplstyle"
 
 
 class BasePlotter:
-    def __init__(self, color: Literal["white", "black"] = "white") -> None:
+    def __init__(
+        self,
+        color: Literal["white", "black"] = "white",
+        figsize: Optional[tuple[float, float]] = None,
+    ) -> None:
         if color == "white":
             plt.style.use(white_style)
         else:
@@ -95,7 +98,8 @@ class BasePlotter:
         ##################################################
         ########### Data parameters ######################
         ##################################################
-        self.fig, self.ax = plt.subplots()
+
+        self.fig, self.ax = plt.subplots(figsize=figsize)
 
     def plot_data(
         self,
@@ -276,6 +280,7 @@ class BasePlotter:
         x_log=False,
         y_log=False,
         padding_factor: float = 0.1,
+        minor_ticks: bool = True,
     ) -> None:
         """
         Setup the figure with the given parameters
@@ -301,9 +306,14 @@ class BasePlotter:
         y_log : bool, optional
             If True, the y-axis is logarithmic, by default False
 
-        padding_factor : float, optional
+        padding_factor : float|tuple[float, float], optional
             Padding of the x-axis and y-axis, by default 0.1
+
+        minor_ticks : bool, optional
+            If True, show minor ticks (also on log scales), by default True
         """
+        if isinstance(padding_factor, float):
+            padding_factor = (padding_factor, padding_factor)
 
         # Set the labels
         self.ax.set_xlabel(x_label, fontweight="normal")
@@ -313,18 +323,25 @@ class BasePlotter:
         if x_log:
             self.ax.set_xscale("log")
             x_span = np.log10(x_ticks[-1]) - np.log10(x_ticks[0])
-            padding = x_span * padding_factor
+            padding = x_span * padding_factor[0]
             x_min = x_ticks[0] / 10**padding
             x_max = x_ticks[-1] * 10**padding
 
+            if minor_ticks:
+                self.ax.xaxis.set_minor_locator(LogLocator(subs="auto"))
+            else:
+                self.ax.xaxis.set_minor_locator(NullLocator())
+
         else:
             x_span = x_ticks[-1] - x_ticks[0]
-            padding = x_span * padding_factor
+            padding = x_span * padding_factor[0]
             x_min = x_ticks[0] - padding
             x_max = x_ticks[-1] + padding
 
-            # Minor ticks only work on non-log scale
-            self.ax.xaxis.set_minor_locator(AutoMinorLocator(2))
+            if minor_ticks:
+                self.ax.xaxis.set_minor_locator(AutoMinorLocator(2))
+            else:
+                self.ax.xaxis.set_minor_locator(NullLocator())
 
         self.ax.set_xlim([x_min, x_max])
         self.ax.set_xticks(x_ticks)
@@ -333,18 +350,25 @@ class BasePlotter:
         if y_log:
             self.ax.set_yscale("log")
             y_span = np.log10(y_ticks[-1]) - np.log10(y_ticks[0])
-            padding = y_span * padding_factor
+            padding = y_span * padding_factor[1]
             y_min = y_ticks[0] / 10**padding
             y_max = y_ticks[-1] * 10**padding
 
+            if minor_ticks:
+                self.ax.yaxis.set_minor_locator(LogLocator(subs="auto"))
+            else:
+                self.ax.yaxis.set_minor_locator(NullLocator())
+
         else:
             y_span = y_ticks[-1] - y_ticks[0]
-            padding = y_span * padding_factor
+            padding = y_span * padding_factor[1]
             y_min = y_ticks[0] - padding
             y_max = y_ticks[-1] + padding
 
-            # Minor ticks only work on non-log scale
-            self.ax.yaxis.set_minor_locator(AutoMinorLocator(2))
+            if minor_ticks:
+                self.ax.yaxis.set_minor_locator(AutoMinorLocator(2))
+            else:
+                self.ax.yaxis.set_minor_locator(NullLocator())
 
         self.ax.set_ylim([y_min, y_max])
         self.ax.set_yticks(y_ticks)
