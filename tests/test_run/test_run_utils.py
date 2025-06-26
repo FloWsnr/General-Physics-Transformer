@@ -29,9 +29,10 @@ def test_find_checkpoint_specific_epoch(tmp_path):
     epoch_dir = tmp_path / "epoch_42"
     epoch_dir.mkdir()
     checkpoint = epoch_dir / "checkpoint.pth"
-    checkpoint.touch()
+    with open(checkpoint, "w") as f:
+        f.write("test")
 
-    result = find_checkpoint(tmp_path, "epoch", specific_checkpoint="42")
+    result = find_checkpoint(tmp_path, "epoch_", specific_checkpoint="42")
     assert result == checkpoint
 
 
