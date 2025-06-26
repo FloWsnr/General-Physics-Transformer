@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class GPT_Ti:
+class GPT_S:
     hidden_dim: int = 192
     mlp_dim: int = 768
     num_heads: int = 3

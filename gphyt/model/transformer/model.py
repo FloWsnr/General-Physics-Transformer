@@ -10,7 +10,7 @@ from gphyt.model.transformer.pos_encodings import (
 )
 from gphyt.model.tokenizer.tokenizer import Tokenizer, Detokenizer
 from gphyt.model.transformer.derivatives import FiniteDifference
-from gphyt.model.transformer.num_integration import Euler
+from gphyt.model.transformer.num_integration import Euler, RK4, Heun
 import gphyt.model.model_specs as model_specs
 
 
@@ -19,8 +19,8 @@ def get_model(model_config: dict):
     transformer_config: dict = model_config["transformer"]
     tokenizer_config: dict = model_config["tokenizer"]
 
-    if transformer_config["model_size"] == "GPT_Ti":
-        gpt_config = model_specs.GPT_Ti()
+    if transformer_config["model_size"] == "GPT_S":
+        gpt_config = model_specs.GPT_S()
     elif transformer_config["model_size"] == "GPT_M":
         gpt_config = model_specs.GPT_M()
     elif transformer_config["model_size"] == "GPT_L":
@@ -37,7 +37,7 @@ def get_model(model_config: dict):
         num_heads=gpt_config.num_heads,
         num_layers=gpt_config.num_layers,
         att_mode=transformer_config.get("att_mode", "full"),
-        parc_mode=transformer_config.get("parc_mode", False),
+        integrator=transformer_config.get("integrator", "Euler"),
         pos_enc_mode=transformer_config["pos_enc_mode"],
         img_size=model_config["img_size"],
         patch_size=transformer_config["patch_size"],
@@ -78,11 +78,10 @@ class PhysicsTransformer(nn.Module):
         Position encoding mode. Can be "rope" or "absolute".
     patch_size: tuple[int, int, int]
         Patch size for spatial-temporal embeddings. (time, height, width)
-    att_mode: Literal["full", "full_causal"] = "full"
-        Attention mode. Can be "full" or "full_causal".
-    parc_mode: bool = False
-        Whether to use the PARC mode, i.e. let the model
-        predict the time-derivative of the input and integrate it as output
+    att_mode: Literal["full"] = "full"
+        Attention mode. Can be "full".
+    integrator: str
+        Integrator to use
     img_size: tuple[int, int, int]
         Incoming image size (time, height, width)
     use_derivatives: bool, optional
@@ -92,10 +91,10 @@ class PhysicsTransformer(nn.Module):
     ########### Tokenizer parameters ###############################
     ################################################################
 
-    tokenizer_mode: Literal["linear", "non_linear"] = "linear"
-        Tokenizer mode. Can be "linear" or "non_linear".
-    detokenizer_mode: Literal["linear", "non_linear"] = "linear"
-        Detokenizer mode. Can be "linear" or "non_linear".
+    tokenizer_mode: Literal["linear", "conv_net"] = "linear"
+        Tokenizer mode. Can be "linear" or "conv_net".
+    detokenizer_mode: Literal["linear", "conv_net"] = "linear"
+        Detokenizer mode. Can be "linear" or "conv_net".
     tokenizer_net_channels: list[int] = None
         Number of channels in the tokenizer conv_net.
     detokenizer_net_channels: list[int] = None
@@ -126,10 +125,10 @@ class PhysicsTransformer(nn.Module):
         img_size: tuple[int, int, int],
         use_derivatives: bool = False,
         pos_enc_mode: Literal["rope", "absolute"] = "absolute",
-        att_mode: Literal["full", "full_causal"] = "full",
-        parc_mode: bool = False,
-        tokenizer_mode: Literal["linear", "non_linear"] = "linear",
-        detokenizer_mode: Literal["linear", "non_linear"] = "linear",
+        att_mode: Literal["full"] = "full",
+        integrator: str = "Euler",
+        tokenizer_mode: Literal["linear", "conv_net"] = "linear",
+        detokenizer_mode: Literal["linear", "conv_net"] = "linear",
         tokenizer_overlap: int = 0,
         detokenizer_overlap: int = 0,
         tokenizer_net_channels: Optional[list[int]] = None,
@@ -158,9 +157,14 @@ class PhysicsTransformer(nn.Module):
             # however, the output channels of the tokenizer are still the original input channels
             num_input_channels *= 4
 
-        self.parc_mode = parc_mode
-        if self.parc_mode:
+        if integrator == "Euler":
             self.integrator = Euler()
+        elif integrator == "RK4":
+            self.integrator = RK4()
+        elif integrator == "Heun":
+            self.integrator = Heun()
+        else:
+            self.integrator = None
 
         self.tokenizer = Tokenizer(
             patch_size=patch_size,
@@ -217,14 +221,12 @@ class PhysicsTransformer(nn.Module):
             img_size=img_size,
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def differentiate(self, x: torch.Tensor) -> torch.Tensor:
         assert not torch.isnan(x).any(), "Input contains NaNs"
 
         if self.use_derivatives:
             dt, dh, dw = self.derivatives(x)
             x = torch.cat([x, dt, dh, dw], dim=-1)
-
-        norm_input = x.clone()
 
         # Split into patches
         x = self.tokenizer(x)
@@ -236,13 +238,13 @@ class PhysicsTransformer(nn.Module):
 
         # # Apply de-patching
         x = self.detokenizer(x)
-        if self.parc_mode:
-            # remove derivative channels so that x has the same shape as norm_input
-            norm_input = norm_input[..., : self.num_fields]
-            x = self.integrator(x, norm_input, step_size=1.0)
+        return x
 
-        if self.att_mode == "full_causal":
-            return x
+    def forward(self, x: torch.Tensor, step_size: float = 1.0) -> torch.Tensor:
+        if self.integrator is not None:
+            x = self.integrator(self.differentiate, x, step_size)
         else:
-            # return last time step
-            return x[:, -1, ...].unsqueeze(1)
+            x = self.differentiate(x)
+
+        # return last time step
+        return x[:, -1, ...].unsqueeze(1)
