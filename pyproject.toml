@@ -1,10 +1,10 @@
 [project]
-name = "lpfm"
+name = "gphyt"
 version = "0.1.0"
-description = "Large Physics Foundation Model for Computational Fluid Dynamics"
+description = "Towards a General Physics Transformer"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
 
 [tool.setuptools]
-packages = ["lpfm"]
+packages = ["gphyt"]

@@ -1,13 +1,9 @@
-# Large Physics Foundation Model for Computational Fluid Dynamics
-
-This repository contains the code for the Large Physics Foundation Model (LPFM) for Computational Fluid Dynamics.
-The LPFM is a transformer-based foundation model capable of learning many different systems of CFD equations at once.
-
-Its input are multiple time-steps of physical fields, such as velocity and pressure, and the model predicts the next time-step.
-
-
+# Towards a General Physics Transformer
 ## Introduction
 
+This repository contains the code for the paper "Towards a General Physics Transformer". The GPhyT is a physics-aware transformer model trained to predict over
+11 different physics systems. Specifically, the model leverages "in-context learning", i.e. learning from a set of initial time steps to deduce the physics of the system.
+The makes the model capable of learning new physics systems without any additional pretraining and without any user input.
 
 
 ## Installation
@@ -15,8 +11,8 @@ Its input are multiple time-steps of physical fields, such as velocity and press
 We are using conda and pip to manage the dependencies.
 
 ```bash
-conda create -n lpfm python=3.12
-conda activate lpfm
+conda create -n gphyt python=3.12
+conda activate gphyt
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 pip install einops h5py imageio ipykernel matplotlib neuraloperator pandas the-well tqdm dadaptation wandb dotenv prodigyopt torchtnt
 pip install -e .
@@ -29,7 +25,7 @@ This study uses both self-made datasets and datasets from [The Well](https://pol
 The well-datasets can be downloaded like this:
 
 ```bash
-the-well-download --base-path /home/lpfm --dataset turbulent_radiative_layer_2D
+the-well-download --base-path /home/gphyt --dataset turbulent_radiative_layer_2D
 ```
 
 All datasets are formatted according to the-well [format](https://polymathic-ai.org/the_well/data_format/).
@@ -46,3 +42,5 @@ The datasets cover the following physics:
 - Flow with heat transfer
 - Obstacles and wall interactions
 - Two-phase flow
+- Acoustic scattering
+- Natural convection
