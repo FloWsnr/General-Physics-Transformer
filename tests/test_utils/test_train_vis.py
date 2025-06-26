@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from lpfm.utils.train_vis import visualize_predictions
+from gphyt.utils.train_vis import visualize_predictions
 
 
 @pytest.fixture

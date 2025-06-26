@@ -10,7 +10,7 @@ import torch.nn as nn
 
 from einops.layers.torch import Rearrange
 
-from lpfm.model.tokenizer.tokenizer_utils import _calculate_strides
+from gphyt.model.tokenizer.tokenizer_utils import _calculate_strides
 
 
 class Tokenizer(nn.Module):

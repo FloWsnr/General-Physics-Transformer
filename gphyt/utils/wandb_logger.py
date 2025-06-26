@@ -15,7 +15,7 @@ import wandb
 import wandb.wandb_run
 from wandb.sdk.wandb_run import Run
 
-from lpfm.utils.logger import get_logger
+from gphyt.utils.logger import get_logger
 
 
 class WandbLogger:

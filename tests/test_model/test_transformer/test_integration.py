@@ -6,7 +6,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from lpfm.model.transformer.num_integration import Euler
+from gphyt.model.transformer.num_integration import Euler
 
 
 class TestEuler:

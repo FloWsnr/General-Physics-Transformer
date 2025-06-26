@@ -1,4 +1,4 @@
-from lpfm.utils.plotting.base_plotter import BasePlotter
+from gphyt.utils.plotting.base_plotter import BasePlotter
 from typing import Literal
 import torch
 import numpy as np

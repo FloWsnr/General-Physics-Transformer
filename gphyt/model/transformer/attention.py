@@ -11,7 +11,7 @@ import torch.nn as nn
 from torchvision.ops import StochasticDepth
 from einops import rearrange
 
-from lpfm.model.transformer.pos_encodings import RotaryPositionalEmbedding
+from gphyt.model.transformer.pos_encodings import RotaryPositionalEmbedding
 
 
 class AbstractAttention(nn.Module):

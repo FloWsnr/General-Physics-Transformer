@@ -33,18 +33,18 @@ import prodigyopt
 
 from neuralop.models import TFNO3d
 
-from lpfm.data.dataset_utils import get_dataloader
-from lpfm.utils.train_vis import visualize_predictions
-from lpfm.utils.logger import get_logger
-from lpfm.utils.wandb_logger import WandbLogger
-from lpfm.model.transformer.loss_fns import RMSE
-from lpfm.run.run_utils import (
+from gphyt.data.dataset_utils import get_dataloader
+from gphyt.utils.train_vis import visualize_predictions
+from gphyt.utils.logger import get_logger
+from gphyt.utils.wandb_logger import WandbLogger
+from gphyt.model.transformer.loss_fns import RMSE
+from gphyt.run.run_utils import (
     find_checkpoint,
     human_format,
     load_stored_model,
     path_to_string,
 )
-from lpfm.run.lr_scheduler import get_lr_scheduler
+from gphyt.run.lr_scheduler import get_lr_scheduler
 
 
 @dataclass

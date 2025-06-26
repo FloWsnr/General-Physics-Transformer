@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import pytest
 import torch
-from lpfm.run.model_eval import Evaluator
+from gphyt.run.model_eval import Evaluator
 
 
 @pytest.fixture

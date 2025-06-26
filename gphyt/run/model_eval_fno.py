@@ -31,11 +31,11 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from neuralop.models import TFNO3d
 
-from lpfm.model.transformer.model import get_model
-from lpfm.data.dataset_utils import get_dt_datasets
-from lpfm.data.phys_dataset import PhysicsDataset
-from lpfm.utils.logger import get_logger
-from lpfm.run.run_utils import load_stored_model, find_checkpoint
+from gphyt.model.transformer.model import get_model
+from gphyt.data.dataset_utils import get_dt_datasets
+from gphyt.data.phys_dataset import PhysicsDataset
+from gphyt.utils.logger import get_logger
+from gphyt.run.run_utils import load_stored_model, find_checkpoint
 
 
 def load_config(path: Path) -> dict:

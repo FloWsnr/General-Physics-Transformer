@@ -2,8 +2,8 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
-from lpfm.utils.plotting.plot_lossVsTime import LossVsTimePlotter
-from lpfm.utils.plotting.base_plotter import (
+from gphyt.utils.plotting.plot_lossVsTime import LossVsTimePlotter
+from gphyt.utils.plotting.base_plotter import (
     calculate_combined_stats,
     calculate_combined_stats_rollout,
     rollout_mean,

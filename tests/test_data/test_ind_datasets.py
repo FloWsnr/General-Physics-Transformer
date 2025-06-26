@@ -7,7 +7,7 @@ import pytest
 import torch
 from pathlib import Path
 from torch.utils.data import DataLoader
-from lpfm.data.phys_dataset import PhysicsDataset
+from gphyt.data.phys_dataset import PhysicsDataset
 import random
 
 

@@ -1,4 +1,4 @@
-from lpfm.model.transformer.model import PhysicsTransformer
+from gphyt.model.transformer.model import PhysicsTransformer
 
 import torch
 

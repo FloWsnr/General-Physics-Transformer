@@ -27,12 +27,12 @@ from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from lpfm.model.transformer.model import get_model
-from lpfm.data.dataset_utils import get_dt_datasets
-from lpfm.data.phys_dataset import PhysicsDataset
-from lpfm.utils.logger import get_logger
-from lpfm.run.run_utils import load_stored_model, find_checkpoint
-from lpfm.utils.train_vis import visualize_predictions
+from gphyt.model.transformer.model import get_model
+from gphyt.data.dataset_utils import get_dt_datasets
+from gphyt.data.phys_dataset import PhysicsDataset
+from gphyt.utils.logger import get_logger
+from gphyt.run.run_utils import load_stored_model, find_checkpoint
+from gphyt.utils.train_vis import visualize_predictions
 
 
 def load_config(path: Path) -> dict:

@@ -4,7 +4,7 @@ Tests for positional embedding implementations.
 
 import torch
 import pytest
-from lpfm.model.transformer.pos_encodings import (
+from gphyt.model.transformer.pos_encodings import (
     AbsPositionalEmbedding,
     RotaryPositionalEmbedding,
 )

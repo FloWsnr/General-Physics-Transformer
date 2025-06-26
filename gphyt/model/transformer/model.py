@@ -3,16 +3,16 @@ from typing import Optional, Literal
 import torch
 import torch.nn as nn
 
-from lpfm.model.transformer.attention import AttentionBlock
-from lpfm.model.transformer.pos_encodings import (
+from gphyt.model.transformer.attention import AttentionBlock
+from gphyt.model.transformer.pos_encodings import (
     RotaryPositionalEmbedding,
     AbsPositionalEmbedding,
 )
-from lpfm.model.tokenizer.tokenizer import Tokenizer, Detokenizer
-from lpfm.model.transformer.norms import RevIN
-from lpfm.model.transformer.derivatives import FiniteDifference
-from lpfm.model.transformer.num_integration import Euler
-import lpfm.model.model_specs as model_specs
+from gphyt.model.tokenizer.tokenizer import Tokenizer, Detokenizer
+from gphyt.model.transformer.norms import RevIN
+from gphyt.model.transformer.derivatives import FiniteDifference
+from gphyt.model.transformer.num_integration import Euler
+import gphyt.model.model_specs as model_specs
 
 
 def get_model(model_config: dict):

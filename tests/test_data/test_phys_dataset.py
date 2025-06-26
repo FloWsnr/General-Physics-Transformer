@@ -2,7 +2,7 @@ import pytest
 from pathlib import Path
 
 import torch
-from lpfm.data.phys_dataset import PhysicsDataset, SuperDataset, zero_field_to_value
+from gphyt.data.phys_dataset import PhysicsDataset, SuperDataset, zero_field_to_value
 
 
 def test_zero_field_to_value():

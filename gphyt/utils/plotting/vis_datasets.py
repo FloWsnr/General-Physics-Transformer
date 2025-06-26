@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import OrderedDict, namedtuple
-from lpfm.data.phys_dataset import PhysicsDataset
+from gphyt.data.phys_dataset import PhysicsDataset
 
 # Dictionary mapping field names to colormap names
 FIELD_COLORS = OrderedDict(

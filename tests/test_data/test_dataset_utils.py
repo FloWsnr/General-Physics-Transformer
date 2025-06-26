@@ -3,13 +3,13 @@ import pytest
 from pathlib import Path
 from typing import Callable
 
-from lpfm.data.dataset_utils import (
+from gphyt.data.dataset_utils import (
     collate_fn,
     get_datasets,
     get_dt_datasets,
     get_dataloader,
 )
-from lpfm.data.phys_dataset import PhysicsDataset
+from gphyt.data.phys_dataset import PhysicsDataset
 
 
 def test_physics_dataset_collate_fn(dummy_datapath: Path):

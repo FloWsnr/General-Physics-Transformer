@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from lpfm.data.well_dataset import WellDataset
+from gphyt.data.well_dataset import WellDataset
 
 
 def test_well_dataset(dummy_datapath: Path):

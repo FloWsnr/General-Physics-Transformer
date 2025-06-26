@@ -6,7 +6,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from lpfm.model.transformer.attention import (
+from gphyt.model.transformer.attention import (
     SpatioTemporalAttention,
     CausalSpatioTemporalAttention,
     MLP,
@@ -14,7 +14,7 @@ from lpfm.model.transformer.attention import (
     SpatialAttention,
     TemporalAttention,
 )
-from lpfm.model.transformer.pos_encodings import RotaryPositionalEmbedding
+from gphyt.model.transformer.pos_encodings import RotaryPositionalEmbedding
 
 
 class TestSpatioTemporalAttention:

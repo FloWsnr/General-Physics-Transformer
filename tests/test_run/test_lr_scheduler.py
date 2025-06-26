@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from lpfm.run.lr_scheduler import get_lr_scheduler
+from gphyt.run.lr_scheduler import get_lr_scheduler
 
 
 @pytest.fixture

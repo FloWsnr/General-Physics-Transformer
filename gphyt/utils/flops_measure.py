@@ -6,7 +6,7 @@ import torch.nn as nn
 from torchtnt.utils.flops import FlopTensorDispatchMode
 from torch.profiler import profile, record_function, ProfilerActivity
 
-from lpfm.model.transformer.model import get_model
+from gphyt.model.transformer.model import get_model
 
 
 def load_model(model_config: dict) -> nn.Module:

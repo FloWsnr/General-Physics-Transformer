@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from lpfm.run.run_utils import find_checkpoint
+from gphyt.run.run_utils import find_checkpoint
 
 
 def test_find_checkpoint_last_checkpoint(tmp_path):

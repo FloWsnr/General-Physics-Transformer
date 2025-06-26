@@ -2,7 +2,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from lpfm.model.transformer.ax_attention import AxialAttention
+from gphyt.model.transformer.ax_attention import AxialAttention
 
 
 def test_axial_attention():

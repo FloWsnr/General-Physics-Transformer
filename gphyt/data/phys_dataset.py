@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 
-from lpfm.data.well_dataset import WellDataset
+from gphyt.data.well_dataset import WellDataset
 
 
 def zero_field_to_value(x: torch.Tensor, value: float) -> torch.Tensor:

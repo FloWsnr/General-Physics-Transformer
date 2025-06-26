@@ -5,7 +5,7 @@ from wandb.apis.public import Run
 import dotenv
 import pandas as pd
 
-from lpfm.utils.plotting.base_plotter import BasePlotter
+from gphyt.utils.plotting.base_plotter import BasePlotter
 
 
 class WandbLoader:

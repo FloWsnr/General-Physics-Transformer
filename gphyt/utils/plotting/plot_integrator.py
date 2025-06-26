@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from lpfm.utils.plotting.base_plotter import BasePlotter, calculate_combined_stats
+from gphyt.utils.plotting.base_plotter import BasePlotter, calculate_combined_stats
 
 
 RUNS = [

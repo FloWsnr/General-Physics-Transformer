@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from lpfm.data.dataset_utils import get_datasets
+from gphyt.data.dataset_utils import get_datasets
 
 
 @torch.inference_mode()

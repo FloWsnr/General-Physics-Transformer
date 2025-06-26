@@ -7,7 +7,7 @@ Date: 2025-04-15
 
 import torch
 import pytest
-from lpfm.model.transformer.derivatives import FiniteDifference
+from gphyt.model.transformer.derivatives import FiniteDifference
 
 
 def test_finite_difference_2nd_order():

@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from pathlib import Path
-from lpfm.data.dataset_utils import get_datasets
+from gphyt.data.dataset_utils import get_datasets
 
 
 base_path = Path("/scratch/zsa8rk/datasets")

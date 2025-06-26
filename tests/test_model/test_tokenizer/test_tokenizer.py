@@ -1,6 +1,6 @@
 import pytest
 import torch
-from lpfm.model.tokenizer.tokenizer import (
+from gphyt.model.tokenizer.tokenizer import (
     ConvNetDetokenizer,
     ConvNetTokenizer,
     LinearTokenizer,

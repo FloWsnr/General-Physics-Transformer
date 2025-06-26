@@ -8,7 +8,7 @@ Date: 2025-03-31
 import pytest
 import torch
 
-from lpfm.model.transformer.norms import RevIN, RevLN, RevSPADE_3D, RevSPADE_2D
+from gphyt.model.transformer.norms import RevIN, RevLN, RevSPADE_3D, RevSPADE_2D
 
 
 class Test_RevLN:

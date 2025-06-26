@@ -14,14 +14,14 @@ except ImportError:
     from yaml import Loader
 
 
-from lpfm.model.transformer.model import get_model
-from lpfm.data.dataset_utils import get_datasets
-from lpfm.data.phys_dataset import PhysicsDataset
-from lpfm.utils.logger import get_logger
-from lpfm.utils.rollout_video import create_field_video
-from lpfm.model.transformer.loss_fns import NMSELoss
-from lpfm.utils.plotting.plot_lossVsTime import LossVsTimePlotter
-from lpfm.run.run_utils import load_stored_model
+from gphyt.model.transformer.model import get_model
+from gphyt.data.dataset_utils import get_datasets
+from gphyt.data.phys_dataset import PhysicsDataset
+from gphyt.utils.logger import get_logger
+from gphyt.utils.rollout_video import create_field_video
+from gphyt.model.transformer.loss_fns import NMSELoss
+from gphyt.utils.plotting.plot_lossVsTime import LossVsTimePlotter
+from gphyt.run.run_utils import load_stored_model
 
 logger = get_logger(__name__, log_level="INFO")
 

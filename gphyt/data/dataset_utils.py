@@ -9,7 +9,7 @@ from torch.utils.data import (
 )
 from torch.utils.data.distributed import DistributedSampler
 
-from lpfm.data.phys_dataset import SuperDataset, PhysicsDataset
+from gphyt.data.phys_dataset import SuperDataset, PhysicsDataset
 
 
 def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
