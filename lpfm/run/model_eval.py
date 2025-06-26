@@ -268,21 +268,21 @@ class Evaluator:
             loss = torch.mean(loss, dim=(1, 2, 3))  # B
 
             # check losses and vis image if too high
-            high_loss_idxs = self._high_loss_idx(loss)
-            if high_loss_idxs.any():
-                x_high_loss = x[high_loss_idxs, ...]
-                target_high_loss = target[high_loss_idxs, ...]
-                y_high_loss = y[high_loss_idxs, ...]
+            # high_loss_idxs = self._high_loss_idx(loss)
+            # if high_loss_idxs.any():
+            #     x_high_loss = x[high_loss_idxs, ...]
+            #     target_high_loss = target[high_loss_idxs, ...]
+            #     y_high_loss = y[high_loss_idxs, ...]
 
-                # visualize the image
-                visualize_predictions(
-                    self.eval_dir
-                    / f"images_highloss/{dataset.dataset_name}_batch{i}.png",
-                    x_high_loss,
-                    y_high_loss,
-                    target_high_loss,
-                    num_samples=4,
-                )
+            #     # visualize the image
+            #     visualize_predictions(
+            #         self.eval_dir
+            #         / f"images_highloss/{dataset.dataset_name}_batch{i}.png",
+            #         x_high_loss,
+            #         y_high_loss,
+            #         target_high_loss,
+            #         num_samples=4,
+            #     )
 
             # gather losses from all GPUs
             if self.ddp_enabled:

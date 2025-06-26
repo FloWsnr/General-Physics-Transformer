@@ -287,28 +287,20 @@ class BasePlotter:
 
         Parameters
         ----------
-
         x_ticks : list, optional
-            List of the x-ticks, by default []
-
+            List of the x-ticks. Can be a list of numbers (default) or a list of (value, label) tuples for custom tick labels. Example: [1, 2, 3] or [(1, 'A'), (2, 'B')].
         y_ticks : list, optional
             List of the y-ticks, by default []
-
         x_label : str, optional
             Label of the x-axis, by default "x"
-
         y_label : str, optional
             Label of the y-axis, by default "y"
-
         x_log : bool, optional
             If True, the x-axis is logarithmic, by default False
-
         y_log : bool, optional
             If True, the y-axis is logarithmic, by default False
-
         padding_factor : float|tuple[float, float], optional
             Padding of the x-axis and y-axis, by default 0.1
-
         minor_ticks : bool, optional
             If True, show minor ticks (also on log scales), by default True
         """
@@ -319,59 +311,69 @@ class BasePlotter:
         self.ax.set_xlabel(x_label, fontweight="normal")
         self.ax.set_ylabel(y_label, fontweight="normal")
 
-        # Padding: Make the x-axis larger than the biggest and smallest x value
-        if x_log:
-            self.ax.set_xscale("log")
-            x_span = np.log10(x_ticks[-1]) - np.log10(x_ticks[0])
-            padding = x_span * padding_factor[0]
-            x_min = x_ticks[0] / 10**padding
-            x_max = x_ticks[-1] * 10**padding
-
-            if minor_ticks:
-                self.ax.xaxis.set_minor_locator(LogLocator(subs="auto"))
-            else:
-                self.ax.xaxis.set_minor_locator(NullLocator())
-
+        # Handle x_ticks as list of numbers or list of (value, label) tuples
+        if x_ticks and isinstance(x_ticks[0], tuple):
+            x_tick_vals = [v for v, l in x_ticks]
+            x_tick_labels = [l for v, l in x_ticks]
         else:
-            x_span = x_ticks[-1] - x_ticks[0]
-            padding = x_span * padding_factor[0]
-            x_min = x_ticks[0] - padding
-            x_max = x_ticks[-1] + padding
+            x_tick_vals = x_ticks
+            x_tick_labels = None
 
-            if minor_ticks:
-                self.ax.xaxis.set_minor_locator(AutoMinorLocator(2))
+        # Padding: Make the x-axis larger than the biggest and smallest x value
+        if x_tick_vals:
+            if x_log:
+                self.ax.set_xscale("log")
+                x_span = np.log10(x_tick_vals[-1]) - np.log10(x_tick_vals[0])
+                padding = x_span * padding_factor[0]
+                x_min = x_tick_vals[0] / 10**padding
+                x_max = x_tick_vals[-1] * 10**padding
+
+                if minor_ticks:
+                    self.ax.xaxis.set_minor_locator(LogLocator(subs="auto"))
+                else:
+                    self.ax.xaxis.set_minor_locator(NullLocator())
             else:
-                self.ax.xaxis.set_minor_locator(NullLocator())
+                x_span = x_tick_vals[-1] - x_tick_vals[0]
+                padding = x_span * padding_factor[0]
+                x_min = x_tick_vals[0] - padding
+                x_max = x_tick_vals[-1] + padding
 
-        self.ax.set_xlim([x_min, x_max])
-        self.ax.set_xticks(x_ticks)
+                if minor_ticks:
+                    self.ax.xaxis.set_minor_locator(AutoMinorLocator(2))
+                else:
+                    self.ax.xaxis.set_minor_locator(NullLocator())
+
+            self.ax.set_xlim([x_min, x_max])
+            self.ax.set_xticks(x_tick_vals)
+            if x_tick_labels is not None:
+                self.ax.set_xticklabels(x_tick_labels)
 
         # Make the y-axis larger than the biggest and smallest y value
-        if y_log:
-            self.ax.set_yscale("log")
-            y_span = np.log10(y_ticks[-1]) - np.log10(y_ticks[0])
-            padding = y_span * padding_factor[1]
-            y_min = y_ticks[0] / 10**padding
-            y_max = y_ticks[-1] * 10**padding
+        if y_ticks:
+            if y_log:
+                self.ax.set_yscale("log")
+                y_span = np.log10(y_ticks[-1]) - np.log10(y_ticks[0])
+                padding = y_span * padding_factor[1]
+                y_min = y_ticks[0] / 10**padding
+                y_max = y_ticks[-1] * 10**padding
 
-            if minor_ticks:
-                self.ax.yaxis.set_minor_locator(LogLocator(subs="auto"))
+                if minor_ticks:
+                    self.ax.yaxis.set_minor_locator(LogLocator(subs="auto"))
+                else:
+                    self.ax.yaxis.set_minor_locator(NullLocator())
             else:
-                self.ax.yaxis.set_minor_locator(NullLocator())
+                y_span = y_ticks[-1] - y_ticks[0]
+                padding = y_span * padding_factor[1]
+                y_min = y_ticks[0] - padding
+                y_max = y_ticks[-1] + padding
 
-        else:
-            y_span = y_ticks[-1] - y_ticks[0]
-            padding = y_span * padding_factor[1]
-            y_min = y_ticks[0] - padding
-            y_max = y_ticks[-1] + padding
+                if minor_ticks:
+                    self.ax.yaxis.set_minor_locator(AutoMinorLocator(2))
+                else:
+                    self.ax.yaxis.set_minor_locator(NullLocator())
 
-            if minor_ticks:
-                self.ax.yaxis.set_minor_locator(AutoMinorLocator(2))
-            else:
-                self.ax.yaxis.set_minor_locator(NullLocator())
-
-        self.ax.set_ylim([y_min, y_max])
-        self.ax.set_yticks(y_ticks)
+            self.ax.set_ylim([y_min, y_max])
+            self.ax.set_yticks(y_ticks)
 
         self.ax.xaxis.set_major_formatter(ScalarFormatter())
 

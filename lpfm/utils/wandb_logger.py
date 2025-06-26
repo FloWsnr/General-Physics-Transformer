@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from PIL import Image
+from dotenv import load_dotenv
 
 import wandb
 import wandb.wandb_run
@@ -40,6 +41,7 @@ class WandbLogger:
         log_file: str,
         log_level: str = "INFO",
     ):
+        load_dotenv()
         self.config = config
         self.logger = get_logger(
             "WandbLogger",

@@ -96,6 +96,7 @@ if __name__ == "__main__":
     # plot
     plotter.plot_data(steps, losses)
     plotter.save_figure(base_dir.parent / "plots/prompt_size.png")
+    plotter.save_figure(base_dir.parent / "plots/prompt_size.svg")
 
     plotter = PatchSizePlotter()
 
@@ -117,3 +118,4 @@ if __name__ == "__main__":
     # plot
     plotter.plot_data(steps, losses)
     plotter.save_figure(base_dir.parent / "plots/patch_size.png")
+    plotter.save_figure(base_dir.parent / "plots/patch_size.svg")
