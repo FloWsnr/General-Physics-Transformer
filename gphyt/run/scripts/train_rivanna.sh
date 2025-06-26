@@ -4,10 +4,10 @@
 #SBATCH --account=sds_baek_energetic
 
 ### Job name
-#SBATCH --job-name=train_gphyt
+#SBATCH --job-name=train-gphyt-0001
 
 ### Output file
-#SBATCH --output=/scratch/zsa8rk/logs/00_slrm_logs/train_gphyt_%j.out
+#SBATCH --output=/scratch/zsa8rk/results/00_slrm_logs/train-gphyt-0001_%j.out
 
 ### Number of nodes
 #SBATCH --nodes=1
@@ -59,11 +59,11 @@ conda activate gphyt
 # Set up paths
 base_dir="/home/zsa8rk/Coding/General-Physics-Transformer"
 python_exec="${base_dir}/gphyt/run/train.py"
-log_dir="/scratch/zsa8rk/logs"
+log_dir="/scratch/zsa8rk/results"
 base_config_file="${base_dir}/gphyt/run/scripts/config.yaml"
 data_dir="/scratch/zsa8rk/datasets"
 # sim_name (same as wandb id)
-sim_name="ti-test-run-no-grad-clip"
+sim_name="train-gphyt-0001"
 nnodes=1
 ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
