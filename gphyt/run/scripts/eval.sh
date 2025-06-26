@@ -2,10 +2,10 @@
 
 ### Task name
 #SBATCH --account=rwth1802
-#SBATCH --job-name=eval_lpfm
+#SBATCH --job-name=eval_gphyt
 
 ### Output file
-#SBATCH --output=/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs/slrm_logs/eval_lpfm_%j.out
+#SBATCH --output=/hpcwork/rwth1802/coding/GPhyT/logs/slrm_logs/eval_gphyt_%j.out
 
 ### Start a parallel job for a distributed-memory system on several nodes
 #SBATCH --nodes=1
@@ -49,8 +49,8 @@ conda activate lpfm
 # debug mode
 # debug=true
 # Set up paths
-base_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model"
-python_exec="${base_dir}/lpfm/run/model_eval.py"
+base_dir="/hpcwork/rwth1802/coding/GPhyT"
+python_exec="${base_dir}/gphyt/run/model_eval.py"
 log_dir="${base_dir}/logs"
 data_dir="${base_dir}/data/datasets"
 base_config_file="${base_dir}/lpfm/run/scripts/config.yaml"
@@ -92,7 +92,7 @@ fi
 ############################# Evaluation ############################################
 #####################################################################################
 echo "--------------------------------"
-echo "Starting LPFM evaluation..."
+echo "Starting GPhyT evaluation..."
 echo "config_file: $config_file"
 echo "sim_dir: $sim_dir"
 echo "using checkpoint: $checkpoint_name"

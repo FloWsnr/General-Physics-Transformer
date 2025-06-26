@@ -9,7 +9,6 @@ from gphyt.model.transformer.pos_encodings import (
     AbsPositionalEmbedding,
 )
 from gphyt.model.tokenizer.tokenizer import Tokenizer, Detokenizer
-from gphyt.model.transformer.norms import RevIN
 from gphyt.model.transformer.derivatives import FiniteDifference
 from gphyt.model.transformer.num_integration import Euler
 import gphyt.model.model_specs as model_specs
@@ -20,25 +19,23 @@ def get_model(model_config: dict):
     transformer_config: dict = model_config["transformer"]
     tokenizer_config: dict = model_config["tokenizer"]
 
-    if transformer_config["model_size"] == "LPFM_Ti":
-        lpfm_config = model_specs.LPFM_Ti()
-    elif transformer_config["model_size"] == "LPFM_S":
-        lpfm_config = model_specs.LPFM_S()
-    elif transformer_config["model_size"] == "LPFM_M":
-        lpfm_config = model_specs.LPFM_M()
-    elif transformer_config["model_size"] == "LPFM_L":
-        lpfm_config = model_specs.LPFM_L()
-    elif transformer_config["model_size"] == "LPFM_XL":
-        lpfm_config = model_specs.LPFM_XL()
+    if transformer_config["model_size"] == "GPT_Ti":
+        gpt_config = model_specs.GPT_Ti()
+    elif transformer_config["model_size"] == "GPT_M":
+        gpt_config = model_specs.GPT_M()
+    elif transformer_config["model_size"] == "GPT_L":
+        gpt_config = model_specs.GPT_L()
+    elif transformer_config["model_size"] == "GPT_XL":
+        gpt_config = model_specs.GPT_XL()
     else:
         raise ValueError(f"Invalid model size: {transformer_config['model_size']}")
 
     return PhysicsTransformer(
         num_fields=transformer_config["input_channels"],
-        hidden_dim=lpfm_config.hidden_dim,
-        mlp_dim=lpfm_config.mlp_dim,
-        num_heads=lpfm_config.num_heads,
-        num_layers=lpfm_config.num_layers,
+        hidden_dim=gpt_config.hidden_dim,
+        mlp_dim=gpt_config.mlp_dim,
+        num_heads=gpt_config.num_heads,
+        num_layers=gpt_config.num_layers,
         att_mode=transformer_config.get("att_mode", "full"),
         parc_mode=transformer_config.get("parc_mode", False),
         pos_enc_mode=transformer_config["pos_enc_mode"],

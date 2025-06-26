@@ -1116,12 +1116,7 @@ if __name__ == "__main__":
     ########### Default arguments ##############################
     ############################################################
 
-    # default_config_path = Path(
-    #     r"C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\logs\ti-main-run-single-0001\config.yaml"
-    # )
-    default_config_path = Path(
-        r"C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\lpfm\run\scripts\config.yaml"
-    )
+    default_config_path = Path(r"config.yaml")
     default_log_dir = Path("logs")
     default_sim_name = None
     default_data_dir = Path("data/datasets")

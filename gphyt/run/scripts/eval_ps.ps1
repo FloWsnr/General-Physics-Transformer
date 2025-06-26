@@ -8,17 +8,17 @@
 $CONDA_ROOT = "C:\ProgramData\miniforge3"
 # Initialize conda for PowerShell
 & "$CONDA_ROOT\shell\condabin\conda-hook.ps1"
-conda activate lpfm
+conda activate gphyt
 
 ######################################################################################
 ############################# Set paths ##############################################
 ######################################################################################
 # Set up paths
-$base_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model"
-$python_exec = Join-Path $base_dir "lpfm\run\model_eval.py"
+$base_dir = "C:\Users\zsa8rk\Coding\GPhyT"
+$python_exec = Join-Path $base_dir "gphyt\run\model_eval.py"
 $log_dir = Join-Path $base_dir "logs"
 $data_dir = Join-Path $base_dir "data\datasets"
-$base_config_file = Join-Path $base_dir "lpfm\run\scripts\config.yaml"
+$base_config_file = Join-Path $base_dir "gphyt\run\scripts\config.yaml"
 
 # sim_name (same as wandb id)
 $sim_name = ""
@@ -51,7 +51,7 @@ if (-not (Test-Path $config_file)) {
 ############################# Evaluation ############################################
 #####################################################################################
 Write-Host "--------------------------------"
-Write-Host "Starting LPFM evaluation..."
+Write-Host "Starting GPhyT evaluation..."
 Write-Host "config_file: $config_file"
 Write-Host "sim_dir: $sim_dir"
 Write-Host "using checkpoint: $checkpoint_name"

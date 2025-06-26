@@ -2,10 +2,10 @@
 
 ### Task name
 #SBATCH --account=rwth1802
-#SBATCH --job-name=train_lpfm
+#SBATCH --job-name=train_gphyt
 
 ### Output file
-#SBATCH --output=/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/logs/slrm_logs/train_lpfm_%j.out
+#SBATCH --output=/hpcwork/rwth1802/coding/GPhyT/logs/slrm_logs/train_gphyt_%j.out
 
 
 ### Start a parallel job for a distributed-memory system on several nodes
@@ -45,7 +45,7 @@ module load CUDA/12.6.0
 export CONDA_ROOT=$HOME/miniforge3
 source $CONDA_ROOT/etc/profile.d/conda.sh
 export PATH="$CONDA_ROOT/bin:$PATH"
-conda activate lpfm
+conda activate gphyt
 
 ######################################################################################
 ############################# Set paths ##############################################
@@ -53,11 +53,11 @@ conda activate lpfm
 # debug mode
 # debug=true
 # Set up paths
-base_dir="/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model"
-python_exec="${base_dir}/lpfm/run/train.py"
+base_dir="/hpcwork/rwth1802/coding/GPhyT"
+python_exec="${base_dir}/gphyt/run/train.py"
 log_dir="${base_dir}/logs"
 data_dir="${base_dir}/data/datasets"
-base_config_file="${base_dir}/lpfm/run/scripts/config.yaml"
+base_config_file="${base_dir}/gphyt/run/scripts/config.yaml"
 # sim_name (same as wandb id)
 sim_name="ti-main-run-all-0007"
 nnodes=1
@@ -118,7 +118,7 @@ fi
 ############################# Training GPM ##########################################
 #####################################################################################
 echo "--------------------------------"
-echo "Starting LPFM training..."
+echo "Starting GPhyT training..."
 echo "config_file: $config_file"
 echo "sim_dir: $sim_dir"
 echo "restart: $restart"

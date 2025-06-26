@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     model_config = {
         "transformer": {
-            "model_size": "LPFM_XL",
+            "model_size": "GPT_XL",
             "input_channels": 5,
             "att_mode": "full",
             "dropout": 0.0,

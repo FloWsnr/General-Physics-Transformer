@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class LPFM_Ti:
+class GPT_Ti:
     hidden_dim: int = 192
     mlp_dim: int = 768
     num_heads: int = 3
@@ -11,16 +11,7 @@ class LPFM_Ti:
 
 
 @dataclass
-class LPFM_S:
-    hidden_dim: int = 384
-    mlp_dim: int = 1536
-    num_heads: int = 6
-    num_layers: int = 12
-    conv_channels: tuple[int, int] = (64, 128)
-
-
-@dataclass
-class LPFM_M:
+class GPT_M:
     hidden_dim: int = 768
     mlp_dim: int = 3072
     num_heads: int = 12
@@ -29,7 +20,7 @@ class LPFM_M:
 
 
 @dataclass
-class LPFM_L:
+class GPT_L:
     hidden_dim: int = 1024
     mlp_dim: int = 4096
     num_heads: int = 16
@@ -38,7 +29,7 @@ class LPFM_L:
 
 
 @dataclass
-class LPFM_XL:
+class GPT_XL:
     hidden_dim: int = 1280
     mlp_dim: int = 5120
     num_heads: int = 16

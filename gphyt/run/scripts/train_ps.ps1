@@ -10,7 +10,7 @@
 $CONDA_ROOT = "C:\ProgramData\miniforge3"
 # Initialize conda for PowerShell
 & "$CONDA_ROOT\shell\condabin\conda-hook.ps1"
-conda activate lpfm
+conda activate gphyt
 
 ######################################################################################
 ############################# Set paths ##############################################
@@ -21,11 +21,11 @@ conda activate lpfm
 # Set up paths
 # Set time limit
 $time_limit = "24:00:00"
-$base_dir = "C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model"
-$python_exec = "$base_dir\lpfm\run\train.py"
+$base_dir = "C:\Users\zsa8rk\Coding\GPhyT"
+$python_exec = "$base_dir\gphyt\run\train.py"
 $log_dir = "$base_dir\logs"
 $data_dir = "$base_dir\data\datasets"
-$base_config_file = "$base_dir\lpfm\run\scripts\config.yaml"
+$base_config_file = "$base_dir\gphyt\run\scripts\config.yaml"
 $sim_name = "ti-cyl-sym-flow-0001"
 
 # use a checkpoint to continue training with a new config file (learning rate, etc.)
@@ -84,7 +84,7 @@ else {
 ############################# Training GPM ##########################################
 #####################################################################################
 Write-Host "--------------------------------"
-Write-Host "Starting LPFM training..."
+Write-Host "Starting GPhyT training..."
 Write-Host "config_file: $config_file"
 Write-Host "sim_dir: $sim_dir"
 Write-Host "restart: $restart"
@@ -115,7 +115,7 @@ $cmd = "python $python_exec $exec_args"
 Invoke-Expression $cmd
 
 # Move the output file to the sim_dir (if it exists)
-$output_file = Join-Path $log_dir "slrm_logs" "train_lpfm_$PID.out"
+$output_file = Join-Path $log_dir "slrm_logs" "train_gphyt_$PID.out"
 if (Test-Path $output_file) {
     Move-Item -Path $output_file -Destination $sim_dir
 } 
