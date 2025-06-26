@@ -26,14 +26,14 @@ model:
     patch_size: [1, 16, 16] # patch size (usually 4x16x16)
     stochastic_depth_rate: 0.0 # stochastic depth rate
     use_derivatives: true # whether to use derivatives in the model
-    parc_mode: true # whether to use the PARC mode
+    integrator: Euler # integrator to use (Euler, RK4, Heun, null)
   tokenizer:
-    tokenizer_mode: linear # tokenizer mode (usually linear or conv_net, or vqvae)
-    detokenizer_mode: linear # detokenizer mode (usually linear or conv_net, or vqvae)
+    tokenizer_mode: conv_net # tokenizer mode (usually linear or conv_net, or vqvae)
+    detokenizer_mode: conv_net # detokenizer mode (usually linear or conv_net, or vqvae)
     tokenizer_overlap: 0 # pixels overlap between patches, only used for linear tokenizer
     detokenizer_overlap: 0 # pixels overlap between patches, only used for linear detokenizer
-    tokenizer_net_channels: null # number of channels in the tokenizer conv_net
-    detokenizer_net_channels: null # number of channels in the detokenizer conv_net
+    tokenizer_net_channels: [128, 128, 128] # number of channels in the tokenizer conv_net
+    detokenizer_net_channels: [128, 128, 128] # number of channels in the detokenizer conv_net
 
 training:
   compile: true

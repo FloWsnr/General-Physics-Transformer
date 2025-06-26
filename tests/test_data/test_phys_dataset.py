@@ -116,6 +116,114 @@ def test_physics_dataset_copy(dummy_datapath: Path):
     assert original_dataset.nan_to_zero is True
 
 
+def test_normalize_data_basic():
+    """Test basic normalization functionality."""
+    dataset = PhysicsDataset.__new__(PhysicsDataset)
+
+    # Create test tensors with known statistics
+    x = torch.randn(2, 32, 32, 3)  # (time, height, width, channels)
+    y = torch.randn(2, 32, 32, 3)
+
+    # Store original statistics
+    original_mean = x.mean(dim=(0, 1, 2), keepdim=True)
+    original_std = x.std(dim=(0, 1, 2), keepdim=True)
+
+    # Apply normalization
+    x_norm, y_norm = dataset.normalize_data(x, y)
+
+    # Check that x is properly normalized (should have mean ~0 and std ~1)
+    assert torch.allclose(x_norm.mean(dim=(0, 1, 2)), torch.zeros(3), atol=1e-6)
+    assert torch.allclose(x_norm.std(dim=(0, 1, 2)), torch.ones(3), atol=1e-6)
+
+    # Check that y is normalized using the same statistics as x
+    expected_y_norm = (y - original_mean) / (original_std + 1e-6)
+    assert torch.allclose(y_norm, expected_y_norm, atol=1e-6)
+
+
+def test_normalize_data_zero_std():
+    """Test normalization with zero standard deviation (should add epsilon)."""
+    dataset = PhysicsDataset.__new__(PhysicsDataset)
+
+    # Create tensor with zero std in one channel
+    x = torch.ones(2, 32, 32, 3)  # All values are 1, so std = 0
+    y = torch.randn(2, 32, 32, 3)
+
+    x_norm, y_norm = dataset.normalize_data(x, y)
+
+    # Check that normalization still works (epsilon prevents division by zero)
+    assert torch.allclose(x_norm.mean(dim=(0, 1, 2)), torch.zeros(3), atol=1e-6)
+    # With epsilon, std should be close to 1/epsilon
+    expected_std = 1.0 / (1e-6)
+    assert torch.allclose(
+        x_norm.std(dim=(0, 1, 2)), torch.full((3,), expected_std), atol=1e-6
+    )
+
+
+def test_normalize_data_different_shapes():
+    """Test normalization with different tensor shapes."""
+    dataset = PhysicsDataset.__new__(PhysicsDataset)
+
+    # Test with different time steps
+    x = torch.randn(5, 16, 16, 4)  # (time, height, width, channels)
+    y = torch.randn(5, 16, 16, 4)
+
+    x_norm, y_norm = dataset.normalize_data(x, y)
+
+    assert x_norm.shape == x.shape
+    assert y_norm.shape == y.shape
+    assert torch.allclose(x_norm.mean(dim=(0, 1, 2)), torch.zeros(4), atol=1e-6)
+    assert torch.allclose(x_norm.std(dim=(0, 1, 2)), torch.ones(4), atol=1e-6)
+
+
+def test_normalize_data_preserves_relative_relationships():
+    """Test that normalization preserves relative relationships between x and y."""
+    dataset = PhysicsDataset.__new__(PhysicsDataset)
+
+    # Create x and y with a known relationship
+    x = torch.randn(2, 32, 32, 3)
+    y = x + 5.0  # y is just x shifted by 5
+
+    x_norm, y_norm = dataset.normalize_data(x, y)
+
+    # The difference between normalized x and y should be consistent
+    diff = y_norm - x_norm
+    # All differences should be the same (since y = x + constant)
+    assert torch.allclose(diff, diff[0, 0, 0, :], atol=1e-6)
+
+
+def test_normalize_data_with_use_normalization_flag(dummy_datapath: Path):
+    """Test that normalization is applied when use_normalization=True."""
+    dataset = PhysicsDataset(
+        dummy_datapath.parent,
+        n_steps_input=1,
+        n_steps_output=1,
+        use_normalization=True,
+    )
+
+    x, y = dataset[0]
+
+    # Check that the data is normalized (mean ~0, std ~1)
+    assert torch.allclose(x.mean(dim=(0, 1, 2)), torch.zeros(6), atol=1e-6)
+    assert torch.allclose(x.std(dim=(0, 1, 2)), torch.ones(6), atol=1e-6)
+
+
+def test_normalize_data_without_use_normalization_flag(dummy_datapath: Path):
+    """Test that normalization is NOT applied when use_normalization=False."""
+    dataset = PhysicsDataset(
+        dummy_datapath.parent,
+        n_steps_input=1,
+        n_steps_output=1,
+        use_normalization=False,
+    )
+
+    x, y = dataset[0]
+
+    # Check that the data is NOT normalized (should have original statistics)
+    # The data should not have mean ~0 and std ~1
+    assert not torch.allclose(x.mean(dim=(0, 1, 2)), torch.zeros(6), atol=0.1)
+    assert not torch.allclose(x.std(dim=(0, 1, 2)), torch.ones(6), atol=0.1)
+
+
 class TestSuperDataset:
     """Tests for the SuperDataset class."""
 

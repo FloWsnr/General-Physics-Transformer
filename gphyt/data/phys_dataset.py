@@ -112,7 +112,7 @@ class PhysicsDataset(WellDataset):
             path=data_dir,
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
-            use_normalization=use_normalization,
+            use_normalization=False,
             min_dt_stride=min_dt_stride,
             max_dt_stride=max_dt_stride,
             include_field_names=include_field_names,
@@ -122,6 +122,7 @@ class PhysicsDataset(WellDataset):
         self.nan_to_zero = nan_to_zero
         self.flip_x = flip_x
         self.flip_y = flip_y
+        self.use_normalization = use_normalization
 
     def copy(self, overwrites: dict[str, Any] = {}) -> "PhysicsDataset":
         """Copy the dataset with optional overwrites.
@@ -152,6 +153,14 @@ class PhysicsDataset(WellDataset):
     def __len__(self):
         return super().__len__()
 
+    def normalize_data(self, x: torch.Tensor, y: torch.Tensor):
+        """Normalize the data per channel."""
+        mean = x.mean(dim=(0, 1, 2), keepdim=True)
+        std = x.std(dim=(0, 1, 2), keepdim=True) + 1e-6
+        x = (x - mean) / std
+        y = (y - mean) / std
+        return x, y
+
     def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
         data = super().__getitem__(index)  # returns (time, h, w, c)
         x = data["input_fields"]
@@ -171,6 +180,9 @@ class PhysicsDataset(WellDataset):
             y = torch.flip(y, dims=[2])
             # additionally, velocity vectors need to be flipped
             x[:, :, :, -1] = x[:, :, :, -1] * -1
+
+        if self.use_normalization:
+            x, y = self.normalize_data(x, y)
 
         return x, y
 
