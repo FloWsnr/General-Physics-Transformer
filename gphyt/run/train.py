@@ -31,9 +31,6 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from torch.amp.grad_scaler import GradScaler
 import torch._functorch.config
 
-import dadaptation
-import prodigyopt
-
 from gphyt.data.dataset_utils import get_dataloader
 from gphyt.model.transformer.model import get_model
 from gphyt.utils.train_vis import visualize_predictions
@@ -444,17 +441,6 @@ class Trainer:
             else:
                 return self.optimizer.param_groups[0]["lr"]
 
-        elif isinstance(self.optimizer, dadaptation.DAdaptAdam):
-            return (
-                self.optimizer.param_groups[0]["lr"]
-                * self.optimizer.param_groups[0]["d"]
-            )
-
-        elif isinstance(self.optimizer, prodigyopt.Prodigy):
-            return (
-                self.optimizer.param_groups[0]["lr"]
-                * self.optimizer.param_groups[0]["d"]
-            )
         else:
             return self.optimizer.param_groups[0]["lr"]
 
@@ -666,7 +652,7 @@ class Trainer:
                     output.float(),
                     target.float(),
                     num_samples=4,
-                    svg=True,
+                    svg=False,
                 )
                 self.wandb_logger.log_predictions(
                     image_path=vis_path.parent,
@@ -758,7 +744,7 @@ class Trainer:
                     output.float(),
                     target.float(),
                     num_samples=4,
-                    svg=True,
+                    svg=False,
                 )
                 self.wandb_logger.log_predictions(
                     image_path=vis_path.parent,

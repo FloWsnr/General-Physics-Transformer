@@ -46,8 +46,8 @@ def get_model(model_config: dict):
         detokenizer_mode=tokenizer_config["detokenizer_mode"],
         tokenizer_overlap=tokenizer_config["tokenizer_overlap"],
         detokenizer_overlap=tokenizer_config["detokenizer_overlap"],
-        tokenizer_net_channels=tokenizer_config["tokenizer_net_channels"],
-        detokenizer_net_channels=tokenizer_config["detokenizer_net_channels"],
+        tokenizer_net_channels=gpt_config.conv_channels,
+        detokenizer_net_channels=gpt_config.conv_channels,
         dropout=transformer_config["dropout"],
         stochastic_depth_rate=transformer_config["stochastic_depth_rate"],
     )
