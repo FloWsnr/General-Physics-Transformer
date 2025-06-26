@@ -565,7 +565,7 @@ settings = {
 }
 
 if __name__ == "__main__":
-    base_path = Path("/scratch/zsa8rk/datasets")
+    base_path = Path("data/datasets")
     dataset_name = "open_obj_water"
     dataset_dir = base_path / dataset_name / "data" / "test"
 

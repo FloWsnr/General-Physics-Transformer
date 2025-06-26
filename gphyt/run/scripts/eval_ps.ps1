@@ -14,7 +14,7 @@ conda activate gphyt
 ############################# Set paths ##############################################
 ######################################################################################
 # Set up paths
-$base_dir = "C:\Users\zsa8rk\Coding\GPhyT"
+$base_dir = "C:\Users\zsa8rk\Coding\General-Physics-Transformer"
 $python_exec = Join-Path $base_dir "gphyt\run\model_eval.py"
 $log_dir = Join-Path $base_dir "logs"
 $data_dir = Join-Path $base_dir "data\datasets"

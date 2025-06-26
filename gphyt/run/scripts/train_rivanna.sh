@@ -57,7 +57,7 @@ conda activate gphyt
 # debug mode
 # debug=true
 # Set up paths
-base_dir="/home/zsa8rk/Coding/GPhyT"
+base_dir="/home/zsa8rk/Coding/General-Physics-Transformer"
 python_exec="${base_dir}/gphyt/run/train.py"
 log_dir="/scratch/zsa8rk/logs"
 base_config_file="${base_dir}/gphyt/run/scripts/config.yaml"

@@ -53,7 +53,7 @@ conda activate gphyt
 # debug mode
 # debug=true
 # Set up paths
-base_dir="/hpcwork/rwth1802/coding/GPhyT"
+base_dir="/hpcwork/rwth1802/coding/General-Physics-Transformer"
 python_exec="${base_dir}/gphyt/run/train.py"
 log_dir="${base_dir}/logs"
 data_dir="${base_dir}/data/datasets"

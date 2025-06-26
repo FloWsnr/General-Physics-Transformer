@@ -77,9 +77,7 @@ def crop_hdf5(
 
 
 if __name__ == "__main__":
-    base_path = Path(
-        r"/hpcwork/rwth1802/coding/Large-Physics-Foundation-Model/data/datasets"
-    )
+    base_path = Path(r"data/datasets")
 
     dataset_names = [
         "cylinder_sym_flow_water",

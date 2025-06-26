@@ -52,7 +52,7 @@ conda activate gphyt
 # debug mode
 # debug=true
 # Set up paths
-base_dir="/home/zsa8rk/Coding/GPhyT"
+base_dir="/home/zsa8rk/Coding/General-Physics-Transformer"
 python_exec="${base_dir}/gphyt/run/model_eval.py"
 log_dir="/scratch/zsa8rk/logs"
 data_dir="/scratch/zsa8rk/datasets"

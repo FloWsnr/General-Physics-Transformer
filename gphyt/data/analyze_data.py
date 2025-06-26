@@ -254,9 +254,7 @@ def main():
     Analyzes each dataset and prints its statistics immediately after processing.
     This provides intermediate results and reduces memory usage.
     """
-    data_dir = Path(
-        r"C:\Users\zsa8rk\Coding\Large-Physics-Foundation-Model\data\datasets"
-    )
+    data_dir = Path(r"data\datasets")
     datasets = [data_dir / "cylinder_pipe_flow_water"]
 
     for dataset in datasets:

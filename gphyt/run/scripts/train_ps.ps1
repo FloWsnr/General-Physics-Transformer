@@ -21,7 +21,7 @@ conda activate gphyt
 # Set up paths
 # Set time limit
 $time_limit = "24:00:00"
-$base_dir = "C:\Users\zsa8rk\Coding\GPhyT"
+$base_dir = "C:\Users\zsa8rk\Coding\General-Physics-Transformer"
 $python_exec = "$base_dir\gphyt\run\train.py"
 $log_dir = "$base_dir\logs"
 $data_dir = "$base_dir\data\datasets"
