@@ -4,7 +4,9 @@
 This repository contains the code for the paper "Towards a General Physics Transformer". The GPhyT is a physics-aware transformer model trained to predict over
 11 different physics systems. Specifically, the model leverages "in-context learning", i.e. learning from a set of initial time steps to deduce the physics of the system.
 The makes the model capable of learning new physics systems without any additional pretraining and without any user input.
+We use a differentiator-integrator approach (similar to numerical solvers) to make the model more accurate and robust for long-term predictions.
 
+<img src="images/arch.png" width="800">
 
 ## Installation
 
@@ -14,7 +16,7 @@ We are using conda and pip to manage the dependencies.
 conda create -n gphyt python=3.12
 conda activate gphyt
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-pip install einops h5py imageio ipykernel matplotlib neuraloperator pandas the-well tqdm dadaptation wandb dotenv prodigyopt torchtnt
+pip install einops h5py imageio ipykernel matplotlib neuraloperator pandas the-well wandb dotenv torchtnt
 pip install -e .
 ```
 
