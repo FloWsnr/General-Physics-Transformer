@@ -15,7 +15,7 @@ We are using conda and pip to manage the dependencies.
 ```bash
 conda create -n gphyt python=3.12
 conda activate gphyt
-pip install torch torchvision--index-url https://download.pytorch.org/whl/cu128
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 pip install einops h5py imageio ipykernel matplotlib neuraloperator pandas the-well wandb dotenv torchtnt pytest
 pip install -e .
 ```
