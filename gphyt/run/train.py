@@ -112,6 +112,7 @@ class Trainer:
         self.log_dir = (
             Path(self.config["logging"]["log_dir"]) / self.config["wandb"]["id"]
         )
+        self.config["logging"]["log_dir"] = self.log_dir
         self.log_dir.mkdir(parents=True, exist_ok=True)
         if "subdir_name" in self.config["logging"]:
             self.cycle_name = self.config["logging"]["subdir_name"]
