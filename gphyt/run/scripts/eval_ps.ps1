@@ -1,4 +1,4 @@
-# PowerShell script for running LPFM evaluation
+# PowerShell script for running GPhyT evaluation
 
 #####################################################################################
 ############################# Setup #################################################
