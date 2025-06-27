@@ -65,7 +65,7 @@ class WandbLogger:
                 notes=self.config["wandb"]["notes"],
                 resume="allow",
                 settings=wandb.Settings(init_timeout=120),
-                dir=Path(self.config["logging"]["log_dir"]) / wandb_id,
+                dir=Path(self.config["logging"]["log_dir"]),
             )
             self.logger.info("Successfully initialized wandb")
         except Exception as e:

@@ -122,7 +122,7 @@ class PhysicsDataset(WellDataset):
         self.nan_to_zero = nan_to_zero
         self.flip_x = flip_x
         self.flip_y = flip_y
-        self.use_normalization = use_normalization
+        self.use_instance_norm = use_normalization
 
     def copy(self, overwrites: dict[str, Any] = {}) -> "PhysicsDataset":
         """Copy the dataset with optional overwrites.
@@ -181,7 +181,7 @@ class PhysicsDataset(WellDataset):
             # additionally, velocity vectors need to be flipped
             x[:, :, :, -1] = x[:, :, :, -1] * -1
 
-        if self.use_normalization:
+        if self.use_instance_norm:
             x, y = self.normalize_data(x, y)
 
         return x, y
