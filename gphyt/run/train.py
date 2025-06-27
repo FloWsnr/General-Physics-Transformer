@@ -963,25 +963,6 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
             weight_decay=weight_decay,
             betas=betas,
         )
-    elif config["name"] == "AdaptAdamW":
-        weight_decay = config["weight_decay"]
-        betas = config["betas"]
-        optimizer = dadaptation.DAdaptAdam(
-            model.parameters(),
-            lr=float(config["learning_rate"]),
-            betas=betas,
-            weight_decay=weight_decay,
-            decouple=True,
-        )
-    elif config["name"] == "Prodigy":
-        optimizer = prodigyopt.Prodigy(
-            model.parameters(),
-            lr=float(config["learning_rate"]),
-            weight_decay=config["weight_decay"],
-            betas=config["betas"],
-            decouple=True,
-            slice_p=config["slice_p"],
-        )
     else:
         raise ValueError(f"Optimizer {config['name']} not supported")
 
