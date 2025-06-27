@@ -79,10 +79,6 @@ fi
 
 # create the sim_dir if it doesn't exist
 mkdir -p $sim_dir
-
-# copy the slurm script to the sim_dir with .sh suffix
-cp "$0" "${sim_dir}/slurm_eval_script.sh"
-
 # Try to find config file in sim_dir
 config_file="${sim_dir}/config_eval.yaml"
 if [ ! -f "$config_file" ]; then
