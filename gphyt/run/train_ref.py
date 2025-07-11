@@ -27,11 +27,7 @@ import torch.optim as optim
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.elastic.multiprocessing.errors import record
-
-import dadaptation
-import prodigyopt
-
-from neuralop.models import TFNO3d
+from torch.amp.grad_scaler import GradScaler
 
 from gphyt.data.dataset_utils import get_dataloader
 from gphyt.utils.train_vis import visualize_predictions
@@ -45,6 +41,9 @@ from gphyt.run.run_utils import (
     path_to_string,
 )
 from gphyt.run.lr_scheduler import get_lr_scheduler
+from gphyt.model.model_specs import FNO_M, FNO_S, ResNet_M, ResNet_S
+import gphyt.model.resnet as resnet
+import gphyt.model.fno as fno
 
 
 @dataclass
@@ -55,41 +54,6 @@ class LogState:
     val_every_x_batches: str
     val_samples: str
     val_batches: str
-
-
-@dataclass
-class FNO_M:
-    in_channels: int = 5
-    out_channels: int = 5
-    hidden_channels: int = 128
-    n_layers: int = 4
-    n_modes_height: int = 15
-    n_modes_width: int = 15
-    n_time_steps: int = 15
-
-
-@dataclass
-class FNO_S:
-    in_channels: int = 5
-    out_channels: int = 5
-    hidden_channels: int = 64
-    n_layers: int = 4
-    n_modes_height: int = 10
-    n_modes_width: int = 10
-    n_time_steps: int = 10
-
-
-def get_fno_model(config: FNO_M | FNO_S) -> nn.Module:
-    model = TFNO3d(
-        n_modes_height=config.n_modes_height,
-        n_modes_width=config.n_modes_width,
-        n_modes_depth=config.n_time_steps,
-        in_channels=config.in_channels,
-        out_channels=config.out_channels,
-        hidden_channels=config.hidden_channels,
-        n_layers=config.n_layers,
-    )
-    return model
 
 
 class Trainer:
@@ -181,9 +145,25 @@ class Trainer:
 
         # check if model is FNO_M or FNO_S
         if self.config["model"] == "fno-M":
-            self.model = get_fno_model(FNO_M())
+            self.model = fno.get_model(FNO_M())
+            # fno models are not supported with AMP
+            self.use_amp = False
+            self.grad_scaler = None
         elif self.config["model"] == "fno-S":
-            self.model = get_fno_model(FNO_S())
+            self.model = fno.get_model(FNO_S())
+            # fno models are not supported with AMP
+            self.use_amp = False
+            self.grad_scaler = None
+        elif self.config["model"] == "resnet-M":
+            model = resnet.get_model(ResNet_M())
+            self.model = torch.compile(model, mode="max-autotune")
+            self.use_amp = True
+            self.grad_scaler = GradScaler()
+        elif self.config["model"] == "resnet-S":
+            model = resnet.get_model(ResNet_S())
+            self.model = torch.compile(model, mode="max-autotune")
+            self.use_amp = True
+            self.grad_scaler = GradScaler()
         else:
             raise ValueError(f"Model {self.config['model']} not supported")
 
@@ -449,33 +429,8 @@ class Trainer:
             else:
                 return self.optimizer.param_groups[0]["lr"]
 
-        elif isinstance(self.optimizer, dadaptation.DAdaptAdam):
-            return (
-                self.optimizer.param_groups[0]["lr"]
-                * self.optimizer.param_groups[0]["d"]
-            )
-
-        elif isinstance(self.optimizer, prodigyopt.Prodigy):
-            return (
-                self.optimizer.param_groups[0]["lr"]
-                * self.optimizer.param_groups[0]["d"]
-            )
         else:
             return self.optimizer.param_groups[0]["lr"]
-
-    def _interpolate(
-        self, x: torch.Tensor, target: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Interpolate the input and target to the desired shape."""
-        input_steps = x.shape[2]
-        target_steps = target.shape[2]
-        x = torch.nn.functional.interpolate(
-            x, size=(input_steps, 128, 64), mode="trilinear"
-        )
-        target = torch.nn.functional.interpolate(
-            target, size=(target_steps, 128, 64), mode="trilinear"
-        )
-        return x, target
 
     def train_for_x_batches(self, num_batches: int) -> float:
         """Train the model for a given number of samples.
@@ -518,31 +473,34 @@ class Trainer:
             x = x.to(self.device)
             target = target.to(self.device)
 
-            # rearrange x and y to be (batch_size, n_channels, n_time_steps, n_height, n_width)
-            x = x.permute(0, 4, 1, 2, 3)
-            target = target.permute(0, 4, 1, 2, 3)
-
-            # x, target = self._interpolate(x, target)#
-
             self.optimizer.zero_grad()
-
-            output = self.model(x)
-            # use only the last time step as comparison, but keep the time dimension
-            output = output[:, :, -1, :, :].unsqueeze(2)
-            raw_loss = self.criterion(output, target)
+            with torch.autocast(
+                device_type=self.device.type, dtype=torch.bfloat16, enabled=self.use_amp
+            ):
+                output = self.model(x)
+                raw_loss = self.criterion(output, target)
 
             # Log training loss
             log_losses = self._compute_log_metrics(output.detach(), target.detach())
-            log_losses[self.config["training"]["criterion"]] = raw_loss.detach()
 
-            raw_loss.backward()
+            if self.use_amp:
+                self.grad_scaler.scale(raw_loss).backward()
+                self.grad_scaler.unscale_(self.optimizer)
+                if self.max_grad_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), max_norm=self.max_grad_norm
+                    )
+                self.grad_scaler.step(self.optimizer)
+                self.grad_scaler.update()
+            else:
+                raw_loss.backward()
             if self.max_grad_norm is not None:
                 # Clip gradients to norm 1
                 torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(),
                     max_norm=self.max_grad_norm,
                 )
-            self.optimizer.step()
+                self.optimizer.step()
 
             ############################################################
             # Step learning rate scheduler #############################
@@ -673,10 +631,6 @@ class Trainer:
         if self.global_rank == 0:
             vis_path = self.val_dir / "train.png"
             try:
-                # revert permutation of x and target
-                x = x.permute(0, 2, 3, 4, 1)
-                target = target.permute(0, 2, 3, 4, 1)
-                output = output.permute(0, 2, 3, 4, 1)
                 visualize_predictions(
                     vis_path,
                     x.float(),
@@ -723,15 +677,7 @@ class Trainer:
             x = x.to(self.device)
             target = target.to(self.device)
 
-            # rearrange x and y to be (batch_size, n_channels, n_time_steps, n_height, n_width)
-            x = x.permute(0, 4, 1, 2, 3)
-            target = target.permute(0, 4, 1, 2, 3)
-
-            # x, target = self._interpolate(x, target)
-
             output = self.model(x)
-            # use only the last time step as comparison, but keep the time dimension
-            output = output[:, :, -1, :, :].unsqueeze(2)
             # Log validation loss
             log_losses = self._compute_log_metrics(output.detach(), target.detach())
             ###############################################################
@@ -770,10 +716,6 @@ class Trainer:
             # Visualize predictions
             vis_path = self.val_dir / "val.png"
             try:
-                # revert permutation of x and target
-                x = x.permute(0, 2, 3, 4, 1)
-                target = target.permute(0, 2, 3, 4, 1)
-                output = output.permute(0, 2, 3, 4, 1)
                 visualize_predictions(
                     vis_path,
                     x.float(),
@@ -997,25 +939,6 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
             lr=float(config["learning_rate"]),
             weight_decay=weight_decay,
             betas=betas,
-        )
-    elif config["name"] == "AdaptAdamW":
-        weight_decay = config["weight_decay"]
-        betas = config["betas"]
-        optimizer = dadaptation.DAdaptAdam(
-            model.parameters(),
-            lr=float(config["learning_rate"]),
-            betas=betas,
-            weight_decay=weight_decay,
-            decouple=True,
-        )
-    elif config["name"] == "Prodigy":
-        optimizer = prodigyopt.Prodigy(
-            model.parameters(),
-            lr=float(config["learning_rate"]),
-            weight_decay=config["weight_decay"],
-            betas=config["betas"],
-            decouple=True,
-            slice_p=config["slice_p"],
         )
     else:
         raise ValueError(f"Optimizer {config['name']} not supported")

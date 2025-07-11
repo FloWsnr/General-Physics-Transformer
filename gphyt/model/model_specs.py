@@ -35,3 +35,41 @@ class GPT_XL:
     num_heads: int = 16
     num_layers: int = 32
     conv_channels: tuple[int, ...] = (128, 256, 512)
+
+
+@dataclass
+class FNO_M:
+    in_channels: int = 5
+    out_channels: int = 5
+    hidden_channels: int = 128
+    n_layers: int = 4
+    n_modes_height: int = 15
+    n_modes_width: int = 15
+    n_modes_time: int = 15
+
+
+@dataclass
+class FNO_S:
+    in_channels: int = 5
+    out_channels: int = 5
+    hidden_channels: int = 64
+    n_layers: int = 4
+    n_modes_height: int = 10
+    n_modes_width: int = 10
+    n_modes_time: int = 10
+
+
+@dataclass
+class ResNet_M:
+    in_channels: int = 5
+    out_channels: int = 5
+    hidden_dim: int = 128
+    n_layers: int = 4
+
+
+@dataclass
+class ResNet_S:
+    in_channels: int = 5
+    out_channels: int = 5
+    hidden_dim: int = 64
+    n_layers: int = 4
