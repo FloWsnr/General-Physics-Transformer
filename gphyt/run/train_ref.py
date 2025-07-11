@@ -1,8 +1,8 @@
 """
-Training script for transformer models.
+Training script for the reference models.
 
 Author: Florian Wiesner
-Date: 2025-04-07
+Date: 2025-07-11
 """
 
 import os
