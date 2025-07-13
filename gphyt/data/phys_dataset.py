@@ -112,7 +112,7 @@ class PhysicsDataset(WellDataset):
             path=data_dir,
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
-            use_normalization=False,
+            use_normalization=use_normalization,
             min_dt_stride=min_dt_stride,
             max_dt_stride=max_dt_stride,
             include_field_names=include_field_names,
@@ -122,7 +122,9 @@ class PhysicsDataset(WellDataset):
         self.nan_to_zero = nan_to_zero
         self.flip_x = flip_x
         self.flip_y = flip_y
-        self.use_instance_norm = use_normalization
+        self.use_instance_norm = (
+            not use_normalization
+        )  # use instance norm if not using normalization
 
     def copy(self, overwrites: dict[str, Any] = {}) -> "PhysicsDataset":
         """Copy the dataset with optional overwrites.
