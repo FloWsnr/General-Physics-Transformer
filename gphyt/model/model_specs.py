@@ -63,13 +63,13 @@ class FNO_S:
 class ResNet_M:
     in_channels: int = 5
     out_channels: int = 5
-    hidden_dim: int = 128
-    n_layers: int = 4
+    hidden_dim: int = 512
+    n_layers: int = 8
 
 
 @dataclass
 class ResNet_S:
     in_channels: int = 5
     out_channels: int = 5
-    hidden_dim: int = 64
-    n_layers: int = 4
+    hidden_dim: int = 128
+    n_layers: int = 10
