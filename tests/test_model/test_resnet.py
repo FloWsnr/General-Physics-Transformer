@@ -24,6 +24,21 @@ def test_forward():
     assert output.shape == (10, 1, 32, 32, 3)
 
 
+def test_forward_single_timestep():
+    """Test forward pass with only one timestep in input."""
+    # (batch_size, time=1, height, width, channels)
+    data = torch.randn(10, 1, 32, 32, 3)
+
+    resnet = ResNet(
+        in_channels=3,
+        out_channels=3,
+        hidden_dim=16,
+        n_layers=2,
+    )
+    output = resnet(data)
+    assert output.shape == (10, 1, 32, 32, 3)
+
+
 def test_forward_cuda():
     """Test forward pass on CUDA."""
     if not torch.cuda.is_available():
@@ -39,6 +54,7 @@ def test_forward_cuda():
     resnet.cuda()
     output = resnet(data)
     assert output.shape == (10, 1, 32, 32, 3)
+
 
 def test_get_model():
     """Test the get_model function."""
