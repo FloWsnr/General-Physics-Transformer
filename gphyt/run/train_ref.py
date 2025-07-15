@@ -155,12 +155,14 @@ class Trainer:
             self.use_amp = False
             self.grad_scaler = None
         elif self.config["model"] == "resnet-M":
-            model = resnet.get_model(ResNet_M())
+            n_time_steps = self.config["data"]["n_steps_input"]
+            model = resnet.get_model(ResNet_M(), n_time_steps=n_time_steps)
             self.model = torch.compile(model, mode="max-autotune")
             self.use_amp = True
             self.grad_scaler = GradScaler()
         elif self.config["model"] == "resnet-S":
-            model = resnet.get_model(ResNet_S())
+            n_time_steps = self.config["data"]["n_steps_input"]
+            model = resnet.get_model(ResNet_S(), n_time_steps=n_time_steps)
             self.model = torch.compile(model, mode="max-autotune")
             self.use_amp = True
             self.grad_scaler = GradScaler()
