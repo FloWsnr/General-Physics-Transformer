@@ -177,12 +177,13 @@ class PhysicsDataset(WellDataset):
             y = torch.flip(y, dims=[1])
             # additionally, velocity vectors need to be flipped
             x[:, :, :, -2] = x[:, :, :, -2] * -1
+            y[..., -2] = y[...,-2] * -1
         if self.flip_y > 0.0 and torch.rand(1) < self.flip_y:
             x = torch.flip(x, dims=[2])
             y = torch.flip(y, dims=[2])
             # additionally, velocity vectors need to be flipped
             x[:, :, :, -1] = x[:, :, :, -1] * -1
-
+            y[..., -1] = y[...,-1] * -1
         if self.use_instance_norm:
             x, y = self.normalize_data(x, y)
 
