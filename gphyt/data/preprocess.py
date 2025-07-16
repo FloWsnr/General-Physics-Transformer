@@ -186,17 +186,17 @@ def convert_buoyancy_to_rho(
     dset.attrs["sample_varying"] = True
     dset.attrs["time_varying"] = True
 
-    # get the pressure dataset
-    pressure_dataset = t0_group["pressure"]
-    # get the data
-    print("   Converting pressure to temperature")
-    p_data = pressure_dataset[()]
-    temp_data = p_data / density_data
+    # # get the pressure dataset
+    # pressure_dataset = t0_group["pressure"]
+    # # get the data
+    # print("   Converting pressure to temperature")
+    # p_data = pressure_dataset[()]
+    # temp_data = p_data / density_data + 1e-6
 
-    dset = t0_group.create_dataset("temperature", data=temp_data)
-    dset.attrs["dim_varying"] = [True, True]
-    dset.attrs["sample_varying"] = True
-    dset.attrs["time_varying"] = True
+    # dset = t0_group.create_dataset("temperature", data=temp_data)
+    # dset.attrs["dim_varying"] = [True, True]
+    # dset.attrs["sample_varying"] = True
+    # dset.attrs["time_varying"] = True
 
 
 def convert_momentum_to_vel(
@@ -565,9 +565,9 @@ settings = {
 }
 
 if __name__ == "__main__":
-    base_path = Path("data/datasets")
-    dataset_name = "open_obj_water"
-    dataset_dir = base_path / dataset_name / "data" / "test"
+    base_path = Path("/scratch/zsa8rk/org_datasets/datasets")
+    dataset_name = "rayleigh_benard"
+    dataset_dir = base_path / dataset_name / "data" / "train"
 
     swap = settings[dataset_name]["swap"]
     conv_buoyancy = settings[dataset_name]["conv_buoyancy"]
@@ -578,10 +578,9 @@ if __name__ == "__main__":
     files.sort()
     print(f"Processing {len(files)} files")
     for file in files:
-        if "new" in file.stem:
-            print("Skipping", file)
-            continue
-        new_name = file.parent / f"{file.stem}_new.hdf5"
+        new_name = Path(str(file).replace("/data/", "/data_new/"))
+        new_name.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Processing {file} -> {new_name}")
         process_hdf5(
             file,
             new_name,
@@ -590,11 +589,6 @@ if __name__ == "__main__":
             conv_momentum=conv_momentum,
             conv_density=conv_density,
         )
-        # break
-        # remove old file
-        file.unlink()
-        # rename new file
-        new_name.rename(file)
 
     # for file in list(dataset_dir.glob("**/*.hdf5")):
     #     new_name = file.parent / f"{file.stem}.hdf5"
