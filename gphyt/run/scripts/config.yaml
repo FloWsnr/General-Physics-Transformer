@@ -15,7 +15,7 @@ logging:
   log_level: INFO
   subdir_name: val_ # subdir name each cycle, should end with an underscore
 
-model:  
+model:
   transformer:
     input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
     # number of hidden channels across all layers (must be divisible by 6 and by num_heads)
@@ -47,8 +47,8 @@ training:
   ########### Validation parameters ############################
   ################################################################
   val_every_batches: 20e3 # number of batches between validation runs
-  
-  # This is per dataset, also per dt, if separate_dt is true 
+
+  # This is per dataset, also per dt, if separate_dt is true
   val_frac_samples: 1 # fraction of samples to validate on (1 = all val samples)
 
 
@@ -77,7 +77,7 @@ training:
       name: CosineAnnealingLR # cosine annealing scheduler
       num_updates: -1 # num batches for cosine annealing, -1 means use all remaining batches
       end_factor: 0.01 # percentage of initial learning rate to use as minimum learning rate
-      # name: LinearLR # linear 
+      # name: LinearLR # linear
       # end_factor: 0.0001
       # num_updates: -1 # number of batches for for second stage, -1 means use all remaining batches
     # third_stage:
@@ -92,6 +92,8 @@ data:
   n_steps_input: 4 # number of input timesteps
   n_steps_output: 1 # number of target timesteps
   out_shape: [256, 128] # output shape (usually 256 x 128
+  flip_x: 0.5 # probability to flip the x-axis of the data
+  flip_y: 0.5 # probability to flip the y-axis of the data
 
   data_dir: data/datasets
   datasets:
@@ -104,7 +106,7 @@ data:
     - heated_object_pipe_flow_air
     - cooled_object_pipe_flow_air
     - rayleigh_benard_obstacle
-    
+
     - twophase_flow
 
     - rayleigh_benard

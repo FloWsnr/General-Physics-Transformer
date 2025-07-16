@@ -65,12 +65,12 @@ class PhysicsDataset(WellDataset):
     nan_to_zero: bool
         Whether to replace NaNs with 0
         By default True
-    flip_x: bool
-        Whether to flip the x-axis of the data
-        By default False
-    flip_y: bool
-        Whether to flip the y-axis of the data
-        By default False
+    flip_x: float
+        Probability to flip the x-axis of the data
+        By default 0.0 (no flipping). If set to 1.0, all data is flipped.
+    flip_y: float
+        Probability to flip the y-axis of the data
+        By default 0.0 (no flipping). If set to 1.0, all data is flipped.
     """
 
     def __init__(
@@ -84,8 +84,8 @@ class PhysicsDataset(WellDataset):
         full_trajectory_mode: bool = False,
         max_rollout_steps: int = 10000,
         nan_to_zero: bool = True,
-        flip_x: bool = False,
-        flip_y: bool = False,
+        flip_x: float = 0.0,
+        flip_y: float = 0.0,
     ):
         self.config = {
             "data_dir": data_dir,
@@ -172,12 +172,12 @@ class PhysicsDataset(WellDataset):
             x = torch.nan_to_num(x, 0)
             y = torch.nan_to_num(y, 0)
 
-        if self.flip_x:
+        if self.flip_x > 0.0 and torch.rand(1) < self.flip_x:
             x = torch.flip(x, dims=[1])
             y = torch.flip(y, dims=[1])
             # additionally, velocity vectors need to be flipped
             x[:, :, :, -2] = x[:, :, :, -2] * -1
-        if self.flip_y:
+        if self.flip_y > 0.0 and torch.rand(1) < self.flip_y:
             x = torch.flip(x, dims=[2])
             y = torch.flip(y, dims=[2])
             # additionally, velocity vectors need to be flipped
