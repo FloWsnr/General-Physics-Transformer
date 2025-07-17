@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from neuralop.models import TFNO3d
+from neuralop.models import FNO3d
 from einops import rearrange
 
 from gphyt.model.model_specs import FNO_M, FNO_S
@@ -20,7 +20,7 @@ class FNO(nn.Module):
     ):
         super().__init__()
 
-        self.fno = TFNO3d(
+        self.fno = FNO3d(
             n_modes_height=n_modes_height,
             n_modes_width=n_modes_width,
             n_modes_depth=n_modes_time,
