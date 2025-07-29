@@ -5,7 +5,7 @@
 #SBATCH --job-name=train_gphyt
 
 ### Output file
-#SBATCH --output=/hpcwork/rwth1802/coding/GPhyT/logs/slrm_logs/train_gphyt_%j.out
+#SBATCH --output=/hpcwork/rwth1802/coding/General-Physics-Transformer/results/slrm_logs/train_gphyt_%j.out
 
 
 ### Start a parallel job for a distributed-memory system on several nodes
@@ -16,11 +16,11 @@
 #SBATCH --exclusive
 
 ### Mail notification configuration
-#SBATCH --mail-type=FAIL
+#SBATCH --mail-type=ALL
 #SBATCH --mail-user=zsa8rk@virginia.edu
 
 ### Maximum runtime per task
-#SBATCH --time=24:00:00
+#SBATCH --time=72:00:00
 
 ### set number of GPUs per task
 #SBATCH --gres=gpu:4
@@ -31,15 +31,11 @@
 ### Set the time limit for the job, allows for graceful shutdown
 ### Should be lower than the time limit of the partition
 ### Format: HH:MM:SS
-time_limit="24:00:00"
+time_limit="72:00:00"
 
 #####################################################################################
 ############################# Setup #################################################
 #####################################################################################
-
-# Load modules
-module purge
-module load CUDA/12.6.0
 
 # activate conda environment
 export CONDA_ROOT=$HOME/miniforge3
@@ -88,9 +84,6 @@ fi
 
 # create the sim_dir if it doesn't exist
 mkdir -p $sim_dir
-
-# copy the slurm script to the sim_dir with .sh suffix
-cp "$0" "${sim_dir}/slurm_script.sh"
 
 if [ "$new_training" = true ]; then
     # copy a new config file to the sim_dir and use it as the config file
