@@ -3,6 +3,7 @@ import torch
 from pathlib import Path
 
 from gphyt.model.deeponet import DeepONet, get_deeponet_model
+from gphyt.model.model_specs import DeepONet_S
 from gphyt.data.phys_dataset import PhysicsDataset
 
 
@@ -58,20 +59,20 @@ class TestDeepONet:
 
     def test_get_deeponet_model_factory(self):
         """Test DeepONet factory function."""
-        config = {
-            "transformer": {"input_channels": 5},
-            "img_size": (24, 24),
-            "data": {"n_steps_input": 3},
-            "deeponet": {
-                "branch_n_blocks": 2,
-                "branch_hidden_channels": 32,
-                "trunk_n_blocks": 2,
-                "trunk_hidden_channels": 32,
-                "latent_dim": 125  # 125 is divisible by 5
-            }
-        }
+        config = DeepONet_S(
+            branch_n_blocks=2,
+            branch_hidden_channels=32,
+            trunk_n_blocks=2,
+            trunk_hidden_channels=32,
+            latent_dim=125  # 125 is divisible by 5
+        )
 
-        model = get_deeponet_model(config)
+        model = get_deeponet_model(
+            config, 
+            input_channels=5, 
+            img_size=(24, 24),
+            n_steps_input=3
+        )
 
         assert isinstance(model, DeepONet)
         assert model.input_channels == 5

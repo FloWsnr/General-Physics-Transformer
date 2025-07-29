@@ -73,3 +73,29 @@ class ResNet_S:
     out_channels: int = 5
     hidden_dim: int = 128
     n_layers: int = 10
+
+@dataclass
+class DeepONet_S:
+    branch_n_blocks: int = 3
+    branch_hidden_channels: int = 64
+    trunk_n_blocks: int = 3
+    trunk_hidden_channels: int = 64
+    latent_dim: int = 256
+
+
+@dataclass
+class DeepONet_M:
+    branch_n_blocks: int = 4
+    branch_hidden_channels: int = 128
+    trunk_n_blocks: int = 4
+    trunk_hidden_channels: int = 128
+    latent_dim: int = 512
+
+
+@dataclass
+class DeepONet_L:
+    branch_n_blocks: int = 6
+    branch_hidden_channels: int = 256
+    trunk_n_blocks: int = 6
+    trunk_hidden_channels: int = 256
+    latent_dim: int = 1024
