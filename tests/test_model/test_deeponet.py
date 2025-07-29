@@ -4,8 +4,6 @@ from pathlib import Path
 
 from gphyt.model.deeponet import DeepONet, get_deeponet_model
 from gphyt.model.model_specs import DeepONet_S
-from gphyt.data.phys_dataset import PhysicsDataset
-
 
 class TestDeepONet:
     """Test DeepONet model implementation."""
@@ -64,14 +62,11 @@ class TestDeepONet:
             branch_hidden_channels=32,
             trunk_n_blocks=2,
             trunk_hidden_channels=32,
-            latent_dim=125  # 125 is divisible by 5
+            latent_dim=125,  # 125 is divisible by 5
         )
 
         model = get_deeponet_model(
-            config, 
-            input_channels=5, 
-            img_size=(24, 24),
-            n_steps_input=3
+            config, input_channels=5, img_size=(24, 24), n_steps_input=3
         )
 
         assert isinstance(model, DeepONet)
@@ -108,13 +103,6 @@ class TestDeepONet:
 
 class TestDeepONetDataCompatibility:
     """Test DeepONet compatibility with PhysicsDataset."""
-
-    @pytest.fixture
-    def mock_dataset(self, tmp_path):
-        """Create a mock dataset for testing."""
-        # This test will be skipped if no actual data is available
-        # since we can't create a real PhysicsDataset without HDF5 files
-        pytest.skip("Requires actual physics dataset files")
 
     def test_deeponet_with_physics_dataset_shapes(self):
         """Test DeepONet works with expected PhysicsDataset output shapes."""
