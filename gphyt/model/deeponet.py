@@ -1,11 +1,162 @@
 import torch
 import torch.nn as nn
 from typing import Literal
+from einops import rearrange
+
+from gphyt.model.resnet import ResBlock
+
+
+class ResNetBranch(nn.Module):
+    """
+    ResNet-based branch network for DeepONet.
+    
+    Parameters
+    ----------
+    input_channels : int
+        Number of input physics field channels
+    n_steps_input : int
+        Number of input time steps
+    img_size : tuple[int, int]
+        Spatial dimensions (height, width)
+    n_blocks : int
+        Number of ResNet blocks
+    hidden_channels : int
+        Number of hidden channels in ResNet blocks
+    output_dim : int
+        Output dimension of the branch network
+    """
+    
+    def __init__(
+        self,
+        input_channels: int,
+        n_steps_input: int,
+        img_size: tuple[int, int],
+        n_blocks: int,
+        hidden_channels: int,
+        output_dim: int,
+    ):
+        super().__init__()
+        
+        self.img_size = img_size
+        
+        # Initial convolution to process merged time-channel input
+        self.conv_in = nn.Conv2d(
+            input_channels * n_steps_input, hidden_channels, kernel_size=3, padding=1
+        )
+        
+        # ResNet blocks
+        self.blocks = nn.Sequential(
+            *[ResBlock(hidden_channels, hidden_channels, hidden_channels) for _ in range(n_blocks)]
+        )
+        
+        # Global average pooling to reduce spatial dimensions
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
+        
+        # Final linear layer to get desired output dimension
+        self.fc_out = nn.Linear(hidden_channels, output_dim)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of ResNet branch network.
+        
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input tensor of shape (batch_size, n_steps, height, width, channels)
+            
+        Returns
+        -------
+        torch.Tensor
+            Output tensor of shape (batch_size, output_dim)
+        """
+        # Merge time and channel dimensions
+        x = rearrange(x, "b t h w c -> b (t c) h w")
+        
+        # Pass through ResNet
+        x = self.conv_in(x)
+        x = self.blocks(x)
+        
+        # Global pooling and flatten
+        x = self.global_pool(x)  # (batch_size, hidden_channels, 1, 1)
+        x = x.view(x.size(0), -1)  # (batch_size, hidden_channels)
+        
+        # Final linear transformation
+        x = self.fc_out(x)  # (batch_size, output_dim)
+        
+        return x
+
+
+class ResNetTrunk(nn.Module):
+    """
+    ResNet-based trunk network for DeepONet.
+    
+    Parameters
+    ----------
+    n_blocks : int
+        Number of ResNet blocks
+    hidden_channels : int
+        Number of hidden channels in ResNet blocks
+    output_dim : int
+        Output dimension of the trunk network
+    img_size : tuple[int, int]
+        Spatial dimensions (height, width)
+    """
+    
+    def __init__(
+        self,
+        n_blocks: int,
+        hidden_channels: int,
+        output_dim: int,
+        img_size: tuple[int, int],
+    ):
+        super().__init__()
+        
+        self.img_size = img_size
+        
+        # Initial convolution to process coordinate input
+        self.conv_in = nn.Conv2d(2, hidden_channels, kernel_size=3, padding=1)
+        
+        # ResNet blocks
+        self.blocks = nn.Sequential(
+            *[ResBlock(hidden_channels, hidden_channels, hidden_channels) for _ in range(n_blocks)]
+        )
+        
+        # Final convolution to get desired output channels
+        self.conv_out = nn.Conv2d(hidden_channels, output_dim, kernel_size=3, padding=1)
+    
+    def forward(self, coords: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of ResNet trunk network.
+        
+        Parameters
+        ----------
+        coords : torch.Tensor
+            Coordinate tensor of shape (height, width, 2)
+            
+        Returns
+        -------
+        torch.Tensor
+            Output tensor of shape (height*width, output_dim)
+        """
+        h, w = self.img_size
+        
+        # Reshape coordinates to (1, 2, h, w) for conv input
+        coords = coords.view(h, w, 2).permute(2, 0, 1).unsqueeze(0)  # (1, 2, h, w)
+        
+        # Pass through ResNet
+        x = self.conv_in(coords)
+        x = self.blocks(x)
+        x = self.conv_out(x)  # (1, output_dim, h, w)
+        
+        # Reshape to (h*w, output_dim)
+        x = x.squeeze(0).permute(1, 2, 0).contiguous().view(-1, x.size(1))  # (h*w, output_dim)
+        
+        return x
 
 
 class DeepONet(nn.Module):
     """
-    DeepONet implementation for physics operator learning.
+    DeepONet implementation for physics operator learning using ResNet architectures.
 
     Compatible with the physics dataset format from gphyt.data.phys_dataset.PhysicsDataset.
     Input format: (batch_size, n_steps, height, width, channels)
@@ -15,24 +166,30 @@ class DeepONet(nn.Module):
     ----------
     input_channels : int
         Number of input physics field channels
-    branch_layers : list[int]
-        Layer sizes for the branch network
-    trunk_layers : list[int]
-        Layer sizes for the trunk network
-    activation : Literal["relu", "tanh", "gelu"]
-        Activation function to use
+    branch_n_blocks : int
+        Number of ResNet blocks in branch network
+    branch_hidden_channels : int
+        Number of hidden channels in branch ResNet blocks
+    trunk_n_blocks : int
+        Number of ResNet blocks in trunk network
+    trunk_hidden_channels : int
+        Number of hidden channels in trunk ResNet blocks
+    latent_dim : int
+        Latent dimension for branch-trunk interaction
     img_size : tuple[int, int]
         Spatial dimensions (height, width)
     n_steps_input : int
-        Number of input time steps (for branch network input size calculation)
+        Number of input time steps
     """
 
     def __init__(
         self,
         input_channels: int,
-        branch_layers: list[int],
-        trunk_layers: list[int],
-        activation: Literal["relu"] = "relu",
+        branch_n_blocks: int = 3,
+        branch_hidden_channels: int = 64,
+        trunk_n_blocks: int = 3,
+        trunk_hidden_channels: int = 64,
+        latent_dim: int = 256,
         img_size: tuple[int, int] = (256, 128),
         n_steps_input: int = 4,
     ):
@@ -41,35 +198,31 @@ class DeepONet(nn.Module):
         self.input_channels = input_channels
         self.img_size = img_size
         self.n_steps_input = n_steps_input
+        self.latent_dim = latent_dim
 
-        # Calculate input/output dimensions
+        # Calculate spatial size
         self.spatial_size = img_size[0] * img_size[1]
-        branch_input_size = n_steps_input * self.spatial_size * input_channels
-        trunk_input_size = 2  # x, y coordinates
 
-        # Activation function
-        if activation == "relu":
-            self.activation = nn.ReLU()
-        else:
-            raise ValueError(f"Unknown activation: {activation}")
+        # Ensure latent_dim is divisible by input_channels for multi-channel outputs
+        assert latent_dim % input_channels == 0, f"Latent dim {latent_dim} must be divisible by input_channels {input_channels}"
 
-        # Branch network (processes input functions)
-        branch_sizes = [branch_input_size] + branch_layers
-        self.branch_net = nn.ModuleList()
-        for i in range(len(branch_sizes) - 1):
-            self.branch_net.append(nn.Linear(branch_sizes[i], branch_sizes[i+1]))
+        # Branch network (ResNet-based)
+        self.branch_net = ResNetBranch(
+            input_channels=input_channels,
+            n_steps_input=n_steps_input,
+            img_size=img_size,
+            n_blocks=branch_n_blocks,
+            hidden_channels=branch_hidden_channels,
+            output_dim=latent_dim,
+        )
 
-        # Trunk network (processes coordinate locations)
-        trunk_sizes = [trunk_input_size] + trunk_layers
-        self.trunk_net = nn.ModuleList()
-        for i in range(len(trunk_sizes) - 1):
-            self.trunk_net.append(nn.Linear(trunk_sizes[i], trunk_sizes[i+1]))
-
-        # Ensure branch and trunk networks have same output dimension
-        assert branch_layers[-1] == trunk_layers[-1], "Branch and trunk networks must have same output dimension"
-
-        # Ensure the output dimension is divisible by input_channels for multi-channel outputs
-        assert branch_layers[-1] % input_channels == 0, f"Branch output dim {branch_layers[-1]} must be divisible by input_channels {input_channels}"
+        # Trunk network (ResNet-based)
+        self.trunk_net = ResNetTrunk(
+            n_blocks=trunk_n_blocks,
+            hidden_channels=trunk_hidden_channels,
+            output_dim=latent_dim,
+            img_size=img_size,
+        )
 
         # Create coordinate grid
         self.register_buffer("coords", self._create_coord_grid())
@@ -98,39 +251,21 @@ class DeepONet(nn.Module):
         """
         batch_size = x.shape[0]
 
-        # Flatten input for branch network
-        x_flat = x.reshape(batch_size, -1)  # (batch_size, n_steps * h * w * channels)
-
         # Branch network forward pass
-        branch_out = x_flat
-        for i, layer in enumerate(self.branch_net):
-            branch_out = layer(branch_out)
-            if i < len(self.branch_net) - 1:  # No activation after last layer
-                branch_out = self.activation(branch_out)
+        branch_out = self.branch_net(x)  # (batch_size, latent_dim)
 
         # Trunk network forward pass
-        trunk_out = self.coords  # (h*w, 2)
-        for i, layer in enumerate(self.trunk_net):
-            trunk_out = layer(trunk_out)
-            if i < len(self.trunk_net) - 1:  # No activation after last layer
-                trunk_out = self.activation(trunk_out)
+        trunk_out = self.trunk_net(self.coords)  # (spatial_size, latent_dim)
 
         # DeepONet: G(u)(y) = sum_k b_k(u) * t_k(y)
         # where b_k are branch network outputs and t_k are trunk network outputs
 
-        # For multiple output channels, we need to reshape the networks appropriately
-        # branch_out: (batch_size, branch_dim)
-        # trunk_out: (spatial_size, trunk_dim)
-
-        # Reshape branch output to (batch_size, input_channels, branch_dim // input_channels)
+        # For multiple output channels, reshape the networks appropriately
+        # Reshape branch output to (batch_size, input_channels, latent_dim // input_channels)
         branch_per_channel = branch_out.view(batch_size, self.input_channels, -1)
 
-        # Reshape trunk output to (spatial_size, input_channels, trunk_dim // input_channels)
+        # Reshape trunk output to (spatial_size, input_channels, latent_dim // input_channels)
         trunk_per_channel = trunk_out.view(self.spatial_size, self.input_channels, -1)
-
-        # Compute DeepONet combination for each channel
-        # branch_per_channel: (batch_size, input_channels, features)
-        # trunk_per_channel: (spatial_size, input_channels, features)
 
         # Expand dimensions for broadcasting
         branch_expanded = branch_per_channel.unsqueeze(1)  # (batch_size, 1, input_channels, features)
@@ -138,9 +273,6 @@ class DeepONet(nn.Module):
 
         # Element-wise multiplication and sum over feature dimension
         output = (branch_expanded * trunk_expanded).sum(dim=-1)  # (batch_size, spatial_size, input_channels)
-
-        # Transpose to get channels last: (batch_size, spatial_size, input_channels)
-        output = output.permute(0, 1, 2)  # Already in correct order
 
         # Reshape to spatial format
         h, w = self.img_size
@@ -170,14 +302,16 @@ def get_deeponet_model(model_config: dict) -> DeepONet:
 
     input_channels = model_config.get("transformer", {}).get("input_channels", 4)
 
-    # Ensure default layer sizes are divisible by input_channels
-    default_layer_size = ((256 // input_channels) * input_channels)
+    # Ensure default latent_dim is divisible by input_channels
+    default_latent_dim = ((256 // input_channels) * input_channels)
 
     return DeepONet(
         input_channels=input_channels,
-        branch_layers=deeponet_config.get("branch_layers", [default_layer_size, default_layer_size, default_layer_size]),
-        trunk_layers=deeponet_config.get("trunk_layers", [default_layer_size, default_layer_size, default_layer_size]),
-        activation=deeponet_config.get("activation", "relu"),
+        branch_n_blocks=deeponet_config.get("branch_n_blocks", 3),
+        branch_hidden_channels=deeponet_config.get("branch_hidden_channels", 64),
+        trunk_n_blocks=deeponet_config.get("trunk_n_blocks", 3),
+        trunk_hidden_channels=deeponet_config.get("trunk_hidden_channels", 64),
+        latent_dim=deeponet_config.get("latent_dim", default_latent_dim),
         img_size=model_config.get("img_size", (64, 64)),
         n_steps_input=model_config.get("data", {}).get("n_steps_input", 1),
     )

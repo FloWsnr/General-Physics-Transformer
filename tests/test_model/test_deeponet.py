@@ -13,9 +13,11 @@ class TestDeepONet:
         """Test DeepONet initialization."""
         model = DeepONet(
             input_channels=4,
-            branch_layers=[128, 128],
-            trunk_layers=[128, 128],
-            activation="relu",
+            branch_n_blocks=2,
+            branch_hidden_channels=32,
+            trunk_n_blocks=2,
+            trunk_hidden_channels=32,
+            latent_dim=128,
             img_size=(32, 32),
             n_steps_input=2,
         )
@@ -24,6 +26,7 @@ class TestDeepONet:
         assert model.img_size == (32, 32)
         assert model.n_steps_input == 2
         assert model.spatial_size == 32 * 32
+        assert model.latent_dim == 128
 
     def test_deeponet_forward(self):
         """Test DeepONet forward pass with synthetic data."""
@@ -34,9 +37,11 @@ class TestDeepONet:
 
         model = DeepONet(
             input_channels=channels,
-            branch_layers=[66, 66],  # 66 is divisible by 3
-            trunk_layers=[66, 66],
-            activation="relu",
+            branch_n_blocks=2,
+            branch_hidden_channels=16,
+            trunk_n_blocks=2,
+            trunk_hidden_channels=16,
+            latent_dim=66,  # 66 is divisible by 3
             img_size=(height, width),
             n_steps_input=n_steps,
         )
@@ -58,9 +63,11 @@ class TestDeepONet:
             "img_size": (24, 24),
             "data": {"n_steps_input": 3},
             "deeponet": {
-                "branch_layers": [125, 65],  # 125 and 65 are divisible by 5
-                "trunk_layers": [125, 65],
-                "activation": "relu"
+                "branch_n_blocks": 2,
+                "branch_hidden_channels": 32,
+                "trunk_n_blocks": 2,
+                "trunk_hidden_channels": 32,
+                "latent_dim": 125  # 125 is divisible by 5
             }
         }
 
@@ -70,13 +77,17 @@ class TestDeepONet:
         assert model.input_channels == 5
         assert model.img_size == (24, 24)
         assert model.n_steps_input == 3
+        assert model.latent_dim == 125
 
     def test_deeponet_gradient_flow(self):
         """Test that gradients flow through the model."""
         model = DeepONet(
             input_channels=2,
-            branch_layers=[32, 32],  # 32 is divisible by 2
-            trunk_layers=[32, 32],
+            branch_n_blocks=1,
+            branch_hidden_channels=8,
+            trunk_n_blocks=1,
+            trunk_hidden_channels=8,
+            latent_dim=32,  # 32 is divisible by 2
             img_size=(8, 8),
             n_steps_input=1,
         )
@@ -114,8 +125,11 @@ class TestDeepONetDataCompatibility:
 
         model = DeepONet(
             input_channels=channels,
-            branch_layers=[256, 128, 64],
-            trunk_layers=[256, 128, 64],
+            branch_n_blocks=3,
+            branch_hidden_channels=32,
+            trunk_n_blocks=3,
+            trunk_hidden_channels=32,
+            latent_dim=64,  # 64 is divisible by 4
             img_size=(height, width),
             n_steps_input=n_steps_input,
         )
@@ -143,9 +157,11 @@ class TestDeepONetDataCompatibility:
 
         deeponet = DeepONet(
             input_channels=channels,
-            branch_layers=[64, 64],  # 64 is divisible by 3
-            trunk_layers=[64, 64],
-            activation="relu",
+            branch_n_blocks=2,
+            branch_hidden_channels=16,
+            trunk_n_blocks=2,
+            trunk_hidden_channels=16,
+            latent_dim=65,  # 65 is divisible by 5
             img_size=(height, width),
             n_steps_input=n_steps,
         )
