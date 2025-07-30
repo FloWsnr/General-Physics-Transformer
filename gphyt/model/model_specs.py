@@ -63,16 +63,17 @@ class FNO_S:
 class ResNet_M:
     in_channels: int = 5
     out_channels: int = 5
-    hidden_dim: int = 512
-    n_layers: int = 8
+    hidden_dim: int = 1024
+    n_layers: int = 6
 
 
 @dataclass
 class ResNet_S:
     in_channels: int = 5
     out_channels: int = 5
-    hidden_dim: int = 128
-    n_layers: int = 10
+    hidden_dim: int = 256
+    n_layers: int = 6
+
 
 @dataclass
 class DeepONet_S:
@@ -99,3 +100,19 @@ class DeepONet_L:
     trunk_n_blocks: int = 6
     trunk_hidden_channels: int = 256
     latent_dim: int = 1024
+
+
+@dataclass
+class UNet_S:
+    in_channels: int = 5
+    out_channels: int = 5
+    starting_hidden_dim: int = 64
+    n_down_blocks: int = 3
+
+
+@dataclass
+class UNet_M:
+    in_channels: int = 5
+    out_channels: int = 5
+    starting_hidden_dim: int = 128
+    n_down_blocks: int = 4
