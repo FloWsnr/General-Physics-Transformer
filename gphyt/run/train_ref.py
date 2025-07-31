@@ -41,8 +41,8 @@ from gphyt.run.run_utils import (
     path_to_string,
 )
 from gphyt.run.lr_scheduler import get_lr_scheduler
-from gphyt.model.model_specs import FNO_M, FNO_S, ResNet_M, ResNet_S
-import gphyt.model.resnet as resnet
+from gphyt.model.model_specs import FNO_M, FNO_S, UNet_M, UNet_S
+import gphyt.model.unet as unet
 import gphyt.model.fno as fno
 
 
@@ -154,15 +154,15 @@ class Trainer:
             # fno models are not supported with AMP
             self.use_amp = False
             self.grad_scaler = None
-        elif self.config["model"] == "resnet-M":
+        elif self.config["model"] == "unet-M":
             n_time_steps = self.config["data"]["n_steps_input"]
-            model = resnet.get_model(ResNet_M(), n_time_steps=n_time_steps)
+            model = unet.get_model(UNet_M(), n_time_steps=n_time_steps)
             self.model = torch.compile(model, mode="max-autotune")
             self.use_amp = True
             self.grad_scaler = GradScaler()
-        elif self.config["model"] == "resnet-S":
+        elif self.config["model"] == "unet-S":
             n_time_steps = self.config["data"]["n_steps_input"]
-            model = resnet.get_model(ResNet_S(), n_time_steps=n_time_steps)
+            model = unet.get_model(UNet_S(), n_time_steps=n_time_steps)
             self.model = torch.compile(model, mode="max-autotune")
             self.use_amp = True
             self.grad_scaler = GradScaler()
