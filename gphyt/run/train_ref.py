@@ -948,8 +948,8 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
     return optimizer
 
 
-def setup_ddp():
-    dist.init_process_group()
+def setup_ddp(local_rank: int):
+    dist.init_process_group(device_id=local_rank)
 
 
 @record
@@ -1023,7 +1023,7 @@ def main(
     ########### Initialize trainer #####################################
     ####################################################################
     if world_size > 1:
-        setup_ddp()
+        setup_ddp(local_rank)
 
     trainer = Trainer(config, global_rank, local_rank, world_size)
     if checkpoint_path is not None:
