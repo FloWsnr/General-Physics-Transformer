@@ -41,9 +41,10 @@ from gphyt.run.run_utils import (
     path_to_string,
 )
 from gphyt.run.lr_scheduler import get_lr_scheduler
-from gphyt.model.model_specs import FNO_M, FNO_S, UNet_M, UNet_S
+from gphyt.model.model_specs import FNO_M, FNO_S, UNet_M, UNet_S, DeepONet_M, DeepONet_S
 import gphyt.model.unet as unet
 import gphyt.model.fno as fno
+import gphyt.model.deeponet as deeponet
 
 
 @dataclass
@@ -163,6 +164,28 @@ class Trainer:
         elif self.config["model"] == "unet-S":
             n_time_steps = self.config["data"]["n_steps_input"]
             model = unet.get_model(UNet_S(), n_time_steps=n_time_steps)
+            self.model = torch.compile(model, mode="max-autotune")
+            self.use_amp = True
+            self.grad_scaler = GradScaler()
+        elif self.config["model"] == "deeponet-M":
+            n_time_steps = self.config["data"]["n_steps_input"]
+            model = deeponet.get_model(
+                DeepONet_M(),
+                n_steps_input=n_time_steps,
+                input_channels=5,
+                img_size=(256, 128),
+            )
+            self.model = torch.compile(model, mode="max-autotune")
+            self.use_amp = True
+            self.grad_scaler = GradScaler()
+        elif self.config["model"] == "deeponet-S":
+            n_time_steps = self.config["data"]["n_steps_input"]
+            model = deeponet.get_model(
+                DeepONet_S(),
+                n_steps_input=n_time_steps,
+                input_channels=5,
+                img_size=(256, 128),
+            )
             self.model = torch.compile(model, mode="max-autotune")
             self.use_amp = True
             self.grad_scaler = GradScaler()
