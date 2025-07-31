@@ -12,10 +12,8 @@ class TestDeepONet:
         """Test DeepONet initialization."""
         model = DeepONet(
             input_channels=4,
-            branch_n_blocks=2,
-            branch_hidden_channels=32,
-            trunk_n_blocks=2,
-            trunk_hidden_channels=32,
+            branch_n_down_blocks=2,
+            trunk_n_layers=2,
             latent_dim=128,
             img_size=(32, 32),
             n_steps_input=2,
@@ -36,10 +34,8 @@ class TestDeepONet:
 
         model = DeepONet(
             input_channels=channels,
-            branch_n_blocks=2,
-            branch_hidden_channels=16,
-            trunk_n_blocks=2,
-            trunk_hidden_channels=16,
+            branch_n_down_blocks=2,
+            trunk_n_layers=2,
             latent_dim=66,  # 66 is divisible by 3
             img_size=(height, width),
             n_steps_input=n_steps,
@@ -58,10 +54,8 @@ class TestDeepONet:
     def test_get_deeponet_model_factory(self):
         """Test DeepONet factory function."""
         config = DeepONet_S(
-            branch_n_blocks=2,
-            branch_hidden_channels=32,
-            trunk_n_blocks=2,
-            trunk_hidden_channels=32,
+            branch_down_blocks=2,
+            trunk_n_layers=2,
             latent_dim=125,  # 125 is divisible by 5
         )
 
@@ -79,10 +73,8 @@ class TestDeepONet:
         """Test that gradients flow through the model."""
         model = DeepONet(
             input_channels=2,
-            branch_n_blocks=1,
-            branch_hidden_channels=8,
-            trunk_n_blocks=1,
-            trunk_hidden_channels=8,
+            branch_n_down_blocks=1,
+            trunk_n_layers=1,
             latent_dim=32,  # 32 is divisible by 2
             img_size=(8, 8),
             n_steps_input=1,
@@ -114,10 +106,8 @@ class TestDeepONetDataCompatibility:
 
         model = DeepONet(
             input_channels=channels,
-            branch_n_blocks=3,
-            branch_hidden_channels=32,
-            trunk_n_blocks=3,
-            trunk_hidden_channels=32,
+            branch_n_down_blocks=3,
+            trunk_n_layers=3,
             latent_dim=64,  # 64 is divisible by 4
             img_size=(height, width),
             n_steps_input=n_steps_input,
@@ -146,10 +136,8 @@ class TestDeepONetDataCompatibility:
 
         deeponet = DeepONet(
             input_channels=channels,
-            branch_n_blocks=2,
-            branch_hidden_channels=16,
-            trunk_n_blocks=2,
-            trunk_hidden_channels=16,
+            branch_n_down_blocks=2,
+            trunk_n_layers=2,
             latent_dim=65,  # 65 is divisible by 5
             img_size=(height, width),
             n_steps_input=n_steps,

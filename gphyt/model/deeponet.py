@@ -1,15 +1,15 @@
 import torch
 import torch.nn as nn
-from typing import Literal, Union
+from typing import Union
 from einops import rearrange
 
-from gphyt.model.resnet import ResBlock
-from gphyt.model.model_specs import DeepONet_S, DeepONet_M, DeepONet_L
+from gphyt.model.unet import DownBlock, UpBlock
+from gphyt.model.model_specs import DeepONet_S, DeepONet_M
 
 
-class ResNetBranch(nn.Module):
+class UNetBranch(nn.Module):
     """
-    ResNet-based branch network for DeepONet.
+    UNet-based branch network for DeepONet.
 
     Parameters
     ----------
@@ -17,10 +17,10 @@ class ResNetBranch(nn.Module):
         Number of input physics field channels
     n_steps_input : int
         Number of input time steps
-    n_blocks : int
-        Number of ResNet blocks
-    hidden_channels : int
-        Number of hidden channels in ResNet blocks
+    starting_hidden_dim : int
+        Starting hidden dimension, doubled at each down block
+    n_down_blocks : int
+        Number of down blocks (equals number of up blocks)
     output_dim : int
         Output dimension of the branch network
     """
@@ -29,34 +29,57 @@ class ResNetBranch(nn.Module):
         self,
         input_channels: int,
         n_steps_input: int,
-        n_blocks: int,
-        hidden_channels: int,
+        starting_hidden_dim: int,
+        n_down_blocks: int,
         output_dim: int,
     ):
         super().__init__()
+        self.n_down_blocks = n_down_blocks
 
-        # Initial convolution to process merged time-channel input
+        # Input convolution
         self.conv_in = nn.Conv2d(
-            input_channels * n_steps_input, hidden_channels, kernel_size=3, padding=1
+            input_channels * n_steps_input,
+            starting_hidden_dim,
+            kernel_size=3,
+            padding=1,
         )
 
-        # ResNet blocks
-        self.blocks = nn.Sequential(
-            *[
-                ResBlock(hidden_channels, hidden_channels, hidden_channels)
-                for _ in range(n_blocks)
-            ]
+        # Down blocks
+        self.down_blocks = nn.ModuleList()
+        current_dim = starting_hidden_dim
+        for i in range(n_down_blocks):
+            next_dim = current_dim * 2
+            self.down_blocks.append(DownBlock(current_dim, next_dim))
+            current_dim = next_dim
+
+        # Bottleneck
+        self.bottleneck = nn.Sequential(
+            nn.Conv2d(current_dim, current_dim * 2, kernel_size=3, padding=1),
+            nn.InstanceNorm2d(current_dim * 2, eps=1e-5),
+            nn.ReLU(),
+            nn.Conv2d(current_dim * 2, current_dim * 2, kernel_size=3, padding=1),
+            nn.InstanceNorm2d(current_dim * 2, eps=1e-5),
+            nn.ReLU(),
         )
+
+        # Up blocks
+        self.up_blocks = nn.ModuleList()
+        current_dim = current_dim * 2  # After bottleneck
+        for i in range(n_down_blocks):
+            skip_dim = current_dim // 2  # Skip connection dimension
+            next_dim = current_dim // 2
+            self.up_blocks.append(UpBlock(current_dim, skip_dim, next_dim))
+            current_dim = next_dim
 
         # Global average pooling to reduce spatial dimensions
         self.global_pool = nn.AdaptiveAvgPool2d(1)
 
         # Final linear layer to get desired output dimension
-        self.fc_out = nn.Linear(hidden_channels, output_dim)
+        self.fc_out = nn.Linear(current_dim, output_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass of ResNet branch network.
+        Forward pass of UNet branch network.
 
         Parameters
         ----------
@@ -71,13 +94,26 @@ class ResNetBranch(nn.Module):
         # Merge time and channel dimensions
         x = rearrange(x, "b t h w c -> b (t c) h w")
 
-        # Pass through ResNet
+        # Input convolution
         x = self.conv_in(x)
-        x = self.blocks(x)
+
+        # Down path
+        skip_connections = []
+        for down_block in self.down_blocks:
+            skip, x = down_block(x)
+            skip_connections.append(skip)
+
+        # Bottleneck
+        x = self.bottleneck(x)
+
+        # Up path
+        for i, up_block in enumerate(self.up_blocks):
+            skip = skip_connections[-(i + 1)]  # Reverse order
+            x = up_block(x, skip)
 
         # Global pooling and flatten
-        x = self.global_pool(x)  # (batch_size, hidden_channels, 1, 1)
-        x = rearrange(x, "b c 1 1 -> b c")  # (batch_size, hidden_channels)
+        x = self.global_pool(x)  # (batch_size, current_dim, 1, 1)
+        x = rearrange(x, "b c 1 1 -> b c")  # (batch_size, current_dim)
 
         # Final linear transformation
         x = self.fc_out(x)  # (batch_size, output_dim)
@@ -85,44 +121,48 @@ class ResNetBranch(nn.Module):
         return x
 
 
-class ResNetTrunk(nn.Module):
+class MLPTrunk(nn.Module):
     """
-    ResNet-based trunk network for DeepONet.
+    Simple MLP-based trunk network for DeepONet.
 
     Parameters
     ----------
-    n_blocks : int
-        Number of ResNet blocks
-    hidden_channels : int
-        Number of hidden channels in ResNet blocks
+    hidden_dim : int
+        Hidden dimension of the MLP
+    n_layers : int
+        Number of hidden layers (not counting input/output layers)
     output_dim : int
         Output dimension of the trunk network
     """
 
     def __init__(
         self,
-        n_blocks: int,
-        hidden_channels: int,
+        hidden_dim: int,
+        n_layers: int,
         output_dim: int,
     ):
         super().__init__()
-        # Initial convolution to process coordinate input
-        self.conv_in = nn.Conv2d(2, hidden_channels, kernel_size=3, padding=1)
 
-        # ResNet blocks
-        self.blocks = nn.Sequential(
-            *[
-                ResBlock(hidden_channels, hidden_channels, hidden_channels)
-                for _ in range(n_blocks)
-            ]
-        )
+        # Build MLP layers
+        layers = []
 
-        # Final convolution to get desired output channels
-        self.conv_out = nn.Conv2d(hidden_channels, output_dim, kernel_size=3, padding=1)
+        # Input layer (2D coordinates -> hidden_dim)
+        layers.append(nn.Linear(2, hidden_dim))
+        layers.append(nn.ReLU())
+
+        # Hidden layers
+        for _ in range(n_layers):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+
+        # Output layer
+        layers.append(nn.Linear(hidden_dim, output_dim))
+
+        self.mlp = nn.Sequential(*layers)
 
     def forward(self, coords: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass of ResNet trunk network.
+        Forward pass of MLP trunk network.
 
         Parameters
         ----------
@@ -136,23 +176,18 @@ class ResNetTrunk(nn.Module):
         """
         h, w, _ = coords.shape
 
-        # Reshape coordinates to (1, 2, h, w) for conv input
-        coords = coords.view(h, w, 2).permute(2, 0, 1).unsqueeze(0)  # (1, 2, h, w)
+        # Reshape coordinates to (h*w, 2)
+        coords_flat = rearrange(coords, "h w c -> (h w) c")  # (h*w, 2)
 
-        # Pass through ResNet
-        x = self.conv_in(coords)
-        x = self.blocks(x)
-        x = self.conv_out(x)  # (1, output_dim, h, w)
-
-        # Reshape to (h*w, output_dim)
-        x = rearrange(x, "1 c h w -> (h w) c")  # (h*w, output_dim)
+        # Pass through MLP
+        x = self.mlp(coords_flat)  # (h*w, output_dim)
 
         return x
 
 
 class DeepONet(nn.Module):
     """
-    DeepONet implementation for physics operator learning using ResNet architectures.
+    DeepONet implementation for physics operator learning using UNet branch and MLP trunk.
 
     Compatible with the physics dataset format from gphyt.data.phys_dataset.PhysicsDataset.
     Input format: (batch_size, n_steps, height, width, channels)
@@ -162,16 +197,14 @@ class DeepONet(nn.Module):
     ----------
     input_channels : int
         Number of input physics field channels
-    branch_n_blocks : int
-        Number of ResNet blocks in branch network
-    branch_hidden_channels : int
-        Number of hidden channels in branch ResNet blocks
-    trunk_n_blocks : int
-        Number of ResNet blocks in trunk network
-    trunk_hidden_channels : int
-        Number of hidden channels in trunk ResNet blocks
+    branch_n_down_blocks : int
+        Number of down blocks in UNet branch
+    trunk_n_layers : int
+        Number of hidden layers in MLP trunk
     latent_dim : int
         Latent dimension for branch-trunk interaction
+        Same as the starting hidden dimension of the branch network
+        and the hidden dimension of the trunk network
     img_size : tuple[int, int]
         Spatial dimensions (height, width)
     n_steps_input : int
@@ -181,10 +214,8 @@ class DeepONet(nn.Module):
     def __init__(
         self,
         input_channels: int,
-        branch_n_blocks: int = 3,
-        branch_hidden_channels: int = 64,
-        trunk_n_blocks: int = 3,
-        trunk_hidden_channels: int = 64,
+        branch_n_down_blocks: int = 3,
+        trunk_n_layers: int = 2,
         latent_dim: int = 256,
         img_size: tuple[int, int] = (256, 128),
         n_steps_input: int = 4,
@@ -204,19 +235,19 @@ class DeepONet(nn.Module):
             f"Latent dim {latent_dim} must be divisible by input_channels {input_channels}"
         )
 
-        # Branch network (ResNet-based)
-        self.branch_net = ResNetBranch(
+        # Branch network (UNet-based)
+        self.branch_net = UNetBranch(
             input_channels=input_channels,
             n_steps_input=n_steps_input,
-            n_blocks=branch_n_blocks,
-            hidden_channels=branch_hidden_channels,
+            starting_hidden_dim=latent_dim,
+            n_down_blocks=branch_n_down_blocks,
             output_dim=latent_dim,
         )
 
-        # Trunk network (ResNet-based)
-        self.trunk_net = ResNetTrunk(
-            n_blocks=trunk_n_blocks,
-            hidden_channels=trunk_hidden_channels,
+        # Trunk network (MLP-based)
+        self.trunk_net = MLPTrunk(
+            hidden_dim=latent_dim,
+            n_layers=trunk_n_layers,
             output_dim=latent_dim,
         )
 
@@ -294,7 +325,7 @@ class DeepONet(nn.Module):
 
 
 def get_deeponet_model(
-    config: Union[DeepONet_S, DeepONet_M, DeepONet_L],
+    config: Union[DeepONet_S, DeepONet_M],
     input_channels: int,
     img_size: tuple[int, int],
     n_steps_input: int,
@@ -318,10 +349,6 @@ def get_deeponet_model(
     DeepONet
         Configured DeepONet model
     """
-    branch_n_blocks = config.branch_n_blocks
-    branch_hidden_channels = config.branch_hidden_channels
-    trunk_n_blocks = config.trunk_n_blocks
-    trunk_hidden_channels = config.trunk_hidden_channels
     latent_dim = config.latent_dim
 
     # Ensure latent_dim is divisible by input_channels
@@ -329,10 +356,8 @@ def get_deeponet_model(
 
     return DeepONet(
         input_channels=input_channels,
-        branch_n_blocks=branch_n_blocks,
-        branch_hidden_channels=branch_hidden_channels,
-        trunk_n_blocks=trunk_n_blocks,
-        trunk_hidden_channels=trunk_hidden_channels,
+        branch_n_down_blocks=config.branch_down_blocks,
+        trunk_n_layers=config.trunk_n_layers,
         latent_dim=latent_dim,
         img_size=img_size,
         n_steps_input=n_steps_input,
