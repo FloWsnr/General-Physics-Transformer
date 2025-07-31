@@ -51,7 +51,7 @@ conda activate gphyt
 # Set up paths
 base_dir="/hpcwork/rwth1802/coding/General-Physics-Transformer"
 python_exec="${base_dir}/gphyt/run/train.py"
-log_dir="${base_dir}/logs"
+log_dir="${base_dir}/results"
 data_dir="${base_dir}/data/datasets"
 base_config_file="${base_dir}/gphyt/run/scripts/config.yaml"
 # sim_name (same as wandb id)
