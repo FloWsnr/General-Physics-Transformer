@@ -948,8 +948,9 @@ def get_optimizer(model: nn.Module, config: dict) -> torch.optim.Optimizer:
     return optimizer
 
 
-def setup_ddp(local_rank: int):
-    dist.init_process_group(device_id=local_rank)
+def setup_ddp(local_rank):
+    device = torch.device(f"cuda:{local_rank}")
+    dist.init_process_group(device_id=device)
 
 
 @record
