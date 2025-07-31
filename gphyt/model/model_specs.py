@@ -106,7 +106,7 @@ class DeepONet_L:
 class UNet_S:
     in_channels: int = 5
     out_channels: int = 5
-    starting_hidden_dim: int = 64
+    starting_hidden_dim: int = 32
     n_down_blocks: int = 3
 
 
@@ -114,5 +114,5 @@ class UNet_S:
 class UNet_M:
     in_channels: int = 5
     out_channels: int = 5
-    starting_hidden_dim: int = 128
+    starting_hidden_dim: int = 64
     n_down_blocks: int = 4
