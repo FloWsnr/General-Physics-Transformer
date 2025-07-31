@@ -2,8 +2,9 @@ import pytest
 import torch
 from pathlib import Path
 
-from gphyt.model.deeponet import DeepONet, get_deeponet_model
+from gphyt.model.deeponet import DeepONet, get_model
 from gphyt.model.model_specs import DeepONet_S
+
 
 class TestDeepONet:
     """Test DeepONet model implementation."""
@@ -59,9 +60,7 @@ class TestDeepONet:
             latent_dim=125,  # 125 is divisible by 5
         )
 
-        model = get_deeponet_model(
-            config, input_channels=5, img_size=(24, 24), n_steps_input=3
-        )
+        model = get_model(config, input_channels=5, img_size=(24, 24), n_steps_input=3)
 
         assert isinstance(model, DeepONet)
         assert model.input_channels == 5

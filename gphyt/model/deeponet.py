@@ -129,8 +129,6 @@ class MLPTrunk(nn.Module):
     ----------
     hidden_dim : int
         Hidden dimension of the MLP
-    n_layers : int
-        Number of hidden layers (not counting input/output layers)
     output_dim : int
         Output dimension of the trunk network
     """
@@ -138,8 +136,6 @@ class MLPTrunk(nn.Module):
     def __init__(
         self,
         hidden_dim: int,
-        n_layers: int,
-        output_dim: int,
     ):
         super().__init__()
 
@@ -149,14 +145,7 @@ class MLPTrunk(nn.Module):
         # Input layer (2D coordinates -> hidden_dim)
         layers.append(nn.Linear(2, hidden_dim))
         layers.append(nn.ReLU())
-
-        # Hidden layers
-        for _ in range(n_layers):
-            layers.append(nn.Linear(hidden_dim, hidden_dim))
-            layers.append(nn.ReLU())
-
-        # Output layer
-        layers.append(nn.Linear(hidden_dim, output_dim))
+        layers.append(nn.Linear(hidden_dim, hidden_dim))
 
         self.mlp = nn.Sequential(*layers)
 
@@ -199,8 +188,6 @@ class DeepONet(nn.Module):
         Number of input physics field channels
     branch_n_down_blocks : int
         Number of down blocks in UNet branch
-    trunk_n_layers : int
-        Number of hidden layers in MLP trunk
     latent_dim : int
         Latent dimension for branch-trunk interaction
         Same as the starting hidden dimension of the branch network
@@ -215,7 +202,6 @@ class DeepONet(nn.Module):
         self,
         input_channels: int,
         branch_n_down_blocks: int = 3,
-        trunk_n_layers: int = 2,
         latent_dim: int = 256,
         img_size: tuple[int, int] = (256, 128),
         n_steps_input: int = 4,
@@ -247,8 +233,6 @@ class DeepONet(nn.Module):
         # Trunk network (MLP-based)
         self.trunk_net = MLPTrunk(
             hidden_dim=latent_dim,
-            n_layers=trunk_n_layers,
-            output_dim=latent_dim,
         )
 
         # Create coordinate grid
@@ -324,7 +308,7 @@ class DeepONet(nn.Module):
         return output
 
 
-def get_deeponet_model(
+def get_model(
     config: Union[DeepONet_S, DeepONet_M],
     input_channels: int,
     img_size: tuple[int, int],
@@ -357,7 +341,6 @@ def get_deeponet_model(
     return DeepONet(
         input_channels=input_channels,
         branch_n_down_blocks=config.branch_down_blocks,
-        trunk_n_layers=config.trunk_n_layers,
         latent_dim=latent_dim,
         img_size=img_size,
         n_steps_input=n_steps_input,
