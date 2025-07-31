@@ -177,13 +177,13 @@ class PhysicsDataset(WellDataset):
             y = torch.flip(y, dims=[1])
             # additionally, velocity vectors need to be flipped
             x[:, :, :, -2] = x[:, :, :, -2] * -1
-            y[..., -2] = y[...,-2] * -1
+            y[..., -2] = y[..., -2] * -1
         if self.flip_y > 0.0 and torch.rand(1) < self.flip_y:
             x = torch.flip(x, dims=[2])
             y = torch.flip(y, dims=[2])
             # additionally, velocity vectors need to be flipped
             x[:, :, :, -1] = x[:, :, :, -1] * -1
-            y[..., -1] = y[...,-1] * -1
+            y[..., -1] = y[..., -1] * -1
         if self.use_instance_norm:
             x, y = self.normalize_data(x, y)
 
@@ -208,6 +208,11 @@ class SuperDataset:
         If None, uses all samples from each dataset.
         By default None.
 
+    return_ds_idx : bool
+        Whether to return the dataset index along with the data.
+        This is used for PINN losses to know which dataset the sample comes from.
+        By default False.
+
     seed : Optional[int]
         Random seed for reproducibility.
         By default None.
@@ -218,9 +223,11 @@ class SuperDataset:
         datasets: dict[str, PhysicsDataset],
         max_samples_per_ds: Optional[int | list[int]] = None,
         seed: Optional[int] = None,
+        return_ds_idx: bool = False,
     ):
         self.datasets = datasets
         self.dataset_list = list(datasets.values())
+        self.return_ds_idx = return_ds_idx
 
         if isinstance(max_samples_per_ds, int):
             self.max_samples_per_ds = [max_samples_per_ds] * len(datasets)
@@ -268,7 +275,7 @@ class SuperDataset:
     def __len__(self):
         return sum(self.lengths)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor, Optional[int]]:
         for i, length in enumerate(self.lengths):
             if index < length:
                 if self.dataset_indices[i] is not None:
@@ -279,4 +286,7 @@ class SuperDataset:
                 x, y = self.dataset_list[i][actual_index]  # (time, h, w, n_channels)
                 break
             index -= length
-        return x, y
+        if self.return_ds_idx:
+            return x, y, i
+        else:
+            return x, y

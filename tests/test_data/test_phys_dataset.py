@@ -488,3 +488,86 @@ class TestSuperDataset:
         for i in range(len(super_dataset)):
             x, _ = super_dataset[i]
             assert x.shape == (1, 32, 32, 6)
+
+    def test_return_ds_idx_false(self, dummy_datapath: Path):
+        """Test that SuperDataset returns only x, y when return_ds_idx=False."""
+        dataset1 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+        dataset2 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
+        super_dataset = SuperDataset(datasets, return_ds_idx=False)
+        
+        # Get a sample and verify it returns only x, y (2 elements)
+        result = super_dataset[0]
+        assert len(result) == 2
+        x, y = result
+        assert x.shape == (1, 32, 32, 6)
+        assert y.shape == (1, 32, 32, 6)
+
+    def test_return_ds_idx_true(self, dummy_datapath: Path):
+        """Test that SuperDataset returns x, y, ds_idx when return_ds_idx=True."""
+        dataset1 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+        dataset2 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
+        super_dataset = SuperDataset(datasets, return_ds_idx=True)
+        
+        # Test samples from first dataset (indices 0 to len(dataset1)-1)
+        dataset1_len = len(dataset1)
+        for i in range(min(5, dataset1_len)):  # Test first 5 or all if less than 5
+            result = super_dataset[i]
+            assert len(result) == 3
+            x, y, ds_idx = result
+            assert x.shape == (1, 32, 32, 6)
+            assert y.shape == (1, 32, 32, 6)
+            assert ds_idx == 0  # Should be dataset index 0 (first dataset)
+        
+        # Test samples from second dataset (indices len(dataset1) to end)
+        dataset2_start_idx = dataset1_len
+        for i in range(dataset2_start_idx, min(dataset2_start_idx + 5, len(super_dataset))):
+            result = super_dataset[i]
+            assert len(result) == 3
+            x, y, ds_idx = result
+            assert x.shape == (1, 32, 32, 6)
+            assert y.shape == (1, 32, 32, 6)
+            assert ds_idx == 1  # Should be dataset index 1 (second dataset)
+
+    def test_return_ds_idx_with_max_samples(self, dummy_datapath: Path):
+        """Test that return_ds_idx works correctly with max_samples_per_ds."""
+        dataset1 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+        dataset2 = PhysicsDataset(
+            dummy_datapath.parent, n_steps_input=1, n_steps_output=1
+        )
+
+        datasets = {"dataset1": dataset1, "dataset2": dataset2}
+        max_samples = 3
+        super_dataset = SuperDataset(
+            datasets, 
+            max_samples_per_ds=max_samples, 
+            return_ds_idx=True,
+            seed=42
+        )
+        
+        # Test first max_samples indices should come from dataset1 (ds_idx=0)
+        for i in range(max_samples):
+            result = super_dataset[i]
+            assert len(result) == 3
+            x, y, ds_idx = result
+            assert ds_idx == 0
+        
+        # Test next max_samples indices should come from dataset2 (ds_idx=1)
+        for i in range(max_samples, max_samples * 2):
+            result = super_dataset[i]
+            assert len(result) == 3
+            x, y, ds_idx = result
+            assert ds_idx == 1
