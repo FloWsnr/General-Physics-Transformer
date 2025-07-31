@@ -109,4 +109,10 @@ pip install -e .
 - SLURM scripts: `gphyt/run/scripts/*.sh`
 - Test fixtures: `tests/conftest.py`
 - Model specifications: `gphyt/model/model_specs.py`
-- Training logs and checkpoints: `logs/<sim_name>/`
+- Training logs and checkpoints: `results/<sim_name>/`
+
+## Best Practices and Reminders
+- **Environment Management**:
+  - Use the correct conda env when running python or pytest (/home/fw641779/minifor
+ge3/envs/gphyt/bin/python)
+  - Activate environment with `conda activate gphyt`
