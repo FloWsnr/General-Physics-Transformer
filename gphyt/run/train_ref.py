@@ -384,7 +384,9 @@ class Trainer:
         ##################################################################
         ########## Load model, optimizer, and scheduler ##################
         ##################################################################
-        self.model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+        m_state_dict = checkpoint["model_state_dict"]
+        m_state_dict.pop("_metadata", None)  # remove metadata if present
+        self.model.load_state_dict(m_state_dict, strict=True)
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         if self.scheduler is not None and restart:
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
@@ -643,11 +645,11 @@ class Trainer:
                 self.shutdown_flag = torch.tensor(
                     1, device=self.device
                 )  # set flag to tell outer loop to shut down
-                if self.ddp_enabled:
-                    dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.SUM)
                 self.log_msg(
                     "Summary: Next checkpoint would exceed time limit, shutting down"
                 )
+            if self.ddp_enabled:
+                dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.SUM)
             if self.ddp_enabled:
                 dist.barrier()
         ############################################################
@@ -914,11 +916,11 @@ class Trainer:
                 self.shutdown_flag = torch.tensor(
                     1, device=self.device
                 )  # set flag to tell outer loop to shut down
-                if self.ddp_enabled:
-                    dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.SUM)
                 self.log_msg(
                     "Summary: Next checkpoint would exceed time limit, shutting down"
                 )
+            if self.ddp_enabled:
+                dist.all_reduce(self.shutdown_flag, op=dist.ReduceOp.SUM)
             if self.ddp_enabled:
                 dist.barrier()
 
