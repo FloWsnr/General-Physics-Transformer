@@ -5,8 +5,7 @@ Tests for the ResNet model.
 import pytest
 import torch
 
-from gphyt.model.resnet import ResNet, get_model
-from gphyt.model.model_specs import ResNet_M, ResNet_S
+from gphyt.model.resnet import ResNet
 
 
 def test_forward():
@@ -54,11 +53,3 @@ def test_forward_cuda():
     resnet.cuda()
     output = resnet(data)
     assert output.shape == (10, 1, 32, 32, 3)
-
-
-def test_get_model():
-    """Test the get_model function."""
-    resnet_m = get_model(ResNet_M(), n_time_steps=8)
-    assert isinstance(resnet_m, ResNet)
-    resnet_s = get_model(ResNet_S(), n_time_steps=8)
-    assert isinstance(resnet_s, ResNet)

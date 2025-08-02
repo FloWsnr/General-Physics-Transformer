@@ -3,8 +3,6 @@ import torch.nn as nn
 
 from einops import rearrange
 
-from gphyt.model.model_specs import ResNet_M, ResNet_S
-
 
 class ResBlock(nn.Module):
     """
@@ -94,9 +92,7 @@ class ResNet(nn.Module):
         self.blocks = nn.Sequential(
             *[ResBlock(hidden_dim, hidden_dim, hidden_dim) for _ in range(n_layers)]
         )
-        self.conv_out = nn.Conv2d(
-            hidden_dim, out_channels, kernel_size=3, padding=1
-        )
+        self.conv_out = nn.Conv2d(hidden_dim, out_channels, kernel_size=3, padding=1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -120,36 +116,3 @@ class ResNet(nn.Module):
         # Add time dimension back as 1
         x = rearrange(x, "b c h w -> b 1 h w c")
         return x
-
-
-def get_model(model_config: ResNet_M | ResNet_S, n_time_steps: int = 4) -> ResNet:
-    """
-    Get a ResNet model from a configuration dataclass.
-
-    Parameters
-    ----------
-    model_config : ResNet_M or ResNet_S
-        Model configuration dataclass.
-
-    n_time_steps : int
-        Number of time steps.
-
-    Returns
-    -------
-    ResNet
-        Instantiated ResNet model.
-    """
-    if isinstance(model_config, ResNet_M):
-        model_config = ResNet_M()
-    elif isinstance(model_config, ResNet_S):
-        model_config = ResNet_S()
-    else:
-        raise ValueError(f"Invalid model size: {model_config}")
-
-    return ResNet(
-        in_channels=model_config.in_channels,
-        out_channels=model_config.out_channels,
-        hidden_dim=model_config.hidden_dim,
-        n_layers=model_config.n_layers,
-        n_time_steps=n_time_steps,
-    )   
