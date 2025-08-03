@@ -75,7 +75,7 @@ class TestDeepONet:
         output = model(x)
 
         # Check output shape matches expected format
-        assert output.shape == (batch_size, height, width, channels)
+        assert output.shape == (batch_size, 1, height, width, channels)
         assert not torch.isnan(output).any()
 
     def test_get_deeponet_model_factory(self):
@@ -104,7 +104,7 @@ class TestDeepONet:
         )
 
         x = torch.randn(1, 1, 8, 8, 2, requires_grad=True)
-        target = torch.randn(1, 8, 8, 2)
+        target = torch.randn(1, 1, 8, 8, 2)
 
         output = model(x)
         loss = torch.nn.functional.mse_loss(output, target)
