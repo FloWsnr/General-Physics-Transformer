@@ -351,7 +351,7 @@ class Trainer:
             raise ValueError("Invalid combination of restart and new_training")
 
         self.log_msg(f"Loading checkpoint from {checkpoint_path}")
-        checkpoint = load_stored_model(checkpoint_path, self.device, remove_ddp=False)
+        checkpoint = load_stored_model(checkpoint_path, self.device, ddp=self.ddp_enabled)
         if not new_training:
             self.total_samples_trained = checkpoint["samples_trained"]
             self.total_batches_trained = checkpoint["batches_trained"]
@@ -359,15 +359,7 @@ class Trainer:
         ##################################################################
         ########## Load model, optimizer, and scheduler ##################
         ##################################################################
-        try:
-            self.model.load_state_dict(checkpoint["model_state_dict"], strict=True)
-        except Exception as e:
-            self.log_msg(f"Error loading model state dict: {e}")
-            new_state_dict = {}
-            for key, value in checkpoint["model_state_dict"].items():
-                new_key = "module._orig_mod." + key
-                new_state_dict[new_key] = value
-            self.model.load_state_dict(new_state_dict, strict=True)
+        self.model.load_state_dict(checkpoint["model_state_dict"], strict=True)
 
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         if self.grad_scaler is not None:

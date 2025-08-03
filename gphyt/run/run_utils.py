@@ -5,7 +5,7 @@ import torch
 
 
 def load_stored_model(
-    checkpoint_path: Path, device: torch.device, remove_ddp: bool = False
+    checkpoint_path: Path, device: torch.device, ddp: bool = False
 ) -> dict:
     """Load a checkpoint.
 
@@ -15,8 +15,9 @@ def load_stored_model(
         Path to the checkpoint
     device : torch.device
         Device to load the checkpoint to
-    remove_ddp : bool
-        Whether to remove the DDP wrapper keys from the model
+    ddp : bool
+        Whether DDP is used. If False, all ddp key elements are removed.
+        If true, elements are removed and then added back with the 'module.' prefix.
 
     Returns
     -------
@@ -25,24 +26,20 @@ def load_stored_model(
     """
     torch.serialization.add_safe_globals([pathlib.PosixPath, pathlib.WindowsPath])
     checkpoint = torch.load(checkpoint_path, weights_only=False, map_location=device)
-    new_state_dict = {}
-    if remove_ddp:
-        for key, value in checkpoint["model_state_dict"].items():
-            # Check if the key starts with 'module._orig_mod.'
-            if key.startswith("module._orig_mod."):
-                # Remove the prefix
-                new_key = key.replace("module._orig_mod.", "")
-                new_state_dict[new_key] = value
-            elif key.startswith("module."):
-                new_key = key.replace("module.", "")
-                new_state_dict[new_key] = value
-            elif key.startswith("_orig_mod."):
-                new_key = key.replace("_orig_mod.", "")
-                new_state_dict[new_key] = value
-            else:
-                # Keep the key as is
-                new_state_dict[key] = value
-        checkpoint["model_state_dict"] = new_state_dict
+    clean_state_dict = {}
+    for key, value in checkpoint["model_state_dict"].items():
+        # Check if the key starts with 'module._orig_mod.'
+        if not ddp and key.startswith("module."):
+            new_key = key.replace("module.", "")
+            clean_state_dict[new_key] = value
+        elif ddp and key.startswith("_orig_mod."):
+            new_key = key.replace("_orig_mod.", "module._orig_mod.")
+            clean_state_dict[new_key] = value
+        else:
+            # Keep the key as is
+            clean_state_dict[key] = value
+
+    checkpoint["model_state_dict"] = clean_state_dict
     return checkpoint
 
 
