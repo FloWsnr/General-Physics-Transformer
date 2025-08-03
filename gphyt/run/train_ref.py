@@ -233,7 +233,7 @@ class Trainer:
             prefetch_factor=self.config["training"]["prefetch_factor"],
             split="val",
             is_distributed=self.ddp_enabled,
-            shuffle=False,
+            shuffle=True,
             data_fraction=self.config["training"]["val_frac_samples"],
         )
         ################################################################
