@@ -229,9 +229,11 @@ class DeepONet(nn.Module):
         output = (trunk_per_channel * branch_per_channel).sum(
             dim=-1
         )  # (batch_size, h, w, input_channels)
-        
+
         # Add learnable bias term
         output = output + self.b  # (batch_size, h, w, input_channels)
+        # Add time dimension back as 1
+        output = rearrange(output, "b h w c -> b 1 h w c")
         return output
 
 
