@@ -376,7 +376,7 @@ class Trainer:
             raise ValueError("Invalid combination of restart and new_training")
 
         self.log_msg(f"Loading checkpoint from {checkpoint_path}")
-        checkpoint = load_stored_model(checkpoint_path, self.device, remove_ddp=False)
+        checkpoint = load_stored_model(checkpoint_path, self.device, ddp=self.ddp_enabled)
         if not new_training:
             self.total_samples_trained = checkpoint["samples_trained"]
             self.total_batches_trained = checkpoint["batches_trained"]
