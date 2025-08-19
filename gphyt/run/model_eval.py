@@ -28,6 +28,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from gphyt.model.transformer.model import get_model
+from gphyt.model.transformer.loss_fns import RVMSELoss
 from gphyt.data.dataset_utils import get_dt_datasets
 from gphyt.data.phys_dataset import PhysicsDataset
 from gphyt.utils.logger import get_logger
@@ -75,6 +76,7 @@ class Evaluator:
         local_rank: int = 0,
         world_size: int = 1,
         log_level: str = "INFO",
+        criteria: dict[str, torch.nn.Module] = None,
     ):
         self.global_rank = global_rank
         self.local_rank = local_rank
@@ -101,6 +103,15 @@ class Evaluator:
         self.eval_dir.mkdir(parents=True, exist_ok=True)
         self.batch_size = batch_size
         self.num_workers = num_workers
+        
+        # Initialize evaluation criteria
+        if criteria is None:
+            self.criteria = {
+                "MSE": torch.nn.MSELoss(reduction="none"),
+                "RVMSE": RVMSELoss(dims=(1, 2, 3), return_scalar=False)
+            }
+        else:
+            self.criteria = criteria
 
     @classmethod
     def from_checkpoint(
@@ -213,7 +224,7 @@ class Evaluator:
         )
         model = get_model(model_config)
         model.to(device)
-        data = load_stored_model(checkpoint_path, device, remove_ddp=True)
+        data = load_stored_model(checkpoint_path, device, ddp=False)
         model.load_state_dict(data["model_state_dict"], strict=True)
 
         checkpoint = torch.load(checkpoint_path, weights_only=False)
@@ -251,11 +262,11 @@ class Evaluator:
         return high_losses
 
     @torch.inference_mode()
-    def _eval_on_dataset(self, dataset: PhysicsDataset) -> torch.Tensor:
-        criterion = torch.nn.MSELoss(reduction="none")
+    def _eval_on_dataset(self, dataset: PhysicsDataset) -> dict[str, torch.Tensor]:
         loader = self._get_dataloader(dataset, is_distributed=self.ddp_enabled)
 
-        losses = []
+        all_losses = {name: [] for name in self.criteria.keys()}
+        
         for i, (x, target) in enumerate(loader):
             self._log_msg(f"  Batch {i}/{len(loader)}")
 
@@ -263,63 +274,78 @@ class Evaluator:
             target = target.to(self.device)
             with torch.amp.autocast(device_type=self.device.type, dtype=torch.bfloat16):
                 y = self.model(x)
-                loss = criterion(y, target).squeeze(1)  # remove T dimension
-            # get the loss of each sample, dont average accross batches only h,w,c
-            loss = torch.mean(loss, dim=(1, 2, 3))  # B
+                
+            # Compute losses for each criterion
+            batch_losses = {}
+            for name, criterion in self.criteria.items():
+                if name == "MSE":
+                    loss = criterion(y, target).squeeze(1)  # remove T dimension
+                    loss = torch.mean(loss, dim=(1, 2, 3))  # B
+                elif name == "RVMSE":
+                    # RVMSE expects (B, T, H, W, C) and returns (B, T, H, W, C) with dims reduced
+                    loss = criterion(y, target)  # (B, 1, 1, 1, C) after dimension reduction
+                    loss = loss.squeeze()  # Remove singleton dimensions
+                    if loss.dim() > 1:
+                        loss = torch.mean(loss, dim=-1)  # Average over channels -> (B,)
+                else:
+                    # For other custom criteria
+                    loss = criterion(y, target)
+                    if loss.dim() > 1:
+                        loss = torch.mean(loss, dim=tuple(range(1, loss.dim())))
+                
+                batch_losses[name] = loss
 
-            # check losses and vis image if too high
-            # high_loss_idxs = self._high_loss_idx(loss)
-            # if high_loss_idxs.any():
-            #     x_high_loss = x[high_loss_idxs, ...]
-            #     target_high_loss = target[high_loss_idxs, ...]
-            #     y_high_loss = y[high_loss_idxs, ...]
-
-            #     # visualize the image
-            #     visualize_predictions(
-            #         self.eval_dir
-            #         / f"images_highloss/{dataset.dataset_name}_batch{i}.png",
-            #         x_high_loss,
-            #         y_high_loss,
-            #         target_high_loss,
-            #         num_samples=4,
-            #     )
-
-            # gather losses from all GPUs
+            # Gather losses from all GPUs if distributed
             if self.ddp_enabled:
-                gathered_losses = [
-                    torch.zeros_like(loss) for _ in range(self.world_size)
-                ]
-                dist.gather(loss, gathered_losses, dst=0)
-                if self.global_rank == 0:
-                    loss = torch.cat(gathered_losses, dim=0)
+                for name, loss in batch_losses.items():
+                    gathered_losses = [
+                        torch.zeros_like(loss) for _ in range(self.world_size)
+                    ]
+                    dist.gather(loss, gathered_losses, dst=0)
+                    if self.global_rank == 0:
+                        batch_losses[name] = torch.cat(gathered_losses, dim=0)
 
             if self.global_rank == 0:
-                # Concatenate all gathered losses for this batch
-                # Convert to DataFrame and append
-                losses.append(loss.cpu())
+                for name, loss in batch_losses.items():
+                    all_losses[name].append(loss.cpu())
 
-        return torch.cat(losses, dim=0)
-
-    def eval_all(self, datasets: dict[str, PhysicsDataset]) -> pd.DataFrame:
-        all_losses = {}
-        max_timesteps = 0
-        for name, dataset in datasets.items():
-            self._log_msg(f"Evaluating on dataset {name}")
-            losses = self._eval_on_dataset(dataset)
-            max_timesteps = max(max_timesteps, losses.shape[0])
-            all_losses[name] = losses.cpu().numpy()
-
-        # pad all losses to max timesteps
+        # Concatenate all losses
+        result = {}
         for name, losses in all_losses.items():
-            losses = np.pad(
-                losses,
-                (0, max_timesteps - losses.shape[0]),
-                mode="constant",
-                constant_values=np.nan,
-            )
-            all_losses[name] = losses
-        df = pd.DataFrame(all_losses)
-        return df
+            if losses:  # Check if losses is not empty
+                result[name] = torch.cat(losses, dim=0)
+            else:
+                result[name] = torch.tensor([])
+        
+        return result
+
+    def eval_all(self, datasets: dict[str, PhysicsDataset]) -> dict[str, pd.DataFrame]:
+        all_criterion_losses = {criterion_name: {} for criterion_name in self.criteria.keys()}
+        max_timesteps = 0
+        
+        for name, dataset in datasets.items():
+            criterion_names = ", ".join(self.criteria.keys())
+            self._log_msg(f"Evaluating on dataset {name} with {criterion_names}")
+            losses_dict = self._eval_on_dataset(dataset)
+            
+            for criterion_name, losses in losses_dict.items():
+                max_timesteps = max(max_timesteps, losses.shape[0])
+                all_criterion_losses[criterion_name][name] = losses.cpu().numpy()
+
+        # Pad all losses to max timesteps and create DataFrames
+        result_dfs = {}
+        for criterion_name, dataset_losses in all_criterion_losses.items():
+            padded_losses = {}
+            for dataset_name, losses in dataset_losses.items():
+                padded_losses[dataset_name] = np.pad(
+                    losses,
+                    (0, max_timesteps - losses.shape[0]),
+                    mode="constant",
+                    constant_values=np.nan,
+                )
+            result_dfs[criterion_name] = pd.DataFrame(padded_losses)
+        
+        return result_dfs
 
     @torch.inference_mode()
     def _rollout(
@@ -609,12 +635,18 @@ class Evaluator:
             self.eval_dir = self.eval_dir / subdir_name
             self.eval_dir.mkdir(parents=True, exist_ok=True)
 
-        if not overwrite and (self.eval_dir / "losses.csv").exists():
-            self.logger.info("Losses already evaluated, skipping...")
+        criterion_files = [f"{name.lower()}_losses.csv" for name in self.criteria.keys()]
+        files_exist = all((self.eval_dir / f).exists() for f in criterion_files)
+        
+        if not overwrite and files_exist:
+            criterion_names = ", ".join(self.criteria.keys())
+            self.logger.info(f"{criterion_names} losses already evaluated, skipping...")
         else:
-            # Evaluate on all datasets
-            df = self.eval_all(self.datasets)
-            df.to_csv(self.eval_dir / "losses.csv", index=False)
+            # Evaluate on all datasets with all criteria
+            criterion_dfs = self.eval_all(self.datasets)
+            for criterion_name, df in criterion_dfs.items():
+                filename = f"{criterion_name.lower()}_losses.csv"
+                df.to_csv(self.eval_dir / filename, index=False)
 
         if not overwrite and (self.eval_dir / "single_step_losses.csv").exists():
             self.logger.info("Single step losses already evaluated, skipping...")
