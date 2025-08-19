@@ -1,48 +1,50 @@
 import torch
 import torch.nn as nn
-from typing import Union
+from typing import Union, List
 from einops import rearrange
 
-from gphyt.model.unet import UNet
 from gphyt.model.model_specs import DeepONet_S, DeepONet_M
 
 
-class UNetBranch(nn.Module):
+class MLPBranch(nn.Module):
     """
-    UNet-based branch network for DeepONet.
+    MLP-based branch network for DeepONet using tanh activations.
 
     Parameters
     ----------
-    input_channels : int
-        Number of input physics field channels
-    n_steps_input : int
-        Number of input time steps
-    hidden_dim : int
-        Starting hidden dimension, doubled at each down block.
-        Final dim after up blocks is also hidden_dim.
-    n_down_blocks : int
-        Number of down blocks (equals number of up blocks)
+    input_dim : int
+        Input dimension (n_steps * input_channels)
+    hidden_dims : List[int]
+        List of hidden dimensions for each MLP layer
+    output_dim : int
+        Output dimension (latent_dim)
     """
 
     def __init__(
         self,
-        input_channels: int,
-        n_steps_input: int,
-        hidden_dim: int,
-        n_down_blocks: int,
+        input_dim: int,
+        hidden_dims: List[int],
+        output_dim: int,
     ):
         super().__init__()
-        self.net = UNet(
-            in_channels=input_channels,
-            out_channels=hidden_dim,
-            starting_hidden_dim=hidden_dim,
-            n_down_blocks=n_down_blocks,
-            n_time_steps=n_steps_input,
-        )
+
+        layers = []
+        prev_dim = input_dim
+
+        # Add hidden layers with tanh activation
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(prev_dim, hidden_dim))
+            layers.append(nn.Tanh())
+            prev_dim = hidden_dim
+
+        # Add output layer
+        layers.append(nn.Linear(prev_dim, output_dim))
+
+        self.mlp = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass of UNet branch network.
+        Forward pass of MLP branch network.
 
         Parameters
         ----------
@@ -52,11 +54,18 @@ class UNetBranch(nn.Module):
         Returns
         -------
         torch.Tensor
-            Output tensor of shape (batch_size, height, width, hidden_dim)
+            Output tensor of shape (batch_size, height, width, output_dim)
         """
-        x = self.net(x)
-        x = rearrange(x, "b 1 h w c-> b h w c")
-        return x
+        batch_size, n_steps, h, w, c = x.shape
+
+        # Flatten spatial and temporal dimensions for MLP processing
+        x_flat = rearrange(x, "b t h w c -> (b h w) (t c)")
+        output_flat = self.mlp(x_flat)
+
+        # Reshape back to spatial format
+        output = rearrange(output_flat, "(b h w) d -> b h w d", b=batch_size, h=h, w=w)
+
+        return output
 
 
 class MLPTrunk(nn.Module):
@@ -114,7 +123,7 @@ class MLPTrunk(nn.Module):
 
 class DeepONet(nn.Module):
     """
-    DeepONet implementation for physics operator learning using UNet branch and MLP trunk.
+    DeepONet implementation for physics operator learning using MLP branch and MLP trunk.
 
     Compatible with the physics dataset format from gphyt.data.phys_dataset.PhysicsDataset.
     Input format: (batch_size, n_steps, height, width, channels)
@@ -124,11 +133,11 @@ class DeepONet(nn.Module):
     ----------
     input_channels : int
         Number of input physics field channels
-    branch_n_down_blocks : int
-        Number of down blocks in UNet branch
+    branch_hidden_dims : List[int]
+        List of hidden dimensions for MLP branch layers
     latent_dim : int
         Latent dimension for branch-trunk interaction
-        Same as the starting hidden dimension of the branch network
+        Same as the output dimension of the branch network
         and the hidden dimension of the trunk network
     img_size : tuple[int, int]
         Spatial dimensions (height, width)
@@ -139,7 +148,7 @@ class DeepONet(nn.Module):
     def __init__(
         self,
         input_channels: int,
-        branch_n_down_blocks: int = 3,
+        branch_hidden_dims: List[int] = [128, 128],
         latent_dim: int = 256,
         img_size: tuple[int, int] = (256, 128),
         n_steps_input: int = 4,
@@ -156,12 +165,12 @@ class DeepONet(nn.Module):
             f"Latent dim {latent_dim} must be divisible by input_channels {input_channels}"
         )
 
-        # Branch network (UNet-based)
-        self.branch_net = UNetBranch(
-            input_channels=input_channels,
-            n_steps_input=n_steps_input,
-            hidden_dim=latent_dim,
-            n_down_blocks=branch_n_down_blocks,
+        # Branch network (MLP-based)
+        input_dim = n_steps_input * input_channels
+        self.branch_net = MLPBranch(
+            input_dim=input_dim,
+            hidden_dims=branch_hidden_dims,
+            output_dim=latent_dim,
         )
 
         # Trunk network (MLP-based)
@@ -263,13 +272,14 @@ def get_model(
         Configured DeepONet model
     """
     latent_dim = config.latent_dim
+    branch_hidden_dims = config.branch_hidden_dims
 
     # Ensure latent_dim is divisible by input_channels
     latent_dim = (latent_dim // input_channels) * input_channels
 
     return DeepONet(
         input_channels=input_channels,
-        branch_n_down_blocks=config.branch_down_blocks,
+        branch_hidden_dims=list(branch_hidden_dims),
         latent_dim=latent_dim,
         img_size=img_size,
         n_steps_input=n_steps_input,

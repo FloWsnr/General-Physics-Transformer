@@ -2,27 +2,28 @@ import pytest
 import torch
 from pathlib import Path
 
-from gphyt.model.deeponet import DeepONet, get_model, UNetBranch
+from gphyt.model.deeponet import DeepONet, get_model, MLPBranch
 from gphyt.model.model_specs import DeepONet_S
 
 
-class TestUNetBranch:
-    """Test UNetBranch implementation."""
+class TestMLPBranch:
+    """Test MLPBranch implementation."""
 
-    def test_unet_branch_forward(self):
-        """Test UNetBranch forward pass with standard input shape (b, t, h, w, c)."""
+    def test_mlp_branch_forward(self):
+        """Test MLPBranch forward pass with standard input shape (b, t, h, w, c)."""
         batch_size = 2
         n_steps = 4
         height, width = 32, 32
         channels = 3
-        hidden_dim = 64
+        input_dim = n_steps * channels  # 4 * 3 = 12
+        hidden_dims = [64, 128]
+        output_dim = 256
 
-        # Create UNetBranch model
-        model = UNetBranch(
-            input_channels=channels,
-            n_steps_input=n_steps,
-            hidden_dim=hidden_dim,
-            n_down_blocks=2,
+        # Create MLPBranch model
+        model = MLPBranch(
+            input_dim=input_dim,
+            hidden_dims=hidden_dims,
+            output_dim=output_dim,
         )
 
         # Create input with standard shape (b, t, h, w, c)
@@ -31,8 +32,24 @@ class TestUNetBranch:
         # Forward pass
         output = model(x)
 
-        assert output.shape == (batch_size, height, width, hidden_dim)
+        assert output.shape == (batch_size, height, width, output_dim)
         assert not torch.isnan(output).any()
+
+    def test_mlp_branch_tanh_activations(self):
+        """Test that MLPBranch uses tanh activations."""
+        input_dim = 12
+        hidden_dims = [64]
+        output_dim = 32
+        
+        model = MLPBranch(
+            input_dim=input_dim,
+            hidden_dims=hidden_dims,
+            output_dim=output_dim,
+        )
+        
+        # Check that tanh activation is used
+        layers = list(model.mlp.children())
+        assert isinstance(layers[1], torch.nn.Tanh), "Second layer should be Tanh activation"
 
 
 class TestDeepONet:
@@ -42,7 +59,7 @@ class TestDeepONet:
         """Test DeepONet initialization."""
         model = DeepONet(
             input_channels=4,
-            branch_n_down_blocks=2,
+            branch_hidden_dims=[64, 128],
             latent_dim=128,
             img_size=(32, 32),
             n_steps_input=2,
@@ -62,7 +79,7 @@ class TestDeepONet:
 
         model = DeepONet(
             input_channels=channels,
-            branch_n_down_blocks=2,
+            branch_hidden_dims=[32, 66],
             latent_dim=66,  # 66 is divisible by 3
             img_size=(height, width),
             n_steps_input=n_steps,
@@ -83,6 +100,7 @@ class TestDeepONet:
         config = DeepONet_S(
             branch_down_blocks=2,
             latent_dim=125,  # 125 is divisible by 5
+            branch_hidden_dims=(50, 100, 125),
         )
 
         model = get_model(config, input_channels=5, img_size=(24, 24), n_steps_input=3)
@@ -97,7 +115,7 @@ class TestDeepONet:
         """Test that gradients flow through the model."""
         model = DeepONet(
             input_channels=2,
-            branch_n_down_blocks=1,
+            branch_hidden_dims=[16, 32],
             latent_dim=32,  # 32 is divisible by 2
             img_size=(8, 8),
             n_steps_input=1,

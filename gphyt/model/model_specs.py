@@ -61,14 +61,14 @@ class FNO_S:
 
 @dataclass
 class DeepONet_S:
-    branch_down_blocks: int = 3
     latent_dim: int = 32
+    branch_hidden_dims: tuple[int, ...] = (16, 32)
 
 
 @dataclass
 class DeepONet_M:
-    branch_down_blocks: int = 4
     latent_dim: int = 64
+    branch_hidden_dims: tuple[int, ...] = (32, 64, 64)
 
 
 @dataclass
