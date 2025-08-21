@@ -58,17 +58,11 @@ def benchmark_dataloader(dataloader, n_batches):
     # Actual benchmarking
     print("Running benchmark...")
     start_time = time.time()
-    batch_times = []
 
     for i, batch in enumerate(dataloader):
-        batch_start = time.time()
-
         # Simulate some basic operations that might be done with the batch
         x, y = batch
         _ = x.shape, y.shape  # Just access the shapes
-
-        batch_end = time.time()
-        batch_times.append(batch_end - batch_start)
 
         if i + 1 >= n_batches:
             break
@@ -79,7 +73,7 @@ def benchmark_dataloader(dataloader, n_batches):
     end_time = time.time()
     total_time = end_time - start_time
 
-    return total_time, batch_times
+    return total_time
 
 
 def main():
@@ -150,38 +144,17 @@ def main():
 
     # Run benchmark
     try:
-        total_time, batch_times = benchmark_dataloader(dataloader, args.n_batches)
+        total_time = benchmark_dataloader(dataloader, args.n_batches)
 
         # Calculate statistics
-        avg_batch_time = sum(batch_times) / len(batch_times)
-        min_batch_time = min(batch_times)
-        max_batch_time = max(batch_times)
-        batches_per_second = len(batch_times) / total_time
-        samples_per_second = batches_per_second * args.batch_size
+        avg_batch_time = total_time / args.n_batches
 
         print("\n" + "=" * 60)
         print("BENCHMARK RESULTS")
         print("=" * 60)
         print(f"Total time: {total_time:.3f} seconds")
         print(f"Average batch loading time: {avg_batch_time:.4f} seconds")
-        print(f"Min batch loading time: {min_batch_time:.4f} seconds")
-        print(f"Max batch loading time: {max_batch_time:.4f} seconds")
-        print(f"Throughput: {batches_per_second:.2f} batches/second")
-        print(f"Throughput: {samples_per_second:.2f} samples/second")
         print("-" * 60)
-
-        # Performance analysis
-        if avg_batch_time > 0.1:
-            print(
-                "⚠️  Average batch time > 100ms - consider increasing num_workers or reducing batch_size"
-            )
-        elif avg_batch_time < 0.01:
-            print("✅ Excellent performance - batch loading is very fast")
-        else:
-            print("✅ Good performance - batch loading time is reasonable")
-
-        if max_batch_time > 2 * avg_batch_time:
-            print("⚠️  High variance in batch times - dataloader might be inconsistent")
 
     except Exception as e:
         print(f"Error during benchmarking: {e}")
