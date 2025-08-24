@@ -54,7 +54,7 @@ conda activate gphyt
 # Set up paths
 base_dir="/home/zsa8rk/Coding/General-Physics-Transformer"
 python_exec="${base_dir}/gphyt/run/model_eval.py"
-log_dir="/scratch/zsa8rk/logs"
+log_dir="/scratch/zsa8rk/results"
 data_dir="/scratch/zsa8rk/datasets"
 # sim_name (same as wandb id)
 sim_name="m-main-4-1"
@@ -106,4 +106,4 @@ exec_args="--config_file $config_file \
 torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args
 
 # move the output file to the sim_dir
-mv ${log_dir}/00_slrm_logs/eval_${sim_name}_${SLURM_JOB_ID}.out $sim_dir 
+mv ${log_dir}/00_slrm_logs/eval_${sim_name}_${SLURM_JOB_ID}.out $sim_dir
