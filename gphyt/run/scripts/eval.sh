@@ -5,13 +5,13 @@
 #SBATCH --job-name=eval_gphyt
 
 ### Output file
-#SBATCH --output=/hpcwork/rwth1802/coding/GPhyT/logs/slrm_logs/eval_gphyt_%j.out
+#SBATCH --output=/hpcwork/rwth1802/coding/GPhyT/results/slrm_logs/eval_gphyt_%j.out
 
 ### Start a parallel job for a distributed-memory system on several nodes
 #SBATCH --nodes=1
 
 ### How many CPU cores to use
-#SBATCH --ntasks-per-node=96
+#SBATCH --ntasks-per-node=23
 #SBATCH --exclusive
 
 ### Mail notification configuration
@@ -22,7 +22,7 @@
 #SBATCH --time=24:00:00
 
 ### set number of GPUs per task
-#SBATCH --gres=gpu:4
+#SBATCH --gres=gpu:1
 
 ### Set the time limit for the job, allows for graceful shutdown
 ### Should be lower than the time limit of the partition
@@ -51,13 +51,13 @@ conda activate gphyt
 # Set up paths
 base_dir="/hpcwork/rwth1802/coding/General-Physics-Transformer"
 python_exec="${base_dir}/gphyt/run/model_eval.py"
-log_dir="${base_dir}/logs"
+log_dir="${base_dir}/results"
 data_dir="${base_dir}/data/datasets"
 base_config_file="${base_dir}/gphyt/run/scripts/config.yaml"
 # sim_name (same as wandb id)
 sim_name="ti-main-run-all-0007"
 nnodes=1
-ngpus_per_node=4
+ngpus_per_node=1
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
 # name of the checkpoint to use for evaluation. Can be "best_model" or a number of a epoch directory
@@ -108,4 +108,4 @@ exec_args="--config_file $config_file \
 torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args
 
 # move the output file to the sim_dir
-mv ${log_dir}/slrm_logs/eval_${sim_name}_${SLURM_JOB_ID}.out $sim_dir 
+mv ${log_dir}/slrm_logs/eval_${sim_name}_${SLURM_JOB_ID}.out $sim_dir
