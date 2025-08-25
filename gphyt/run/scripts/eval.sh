@@ -33,10 +33,6 @@ time_limit="24:00:00"
 ############################# Setup #################################################
 #####################################################################################
 
-# Load modules
-module purge
-module load CUDA/12.6.0
-
 # activate conda environment
 export CONDA_ROOT=$HOME/miniforge3
 source $CONDA_ROOT/etc/profile.d/conda.sh
@@ -77,16 +73,13 @@ fi
 
 # create the sim_dir if it doesn't exist
 mkdir -p $sim_dir
-
-# copy the slurm script to the sim_dir with .sh suffix
-cp "$0" "${sim_dir}/slurm_eval_script.sh"
-
 # Try to find config file in sim_dir
-config_file="${sim_dir}/config.yaml"
+config_file="${sim_dir}/config_eval.yaml"
 if [ ! -f "$config_file" ]; then
-    echo "No config file found in $sim_dir, copying base config..."
-    cp $base_config_file $sim_dir
+    echo "No config_eval.yaml file found in $sim_dir, aborting..."
+    exit 1
 fi
+
 
 #####################################################################################
 ############################# Evaluation ############################################
