@@ -72,19 +72,11 @@ class Evaluator:
         eval_dir: Path,
         batch_size: int = 1,
         num_workers: int = 0,
-        global_rank: int = 0,
-        local_rank: int = 0,
-        world_size: int = 1,
         log_level: str = "INFO",
         criteria: dict[str, torch.nn.Module] = None,
     ):
-        self.global_rank = global_rank
-        self.local_rank = local_rank
-        self.world_size = world_size
         self.device = (
-            torch.device(f"cuda:{self.local_rank}")
-            if torch.cuda.is_available()
-            else torch.device("cpu")
+            torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
         )
         self.ddp_enabled = dist.is_initialized()
 
@@ -103,12 +95,12 @@ class Evaluator:
         self.eval_dir.mkdir(parents=True, exist_ok=True)
         self.batch_size = batch_size
         self.num_workers = num_workers
-        
+
         # Initialize evaluation criteria
         if criteria is None:
             self.criteria = {
                 "MSE": torch.nn.MSELoss(reduction="none"),
-                "RVMSE": RVMSELoss(dims=(1, 2, 3), return_scalar=False)
+                "RVMSE": RVMSELoss(dims=(1, 2, 3), return_scalar=False),
             }
         else:
             self.criteria = criteria
@@ -122,9 +114,6 @@ class Evaluator:
         batch_size: int = 64,
         num_workers: int = 4,
         checkpoint_name: str = "best_model",
-        global_rank: int = 0,
-        local_rank: int = 0,
-        world_size: int = 1,
     ) -> "Evaluator":
         """Create an Evaluator instance from a checkpoint.
 
@@ -155,27 +144,21 @@ class Evaluator:
             Initialized Evaluator instance
         """
         device = (
-            torch.device(f"cuda:{local_rank}")
+            torch.device(f"cuda:{0}")
             if torch.cuda.is_available()
             else torch.device("cpu")
         )
-        model, checkpoint_info = cls._load_checkpoint(
-            base_path, device, model_config, checkpoint_name
-        )
-        model.eval()
-        datasets = get_dt_datasets(data_config, split="test")
-
-        # print the model architecture
+        model = get_model(model_config)
+        model.to(device)
         torch.set_float32_matmul_precision("high")
         if not platform.system() == "Windows":
             model = torch.compile(model, mode="max-autotune")
 
-        if dist.is_initialized():
-            model = DDP(
-                model,
-                device_ids=[local_rank],
-                output_device=device,
-            )
+        model, checkpoint_info = cls._load_checkpoint(
+            base_path, device, model, checkpoint_name
+        )
+        model.eval()
+        datasets = get_dt_datasets(data_config, split="test")
 
         eval_dir = base_path / "eval" / checkpoint_name
         eval_dir.mkdir(parents=True, exist_ok=True)
@@ -190,16 +173,13 @@ class Evaluator:
             eval_dir=eval_dir,
             batch_size=batch_size,
             num_workers=num_workers,
-            global_rank=global_rank,
-            local_rank=local_rank,
-            world_size=world_size,
         )
 
     @staticmethod
     def _load_checkpoint(
         path: Path,
         device: torch.device,
-        model_config: dict,
+        model: torch.nn.Module,
         checkpoint_name: str,
     ) -> tuple[torch.nn.Module, dict]:
         """Load a model from a checkpoint.
@@ -210,8 +190,8 @@ class Evaluator:
             Path to the checkpoint
         device : torch.device
             Device to load the model to
-        model_config : dict
-            Model configuration dictionary
+        model : torch.nn.Module
+            Model to load the checkpoint into
 
         Returns
         -------
@@ -222,8 +202,6 @@ class Evaluator:
         checkpoint_path = find_checkpoint(
             path, subdir_name=subdir_name, specific_checkpoint=checkpoint_name
         )
-        model = get_model(model_config)
-        model.to(device)
         data = load_stored_model(checkpoint_path, device, ddp=False)
         model.load_state_dict(data["model_state_dict"], strict=True)
 
@@ -253,8 +231,7 @@ class Evaluator:
 
     def _log_msg(self, msg: str):
         """Log a message."""
-        if self.global_rank == 0:
-            self.logger.info(msg)
+        self.logger.info(msg)
 
     def _high_loss_idx(self, losses: torch.Tensor):
         """Get the indices of the losses that are too high."""
@@ -266,7 +243,7 @@ class Evaluator:
         loader = self._get_dataloader(dataset, is_distributed=self.ddp_enabled)
 
         all_losses = {name: [] for name in self.criteria.keys()}
-        
+
         for i, (x, target) in enumerate(loader):
             self._log_msg(f"  Batch {i}/{len(loader)}")
 
@@ -274,7 +251,7 @@ class Evaluator:
             target = target.to(self.device)
             with torch.amp.autocast(device_type=self.device.type, dtype=torch.bfloat16):
                 y = self.model(x)
-                
+
             # Compute losses for each criterion
             batch_losses = {}
             for name, criterion in self.criteria.items():
@@ -283,7 +260,9 @@ class Evaluator:
                     loss = torch.mean(loss, dim=(1, 2, 3))  # B
                 elif name == "RVMSE":
                     # RVMSE expects (B, T, H, W, C) and returns (B, T, H, W, C) with dims reduced
-                    loss = criterion(y, target)  # (B, 1, 1, 1, C) after dimension reduction
+                    loss = criterion(
+                        y, target
+                    )  # (B, 1, 1, 1, C) after dimension reduction
                     loss = loss.squeeze()  # Remove singleton dimensions
                     if loss.dim() > 1:
                         loss = torch.mean(loss, dim=-1)  # Average over channels -> (B,)
@@ -292,22 +271,11 @@ class Evaluator:
                     loss = criterion(y, target)
                     if loss.dim() > 1:
                         loss = torch.mean(loss, dim=tuple(range(1, loss.dim())))
-                
+
                 batch_losses[name] = loss
 
-            # Gather losses from all GPUs if distributed
-            if self.ddp_enabled:
-                for name, loss in batch_losses.items():
-                    gathered_losses = [
-                        torch.zeros_like(loss) for _ in range(self.world_size)
-                    ]
-                    dist.gather(loss, gathered_losses, dst=0)
-                    if self.global_rank == 0:
-                        batch_losses[name] = torch.cat(gathered_losses, dim=0)
-
-            if self.global_rank == 0:
-                for name, loss in batch_losses.items():
-                    all_losses[name].append(loss.cpu())
+            for name, loss in batch_losses.items():
+                all_losses[name].append(loss.cpu())
 
         # Concatenate all losses
         result = {}
@@ -316,18 +284,20 @@ class Evaluator:
                 result[name] = torch.cat(losses, dim=0)
             else:
                 result[name] = torch.tensor([])
-        
+
         return result
 
     def eval_all(self, datasets: dict[str, PhysicsDataset]) -> dict[str, pd.DataFrame]:
-        all_criterion_losses = {criterion_name: {} for criterion_name in self.criteria.keys()}
+        all_criterion_losses = {
+            criterion_name: {} for criterion_name in self.criteria.keys()
+        }
         max_timesteps = 0
-        
+
         for name, dataset in datasets.items():
             criterion_names = ", ".join(self.criteria.keys())
             self._log_msg(f"Evaluating on dataset {name} with {criterion_names}")
             losses_dict = self._eval_on_dataset(dataset)
-            
+
             for criterion_name, losses in losses_dict.items():
                 max_timesteps = max(max_timesteps, losses.shape[0])
                 all_criterion_losses[criterion_name][name] = losses.cpu().numpy()
@@ -344,7 +314,7 @@ class Evaluator:
                     constant_values=np.nan,
                 )
             result_dfs[criterion_name] = pd.DataFrame(padded_losses)
-        
+
         return result_dfs
 
     @torch.inference_mode()
@@ -635,9 +605,11 @@ class Evaluator:
             self.eval_dir = self.eval_dir / subdir_name
             self.eval_dir.mkdir(parents=True, exist_ok=True)
 
-        criterion_files = [f"{name.lower()}_losses.csv" for name in self.criteria.keys()]
+        criterion_files = [
+            f"{name.lower()}_losses.csv" for name in self.criteria.keys()
+        ]
         files_exist = all((self.eval_dir / f).exists() for f in criterion_files)
-        
+
         if not overwrite and files_exist:
             criterion_names = ", ".join(self.criteria.keys())
             self.logger.info(f"{criterion_names} losses already evaluated, skipping...")
@@ -690,11 +662,6 @@ class Evaluator:
             self.logger.error(f"Error visualizing single step: {e}")
 
 
-def setup_ddp():
-    """Initialize distributed data parallel training."""
-    dist.init_process_group()
-
-
 def main(
     config_path: Path,
     log_dir: Path | None,
@@ -702,9 +669,6 @@ def main(
     sim_name: str | None,
     data_dir: Path | None,
     subdir_name: str | None,
-    global_rank: int,
-    local_rank: int,
-    world_size: int,
 ):
     """Main evaluation function.
 
@@ -722,17 +686,7 @@ def main(
         Path to the data directory
     subdir_name : str | None
         Name of the subdirectory where the evaluation is stored
-    global_rank : int
-        Global rank for distributed training
-    local_rank : int
-        Local rank for distributed training
-    world_size : int
-        World size for distributed training
     """
-    # Set cuda device
-    if torch.cuda.is_available():
-        torch.cuda.set_device(local_rank)
-
     # Load config
     config_path = Path(config_path)
     with open(config_path, "r") as f:
@@ -756,8 +710,6 @@ def main(
     ####################################################################
     ########### Initialize evaluator ###################################
     ####################################################################
-    if world_size > 1:
-        setup_ddp()
 
     model_config = config["model"]
     data_config = config["data"]
@@ -772,9 +724,6 @@ def main(
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
         checkpoint_name=checkpoint_name,
-        global_rank=global_rank,
-        local_rank=local_rank,
-        world_size=world_size,
     )
     evaluator.main(subdir_name=subdir_name)
 
@@ -792,10 +741,6 @@ if __name__ == "__main__":
     parser.add_argument("--subdir_name", type=str, default=None)
     args = parser.parse_args()
 
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    global_rank = int(os.environ.get("RANK", 0))
-
     config_path = args.config_file
     log_dir = args.log_dir
     sim_name = args.sim_name
@@ -810,7 +755,4 @@ if __name__ == "__main__":
         data_dir=data_dir,
         checkpoint_name=checkpoint_name,
         subdir_name=subdir_name,
-        global_rank=global_rank,
-        local_rank=local_rank,
-        world_size=world_size,
     )

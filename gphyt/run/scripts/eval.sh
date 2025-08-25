@@ -46,6 +46,8 @@ conda activate gphyt
 # debug=true
 # Set up paths
 base_dir="/hpcwork/rwth1802/coding/General-Physics-Transformer"
+
+python_bin="/home/fw641779/miniforge3/envs/gphyt/bin/python"
 python_exec="${base_dir}/gphyt/run/model_eval.py"
 log_dir="${base_dir}/results"
 data_dir="${base_dir}/data/datasets"
@@ -98,7 +100,7 @@ exec_args="--config_file $config_file \
     --checkpoint_name $checkpoint_name"
 
 # Capture Python output and errors in a variable and run the script
-torchrun --standalone --nproc_per_node=$ngpus_per_node $python_exec $exec_args
+$python_bin $python_exec $exec_args
 
 # move the output file to the sim_dir
 mv ${log_dir}/slrm_logs/eval_${sim_name}_${SLURM_JOB_ID}.out $sim_dir
