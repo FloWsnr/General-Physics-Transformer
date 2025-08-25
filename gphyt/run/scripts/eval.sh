@@ -5,7 +5,7 @@
 #SBATCH --job-name=eval_gphyt
 
 ### Output file
-#SBATCH --output=/hpcwork/rwth1802/coding/GPhyT/results/slrm_logs/eval_gphyt_%j.out
+#SBATCH --output=/hpcwork/rwth1802/coding/General-Physics-Transformer/results/slrm_logs/eval_gphyt_%j.out
 
 ### Start a parallel job for a distributed-memory system on several nodes
 #SBATCH --nodes=1
@@ -24,10 +24,6 @@
 ### set number of GPUs per task
 #SBATCH --gres=gpu:1
 
-### Set the time limit for the job, allows for graceful shutdown
-### Should be lower than the time limit of the partition
-### Format: HH:MM:SS
-time_limit="24:00:00"
 
 #####################################################################################
 ############################# Setup #################################################
