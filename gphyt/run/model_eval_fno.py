@@ -218,7 +218,9 @@ class Evaluator:
             path, subdir_name=subdir_name, specific_checkpoint=checkpoint_name
         )
         data = load_stored_model(checkpoint_path, device, ddp=False)
-        model.load_state_dict(data["model_state_dict"], strict=True)
+        m_state_dict = data["model_state_dict"]
+        m_state_dict.pop("_metadata", None)  # remove metadata if present
+        model.load_state_dict(m_state_dict, strict=True)
 
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         checkpoint_info = {

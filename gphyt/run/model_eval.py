@@ -28,6 +28,7 @@ import torch.distributed as dist
 
 from gphyt.model.transformer.model import get_model as get_model_gphyt
 from gphyt.model.unet import get_model as get_model_unet
+from gphyt.model.model_specs import UNet_M
 from gphyt.model.transformer.loss_fns import RVMSELoss
 from gphyt.data.dataset_utils import get_dt_datasets
 from gphyt.data.phys_dataset import PhysicsDataset
@@ -169,7 +170,7 @@ class Evaluator:
             else torch.device("cpu")
         )
         if model_config == "unet-M":
-            model = get_model_unet(model_config)
+            model = get_model_unet(UNet_M())
         else:
             model = get_model_gphyt(model_config)
 
