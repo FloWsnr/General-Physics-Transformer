@@ -7,10 +7,10 @@ from gphyt.utils.plotting.base_plotter import BasePlotter, calculate_combined_st
 
 
 RUNS = [
-    "ti-main-4-1",
-    "m-main-4-1",
-    "l-main-4-1",
-    "xl-main-4-1-a",
+    "s-main-03",
+    "m-main-03",
+    "l-main-05",
+    "xl-main-03",
 ]
 
 DATASETS = [
@@ -32,53 +32,38 @@ DATASETS = [
 
 class ScalingLawPlotter(BasePlotter):
     def __init__(self):
-        super().__init__()
+        super().__init__(figsize=(4.3, 4.3))
 
-        x_ticks = [1e4, 1e5, 1e6]
-        y_ticks = [1e-5, 1e-4, 1e-3]
+        x_ticks = [(0, "9M"), (1, "112M"), (2, "380M"), (3, "780M")]
+        y_ticks = [1e-4, 1e-3, 1e-2]
         self.setup_figure(
             x_ticks=x_ticks,
             y_ticks=y_ticks,
-            x_label="Number of Updates",
-            y_label="Loss",
-            x_log=True,
+            x_label="Number of Parameters",
+            y_label="MSE",
+            x_log=False,
             y_log=True,
+            padding_factor=(0.1, 0.1),
+            minor_ticks=False,
         )
 
 
 if __name__ == "__main__":
     # RUNS = ["m-main-4-1"]
 
-    base_dir = Path("/scratch/zsa8rk/logs")
+    base_dir = Path("/hpcwork/rwth1802/coding/General-Physics-Transformer/results")
     plotter = ScalingLawPlotter()
+    losses = []
+    steps = [0, 1, 2, 3]
     for run in RUNS:
-        run_dir = base_dir / run / "eval"
-
-        num_updates = []
-        num_samples = []
-        losses = []
-
-        for eval_checkpoint in sorted(run_dir.iterdir()):
-            if not eval_checkpoint.is_dir():
-                continue
-            with open(eval_checkpoint / "checkpoint_info.json", "r") as f:
-                checkpoint_info = json.load(f)
-            batches = checkpoint_info["batches_trained"]
-            samples = checkpoint_info["samples_trained"]
-            num_updates.append(batches)
-            num_samples.append(samples)
-
-            # load df
-            df = pd.read_csv(eval_checkpoint / "losses.csv", index_col=0)
-            stats = calculate_combined_stats(df, DATASETS)
-            loss = stats.loc["OVERALL", "Combined Mean"]
-            losses.append(loss)
-            # printing
-            print(
-                f"Checkpoint {eval_checkpoint.name}: N_updates: {batches} N_samples: {samples} Loss: {loss:.2e}"
-            )
+        run_dir = base_dir / run / "eval/best_model"
+        # load df
+        df = pd.read_csv(run_dir / "mse_losses.csv", index_col=0)
+        stats = calculate_combined_stats(df, DATASETS)
+        loss = stats.loc["OVERALL", "Combined Mean"]
+        losses.append(loss)
         # plot
-        color = next(plotter.color_cycler)
-        plotter.plot_data(num_updates, losses, color=color)
 
-    plotter.save_figure(base_dir.parent / "plots/scaling_laws_mean.png")
+    plotter.plot_data(steps, losses)
+    plotter.save_figure(base_dir / "plots/scaling_laws_mean.svg")
+    plotter.save_figure(base_dir / "plots/scaling_laws_mean.png")

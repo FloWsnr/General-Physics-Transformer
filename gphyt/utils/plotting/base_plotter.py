@@ -443,43 +443,67 @@ class BasePlotter:
 
 
 def calculate_combined_stats(
-    df: pd.DataFrame, column_patterns: list[str], level: int = 0
+    df: pd.DataFrame, column_patterns: list[str | list[str]], level: int = 0
 ) -> pd.DataFrame:
     """
     Calculate the mean, median, and standard deviation of columns that match specific patterns.
     Is used to combine statistics of the same dataset with different delta t values.
+    Can also combine multiple patterns into a single result.
 
     Parameters
     ----------
     df : pandas.DataFrame
         Input DataFrame containing the data
-    column_patterns : list of str
-        List of dataset names to combine statistics for
+    column_patterns : list of str or list of list of str
+        List of dataset names to combine statistics for. Can be:
+        - List of strings: Each string is treated as a separate pattern
+        - List containing strings and lists: Lists of strings are combined into one result
+        Example: ['pattern1', ['pattern2', 'pattern3'], 'pattern4']
+        This will create separate results for pattern1 and pattern4, and combine pattern2+pattern3
     level : int
         Level of the column to match
 
     Returns
     -------
     pandas.DataFrame
-        DataFrame containing the combined statistics for each pattern
+        DataFrame containing the combined statistics for each pattern or pattern group
     """
     results = []
-    for pattern in column_patterns:
-        # Find columns that match the pattern exactly
-        matching_cols = [
-            col
-            for col in df.columns.get_level_values(level)
-            if col.startswith(pattern + "_") or col == pattern
-        ]
-        if matching_cols:
-            # Calculate statistics across matching columns
-            matched_df = df[matching_cols]
+    for pattern_group in column_patterns:
+        # Handle both single patterns and groups of patterns
+        if isinstance(pattern_group, str):
+            patterns_to_combine = [pattern_group]
+            dataset_name = pattern_group
+        else:
+            patterns_to_combine = pattern_group
+            dataset_name = " + ".join(pattern_group)
+        
+        all_matching_cols = []
+        for pattern in patterns_to_combine:
+            # Find columns that match the pattern exactly
+            if hasattr(df.columns, 'get_level_values'):
+                # MultiIndex columns
+                columns_to_check = df.columns.get_level_values(level)
+            else:
+                # Regular columns
+                columns_to_check = df.columns
+                
+            matching_cols = [
+                col
+                for col in columns_to_check
+                if col.startswith(pattern + "_") or col == pattern
+            ]
+            all_matching_cols.extend(matching_cols)
+        
+        if all_matching_cols:
+            # Calculate statistics across all matching columns
+            matched_df = df[all_matching_cols]
             combined_mean = np.nanmean(matched_df.values)
             combined_median = np.nanmedian(matched_df.values)
             combined_std = np.nanstd(matched_df.values)
             results.append(
                 {
-                    "Dataset": pattern,
+                    "Dataset": dataset_name,
                     "Combined Mean": combined_mean,
                     "Combined Median": combined_median,
                     "Combined Std": combined_std,

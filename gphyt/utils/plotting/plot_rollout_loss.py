@@ -12,20 +12,19 @@ from gphyt.utils.plotting.base_plotter import (
 
 
 if __name__ == "__main__":
-    base_dir = Path("/scratch/zsa8rk/logs")
+    base_dir = Path("/hpcwork/rwth1802/coding/General-Physics-Transformer/results")
 
     # Get Mean, Median and STD from loss dataframes
     RUNS = [
-        "xl-main-4-1-a",
+        "l-main-05",
     ]
 
     for run in RUNS:
-        eval_dir = base_dir / run / "eval"
-        last_dir = sorted(eval_dir.iterdir())[-1]
+        eval_dir = base_dir / run / "eval" / "best_model"
 
-        rollout_df = pd.read_csv(last_dir / "rollout_losses.csv", header=[0, 1, 2])
+        rollout_df = pd.read_csv(eval_dir / "rollout_losses.csv", header=[0, 1, 2])
         single_step_df = pd.read_csv(
-            last_dir / "single_step_losses.csv", header=[0, 1, 2]
+            eval_dir / "single_step_losses.csv", header=[0, 1, 2]
         )
 
         # Calculate combined means for different flow types
@@ -49,29 +48,9 @@ if __name__ == "__main__":
         )
 
         data_mean = rollout_mean(combined_df)
-        x_ticks = [0, 5, 10]
-        y_ticks = [0, 0.1, 0.2]
+        x_ticks = [0, 15, 30]
+        y_ticks = [0, 0.1, 1]
         plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks)
-        plotter.plot(mean_loss=data_mean[:11, :], std_loss=None)
+        plotter.plot(mean_loss=data_mean[:, :], std_loss=None)
         # plotter.legend("Mean")
-        plotter.save_figure(base_dir.parent / "plots/rollout/mean.png")
-
-        data_median = rollout_median(combined_df)
-        x_ticks = [0, 5, 10]
-        y_ticks = [0, 0.01, 0.02]
-        plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks)
-        plotter.plot(mean_loss=data_median[:11, :], std_loss=None)
-        # plotter.legend("Median")
-        plotter.save_figure(base_dir.parent / "plots/rollout/median.png")
-
-        # for pattern in flow_patterns:
-        #     data_mean = combined_df[pattern]["mean"].values
-        #     data_std = combined_df[pattern]["std"].values
-
-        #     # Plot the combined dfs over time
-        #     x_ticks = [0, 25, 50]
-        #     y_ticks = [0, 0.2]
-        #     plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks)
-        #     plotter.plot(mean_loss=data_mean, std_loss=None)
-        #     plotter.save_figure(base_dir.parent / f"plots/rollout/{pattern}.png")
-        # # plotter.legend("cylinder_sym_flow_water")
+        plotter.save_figure(base_dir / "plots/rollout/mean.png")

@@ -7,16 +7,16 @@ from gphyt.utils.plotting.base_plotter import BasePlotter, calculate_combined_st
 
 
 RUNS_PROMPT = [
-    "m-main-1-1",
-    "m-main-2-1",
-    "m-main-4-1",
-    "m-main-8-1",
+    "m-main-1-1-01",
+    "m-main-2-1-01",
+    "m-main-03",
+    "m-main-8-1-01",
 ]
 
 RUNS_PATCH = [
-    "m-main-4-1",
-    "m-main-4-2",
-    "m-main-4-4",
+    "m-main-03",
+    "m-main-4-2-01",
+    "m-main-4-4-01",
 ]
 
 DATASETS = [
@@ -73,7 +73,7 @@ class PatchSizePlotter(BasePlotter):
 
 
 if __name__ == "__main__":
-    base_dir = Path("/scratch/zsa8rk/logs")
+    base_dir = Path("/hpcwork/rwth1802/coding/General-Physics-Transformer/results")
     # RUNS = ["m-main-4-1"]
 
     plotter = PromptSizePlotter()
@@ -82,21 +82,20 @@ if __name__ == "__main__":
     steps = [1, 2, 4, 8]
     for step, run in zip(steps, RUNS_PROMPT):
         print(f"Processing {run}")
-        run_dir = base_dir / run / "eval"
-        eval_dir = sorted(run_dir.iterdir())[-1]
+        run_dir = base_dir / run / "eval" / "best_model"
 
-        with open(eval_dir / "checkpoint_info.json", "r") as f:
+        with open(run_dir / "checkpoint_info.json", "r") as f:
             checkpoint_info = json.load(f)
         # load df
-        df = pd.read_csv(eval_dir / "losses.csv", index_col=0)
+        df = pd.read_csv(run_dir / "mse_losses.csv", index_col=0)
         stats = calculate_combined_stats(df, DATASETS)
-        loss = stats.loc["OVERALL", "Combined Median"]
+        loss = stats.loc["OVERALL", "Combined Mean"]
         losses.append(loss)
 
     # plot
     plotter.plot_data(steps, losses)
-    plotter.save_figure(base_dir.parent / "plots/prompt_size.png")
-    plotter.save_figure(base_dir.parent / "plots/prompt_size.svg")
+    plotter.save_figure(base_dir / "plots/prompt_size.png")
+    plotter.save_figure(base_dir / "plots/prompt_size.svg")
 
     plotter = PatchSizePlotter()
 
@@ -104,18 +103,17 @@ if __name__ == "__main__":
     steps = [1, 2, 4]
     for step, run in zip(steps, RUNS_PATCH):
         print(f"Processing {run}")
-        run_dir = base_dir / run / "eval"
-        eval_dir = sorted(run_dir.iterdir())[-1]
+        run_dir = base_dir / run / "eval" / "best_model"
 
-        with open(eval_dir / "checkpoint_info.json", "r") as f:
+        with open(run_dir / "checkpoint_info.json", "r") as f:
             checkpoint_info = json.load(f)
         # load df
-        df = pd.read_csv(eval_dir / "losses.csv", index_col=0)
+        df = pd.read_csv(run_dir / "losses.csv", index_col=0)
         stats = calculate_combined_stats(df, DATASETS)
         loss = stats.loc["OVERALL", "Combined Median"]
         losses.append(loss)
 
     # plot
     plotter.plot_data(steps, losses)
-    plotter.save_figure(base_dir.parent / "plots/patch_size.png")
-    plotter.save_figure(base_dir.parent / "plots/patch_size.svg")
+    plotter.save_figure(base_dir / "plots/patch_size.png")
+    plotter.save_figure(base_dir / "plots/patch_size.svg")
