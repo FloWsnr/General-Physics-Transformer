@@ -4,11 +4,9 @@ By: Florian Wiesner
 Date: 2025-05-01
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 import platform
 import argparse
-import os
 import json
 import numpy as np
 import matplotlib.pyplot as plt
@@ -24,59 +22,41 @@ except ImportError:
 import pandas as pd
 
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import DataLoader, SequentialSampler
 
-from neuralop.models import TFNO3d
-
-from gphyt.model.transformer.model import get_model
+from gphyt.model.fno import get_model
+from gphyt.model.transformer.loss_fns import RVMSELoss
 from gphyt.data.dataset_utils import get_dt_datasets
 from gphyt.data.phys_dataset import PhysicsDataset
 from gphyt.utils.logger import get_logger
 from gphyt.run.run_utils import load_stored_model, find_checkpoint
+from gphyt.model.model_specs import FNO_M
+
+# Which fields are actually used in which dataset. Needed for VRMSE computation
+# 0=pressure, 1=density, 2=temp, 3=velx, 4=vely
+DATASET_FIELDS = {
+    "cylinder_sym_flow_water": (0, 3, 4),
+    "cylinder_pipe_flow_water": (0, 3, 4),
+    "object_periodic_flow_water": (0, 3, 4),
+    "object_sym_flow_water": (0, 3, 4),
+    "object_sym_flow_air": (0, 3, 4),
+    "heated_object_pipe_flow_air": (0, 1, 2, 3, 4),
+    "cooled_object_pipe_flow_air": (0, 1, 2, 3, 4),
+    "rayleigh_benard_obstacle": (0, 1, 2, 3, 4),
+    "twophase_flow": (0, 1, 3, 4),
+    "rayleigh_benard": (0, 1, 3, 4),
+    "shear_flow": (0, 3, 4),
+    "euler_multi_quadrants_periodicbc": (0, 1, 3, 4),
+    "acoustic_scattering_inclusions": (0, 3, 4),
+    "turbulent_radiative_layer_2d": (0, 1, 3, 4),
+    "supersonic_flow": (0, 1, 3, 4),
+}
 
 
 def load_config(path: Path) -> dict:
     with open(path, "r") as f:
         config = yaml.load(f, Loader=Loader)
     return config
-
-
-@dataclass
-class FNO_M:
-    in_channels: int = 5
-    out_channels: int = 5
-    hidden_channels: int = 128
-    n_layers: int = 4
-    n_modes_height: int = 15
-    n_modes_width: int = 15
-    n_time_steps: int = 15
-
-
-@dataclass
-class FNO_S:
-    in_channels: int = 5
-    out_channels: int = 5
-    hidden_channels: int = 64
-    n_layers: int = 4
-    n_modes_height: int = 10
-    n_modes_width: int = 10
-    n_time_steps: int = 10
-
-
-def get_fno_model(config: FNO_M | FNO_S) -> nn.Module:
-    model = TFNO3d(
-        n_modes_height=config.n_modes_height,
-        n_modes_width=config.n_modes_width,
-        n_modes_depth=config.n_time_steps,
-        in_channels=config.in_channels,
-        out_channels=config.out_channels,
-        hidden_channels=config.hidden_channels,
-        n_layers=config.n_layers,
-    )
-    return model
 
 
 class Evaluator:
@@ -109,20 +89,12 @@ class Evaluator:
         eval_dir: Path,
         batch_size: int = 1,
         num_workers: int = 0,
-        global_rank: int = 0,
-        local_rank: int = 0,
-        world_size: int = 1,
         log_level: str = "INFO",
+        criteria: dict[str, torch.nn.Module] = None,
     ):
-        self.global_rank = global_rank
-        self.local_rank = local_rank
-        self.world_size = world_size
         self.device = (
-            torch.device(f"cuda:{self.local_rank}")
-            if torch.cuda.is_available()
-            else torch.device("cpu")
+            torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
         )
-        self.ddp_enabled = dist.is_initialized()
 
         self.logger = get_logger(
             "Evaluator",
@@ -140,18 +112,24 @@ class Evaluator:
         self.batch_size = batch_size
         self.num_workers = num_workers
 
+        # Initialize evaluation criteria
+        if criteria is None:
+            self.criteria = {
+                "MSE": torch.nn.MSELoss(reduction="none"),
+                "RVMSE": RVMSELoss(dims=(1, 2, 3), return_scalar=False),
+            }
+        else:
+            self.criteria = criteria
+
     @classmethod
     def from_checkpoint(
         cls,
         base_path: Path,
         data_config: dict,
-        model_config: str,
+        model_config: dict,
         batch_size: int = 64,
         num_workers: int = 4,
         checkpoint_name: str = "best_model",
-        global_rank: int = 0,
-        local_rank: int = 0,
-        world_size: int = 1,
     ) -> "Evaluator":
         """Create an Evaluator instance from a checkpoint.
 
@@ -161,8 +139,8 @@ class Evaluator:
             Path to the base directory of the model
         data_config : dict
             Data configuration dictionary
-        model_config : str
-            Model configuration string
+        model_config : dict
+            Model configuration dictionary
         batch_size : int, optional
             Batch size for evaluation, by default 256
         num_workers : int, optional
@@ -182,27 +160,20 @@ class Evaluator:
             Initialized Evaluator instance
         """
         device = (
-            torch.device(f"cuda:{local_rank}")
+            torch.device(f"cuda:{0}")
             if torch.cuda.is_available()
             else torch.device("cpu")
         )
+
+        model = get_model(FNO_M())
+        model.to(device)
+        torch.set_float32_matmul_precision("high")
+
         model, checkpoint_info = cls._load_checkpoint(
-            base_path, device, model_config, checkpoint_name
+            base_path, device, model, checkpoint_name
         )
         model.eval()
         datasets = get_dt_datasets(data_config, split="test")
-
-        # print the model architecture
-        torch.set_float32_matmul_precision("high")
-        # if not platform.system() == "Windows":
-        #     model = torch.compile(model, mode="max-autotune")
-
-        if dist.is_initialized():
-            model = DDP(
-                model,
-                device_ids=[local_rank],
-                output_device=device,
-            )
 
         eval_dir = base_path / "eval" / checkpoint_name
         eval_dir.mkdir(parents=True, exist_ok=True)
@@ -217,16 +188,13 @@ class Evaluator:
             eval_dir=eval_dir,
             batch_size=batch_size,
             num_workers=num_workers,
-            global_rank=global_rank,
-            local_rank=local_rank,
-            world_size=world_size,
         )
 
     @staticmethod
     def _load_checkpoint(
         path: Path,
         device: torch.device,
-        model_config: str,
+        model: torch.nn.Module,
         checkpoint_name: str,
     ) -> tuple[torch.nn.Module, dict]:
         """Load a model from a checkpoint.
@@ -237,8 +205,8 @@ class Evaluator:
             Path to the checkpoint
         device : torch.device
             Device to load the model to
-        model_config : str
-            Model configuration string
+        model : torch.nn.Module
+            Model to load the checkpoint into
 
         Returns
         -------
@@ -249,15 +217,7 @@ class Evaluator:
         checkpoint_path = find_checkpoint(
             path, subdir_name=subdir_name, specific_checkpoint=checkpoint_name
         )
-        # check if model is FNO_M or FNO_S
-        if model_config == "fno-M":
-            model = get_fno_model(FNO_M())
-        elif model_config == "fno-S":
-            model = get_fno_model(FNO_S())
-        else:
-            raise ValueError(f"Model {model_config} not supported")
-        model.to(device)
-        data = load_stored_model(checkpoint_path, device, remove_ddp=True)
+        data = load_stored_model(checkpoint_path, device, ddp=False)
         model.load_state_dict(data["model_state_dict"], strict=True)
 
         checkpoint = torch.load(checkpoint_path, weights_only=False)
@@ -269,11 +229,8 @@ class Evaluator:
 
         return model, checkpoint_info
 
-    def _get_dataloader(self, dataset: PhysicsDataset, is_distributed: bool = False):
-        if is_distributed:
-            sampler = DistributedSampler(dataset, shuffle=False)
-        else:
-            sampler = SequentialSampler(dataset)
+    def _get_dataloader(self, dataset: PhysicsDataset):
+        sampler = SequentialSampler(dataset)
 
         return DataLoader(
             dataset,
@@ -286,65 +243,100 @@ class Evaluator:
 
     def _log_msg(self, msg: str):
         """Log a message."""
-        if self.global_rank == 0:
-            self.logger.info(msg)
+        self.logger.info(msg)
+
+    def _high_loss_idx(self, losses: torch.Tensor):
+        """Get the indices of the losses that are too high."""
+        high_losses = losses > 10
+        return high_losses
 
     @torch.inference_mode()
-    def _eval_on_dataset(self, dataset: PhysicsDataset) -> torch.Tensor:
-        criterion = torch.nn.MSELoss(reduction="none")
-        loader = self._get_dataloader(dataset, is_distributed=self.ddp_enabled)
+    def _eval_on_dataset(self, dataset: PhysicsDataset) -> dict[str, torch.Tensor]:
+        loader = self._get_dataloader(dataset)
 
-        losses = []
+        all_losses = {name: [] for name in self.criteria.keys()}
+
         for i, (x, target) in enumerate(loader):
             self._log_msg(f"  Batch {i}/{len(loader)}")
 
             x = x.to(self.device)
             target = target.to(self.device)
-            # rearrange x and y to be (batch_size, n_channels, n_time_steps, n_height, n_width)
-            y = self.model(x.permute(0, 4, 1, 2, 3))
-            # use only the last time step as comparison, but keep the time dimension
-            y = y.permute(0, 2, 3, 4, 1)
-            y = y[:, -1, :, :, :].unsqueeze(1)
-            loss = criterion(y, target).squeeze(1)  # remove T dimension
-            # get the loss of each sample, dont average accross batches only h,w,c
-            loss = torch.mean(loss, dim=(1, 2, 3))
+            y = self.model(x)
 
-            # gather losses from all GPUs
-            if self.ddp_enabled:
-                gathered_losses = [
-                    torch.zeros_like(loss) for _ in range(self.world_size)
-                ]
-                dist.gather(loss, gathered_losses, dst=0)
-                if self.global_rank == 0:
-                    loss = torch.cat(gathered_losses, dim=0)
+            # Compute losses for each criterion
+            batch_losses = {}
+            ds_name = dataset.dataset_name.lower()
+            fields = DATASET_FIELDS.get(ds_name)
+            if fields is None:
+                raise ValueError(
+                    f"Dataset '{ds_name}' not found in DATASET_FIELDS mapping"
+                )
+            y_loss = y[..., fields]
+            target_loss = target[..., fields]
+            for name, criterion in self.criteria.items():
+                if name == "MSE":
+                    loss = criterion(y_loss, target_loss).squeeze(
+                        1
+                    )  # remove T dimension
+                    loss = torch.mean(loss, dim=(1, 2, 3))  # B
+                elif name == "RVMSE":
+                    # RVMSE expects (B, T, H, W, C) and returns (B, T, H, W, C) with dims reduced
+                    loss = criterion(
+                        y_loss, target_loss
+                    )  # (B, 1, 1, 1, C) after dimension reduction
+                    loss = loss.squeeze()  # Remove singleton dimensions
+                    if loss.dim() > 1:
+                        loss = torch.mean(loss, dim=-1)  # Average over channels -> (B,)
+                else:
+                    # For other custom criteria
+                    loss = criterion(y_loss, target_loss)
+                    if loss.dim() > 1:
+                        loss = torch.mean(loss, dim=tuple(range(1, loss.dim())))
 
-            if self.global_rank == 0:
-                # Concatenate all gathered losses for this batch
-                # Convert to DataFrame and append
-                losses.append(loss.cpu())
+                batch_losses[name] = loss
 
-        return torch.cat(losses, dim=0)
+            for name, loss in batch_losses.items():
+                all_losses[name].append(loss.cpu())
 
-    def eval_all(self, datasets: dict[str, PhysicsDataset]) -> pd.DataFrame:
-        all_losses = {}
-        max_timesteps = 0
-        for name, dataset in datasets.items():
-            self._log_msg(f"Evaluating on dataset {name}")
-            losses = self._eval_on_dataset(dataset)
-            max_timesteps = max(max_timesteps, losses.shape[0])
-            all_losses[name] = losses.cpu().numpy()
-
-        # pad all losses to max timesteps
+        # Concatenate all losses
+        result = {}
         for name, losses in all_losses.items():
-            losses = np.pad(
-                losses,
-                (0, max_timesteps - losses.shape[0]),
-                mode="constant",
-                constant_values=np.nan,
-            )
-            all_losses[name] = losses
-        df = pd.DataFrame(all_losses)
-        return df
+            if losses:  # Check if losses is not empty
+                result[name] = torch.cat(losses, dim=0)
+            else:
+                result[name] = torch.tensor([])
+
+        return result
+
+    def eval_all(self, datasets: dict[str, PhysicsDataset]) -> dict[str, pd.DataFrame]:
+        all_criterion_losses = {
+            criterion_name: {} for criterion_name in self.criteria.keys()
+        }
+        max_timesteps = 0
+
+        for name, dataset in datasets.items():
+            criterion_names = ", ".join(self.criteria.keys())
+            self._log_msg(f"Evaluating on dataset {name} with {criterion_names}")
+            losses_dict = self._eval_on_dataset(dataset)
+
+            for criterion_name, losses in losses_dict.items():
+                max_timesteps = max(max_timesteps, losses.shape[0])
+                all_criterion_losses[criterion_name][name] = losses.cpu().numpy()
+
+        # Pad all losses to max timesteps and create DataFrames
+        result_dfs = {}
+        for criterion_name, dataset_losses in all_criterion_losses.items():
+            padded_losses = {}
+            for dataset_name, losses in dataset_losses.items():
+                padded_losses[dataset_name] = np.pad(
+                    losses,
+                    (0, max_timesteps - losses.shape[0]),
+                    mode="constant",
+                    constant_values=np.nan,
+                )
+            result_dfs[criterion_name] = pd.DataFrame(padded_losses)
+
+        return result_dfs
 
     @torch.inference_mode()
     def _rollout(
@@ -396,25 +388,25 @@ class Evaluator:
             )  # Ensure we don't exceed trajectory length
 
         outputs = []
+        with torch.autocast(
+            device_type=self.device.type,
+            dtype=torch.bfloat16,
+        ):
+            for i in range(num_timesteps):
+                # Predict next timestep
+                output = self.model(input)  # (B, 1T, H, W, C)
+                # if the output is nan, stop the rollout
+                if torch.isnan(output).any() or torch.isinf(output).any():
+                    break
 
-        for i in range(num_timesteps):
-            # Predict next timestep
-            output = self.model(input.permute(0, 4, 1, 2, 3))  # (B, C, T, H, W)
-            # permute back
-            output = output.permute(0, 2, 3, 4, 1)  # (B, T, H, W, C)
-            output = output[:, -1, :, :, :].unsqueeze(1)  # (B, 1, H, W, C)
-            # if the output is nan, stop the rollout
-            if torch.isnan(output).any() or torch.isinf(output).any():
-                break
-
-            outputs.append(output.clone())
-            # Update input
-            if rollout:
-                input = torch.cat([input[:, 1:, ...], output], dim=1)
-            else:
-                input = torch.cat(
-                    [input[:, 1:, ...], full_traj[:, i, ...].unsqueeze(1)], dim=1
-                )
+                outputs.append(output.clone())
+                # Update input
+                if rollout:
+                    input = torch.cat([input[:, 1:, ...], output], dim=1)
+                else:
+                    input = torch.cat(
+                        [input[:, 1:, ...], full_traj[:, i, ...].unsqueeze(1)], dim=1
+                    )
 
         # remove batch dimension
         outputs = torch.cat(outputs, dim=1)
@@ -629,13 +621,25 @@ class Evaluator:
                 gt_path = save_path / f"{field}_gt_t{t}.png"
                 gt_img.save(gt_path)
 
-    def main(self, overwrite: bool = False):
-        if not overwrite and (self.eval_dir / "losses.csv").exists():
-            self.logger.info("Losses already evaluated, skipping...")
+    def main(self, overwrite: bool = False, subdir_name: str | None = None):
+        if subdir_name is not None:
+            self.eval_dir = self.eval_dir / subdir_name
+            self.eval_dir.mkdir(parents=True, exist_ok=True)
+
+        criterion_files = [
+            f"{name.lower()}_losses.csv" for name in self.criteria.keys()
+        ]
+        files_exist = all((self.eval_dir / f).exists() for f in criterion_files)
+
+        if not overwrite and files_exist:
+            criterion_names = ", ".join(self.criteria.keys())
+            self.logger.info(f"{criterion_names} losses already evaluated, skipping...")
         else:
-            # Evaluate on all datasets
-            df = self.eval_all(self.datasets)
-            df.to_csv(self.eval_dir / "losses.csv", index=False)
+            # Evaluate on all datasets with all criteria
+            criterion_dfs = self.eval_all(self.datasets)
+            for criterion_name, df in criterion_dfs.items():
+                filename = f"{criterion_name.lower()}_losses.csv"
+                df.to_csv(self.eval_dir / filename, index=False)
 
         if not overwrite and (self.eval_dir / "single_step_losses.csv").exists():
             self.logger.info("Single step losses already evaluated, skipping...")
@@ -657,6 +661,7 @@ class Evaluator:
         try:
             # Visualize rollout on all datasets
             for name, dataset in self.datasets.items():
+                print(f"Visualizing rollout for dataset {name}")
                 self.visualize_rollout(
                     dataset,
                     num_timesteps=50,
@@ -669,6 +674,7 @@ class Evaluator:
         try:
             # Visualize rollout on all datasets
             for name, dataset in self.datasets.items():
+                print(f"Visualizing single step for dataset {name}")
                 self.visualize_rollout(
                     dataset,
                     num_timesteps=50,
@@ -676,12 +682,7 @@ class Evaluator:
                     rollout=False,
                 )
         except Exception as e:
-            self.logger.error(f"Error visualizing rollout: {e}")
-
-
-def setup_ddp():
-    """Initialize distributed data parallel training."""
-    dist.init_process_group()
+            self.logger.error(f"Error visualizing single step: {e}")
 
 
 def main(
@@ -690,9 +691,7 @@ def main(
     checkpoint_name: str,
     sim_name: str | None,
     data_dir: Path | None,
-    global_rank: int,
-    local_rank: int,
-    world_size: int,
+    subdir_name: str | None,
 ):
     """Main evaluation function.
 
@@ -708,17 +707,9 @@ def main(
         Name of the simulation
     data_dir : Path | None
         Path to the data directory
-    global_rank : int
-        Global rank for distributed training
-    local_rank : int
-        Local rank for distributed training
-    world_size : int
-        World size for distributed training
+    subdir_name : str | None
+        Name of the subdirectory where the evaluation is stored
     """
-    # Set cuda device
-    if torch.cuda.is_available():
-        torch.cuda.set_device(local_rank)
-
     # Load config
     config_path = Path(config_path)
     with open(config_path, "r") as f:
@@ -742,16 +733,10 @@ def main(
     ####################################################################
     ########### Initialize evaluator ###################################
     ####################################################################
-    if world_size > 1:
-        setup_ddp()
 
     model_config = config["model"]
     data_config = config["data"]
     training_config = config["training"]
-
-    # eval_ds = [
-    #     "supersonic_flow",
-    # ]
 
     data_config["datasets"] = data_config["datasets"]  # + eval_ds
 
@@ -762,11 +747,8 @@ def main(
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
         checkpoint_name=checkpoint_name,
-        global_rank=global_rank,
-        local_rank=local_rank,
-        world_size=world_size,
     )
-    evaluator.main(overwrite=False)
+    evaluator.main(subdir_name=subdir_name)
 
 
 if __name__ == "__main__":
@@ -779,17 +761,15 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_name", type=str)
     parser.add_argument("--sim_name", type=str)
     parser.add_argument("--data_dir", type=str)
+    parser.add_argument("--subdir_name", type=str, default=None)
     args = parser.parse_args()
-
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    global_rank = int(os.environ.get("RANK", 0))
 
     config_path = args.config_file
     log_dir = args.log_dir
     sim_name = args.sim_name
     data_dir = args.data_dir
     checkpoint_name = args.checkpoint_name
+    subdir_name = args.subdir_name
 
     main(
         config_path=config_path,
@@ -797,7 +777,5 @@ if __name__ == "__main__":
         sim_name=sim_name,
         data_dir=data_dir,
         checkpoint_name=checkpoint_name,
-        global_rank=global_rank,
-        local_rank=local_rank,
-        world_size=world_size,
+        subdir_name=subdir_name,
     )

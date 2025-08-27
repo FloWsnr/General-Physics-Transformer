@@ -126,6 +126,10 @@ class PhysicsDataset(WellDataset):
             not use_normalization
         )  # use instance norm if not using normalization
 
+        # give the dataset its correct name
+        name = data_dir.parents[1].name
+        self.dataset_name = name
+
     def copy(self, overwrites: dict[str, Any] = {}) -> "PhysicsDataset":
         """Copy the dataset with optional overwrites.
 

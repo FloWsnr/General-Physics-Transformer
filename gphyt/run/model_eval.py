@@ -25,15 +25,35 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
 import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
 
-from gphyt.model.transformer.model import get_model
+from gphyt.model.transformer.model import get_model as get_model_gphyt
+from gphyt.model.unet import get_model as get_model_unet
 from gphyt.model.transformer.loss_fns import RVMSELoss
 from gphyt.data.dataset_utils import get_dt_datasets
 from gphyt.data.phys_dataset import PhysicsDataset
 from gphyt.utils.logger import get_logger
 from gphyt.run.run_utils import load_stored_model, find_checkpoint
-from gphyt.utils.train_vis import visualize_predictions
+
+
+# Which fields are actually used in which dataset. Needed for VRMSE computation
+# 0=pressure, 1=density, 2=temp, 3=velx, 4=vely
+DATASET_FIELDS = {
+    "cylinder_sym_flow_water": (0, 3, 4),
+    "cylinder_pipe_flow_water": (0, 3, 4),
+    "object_periodic_flow_water": (0, 3, 4),
+    "object_sym_flow_water": (0, 3, 4),
+    "object_sym_flow_air": (0, 3, 4),
+    "heated_object_pipe_flow_air": (0, 1, 2, 3, 4),
+    "cooled_object_pipe_flow_air": (0, 1, 2, 3, 4),
+    "rayleigh_benard_obstacle": (0, 1, 2, 3, 4),
+    "twophase_flow": (0, 1, 3, 4),
+    "rayleigh_benard": (0, 1, 3, 4),
+    "shear_flow": (0, 3, 4),
+    "euler_multi_quadrants_periodicbc": (0, 1, 3, 4),
+    "acoustic_scattering_inclusions": (0, 3, 4),
+    "turbulent_radiative_layer_2d": (0, 1, 3, 4),
+    "supersonic_flow": (0, 1, 3, 4),
+}
 
 
 def load_config(path: Path) -> dict:
@@ -148,7 +168,11 @@ class Evaluator:
             if torch.cuda.is_available()
             else torch.device("cpu")
         )
-        model = get_model(model_config)
+        if model_config == "unet-M":
+            model = get_model_unet(model_config)
+        else:
+            model = get_model_gphyt(model_config)
+
         model.to(device)
         torch.set_float32_matmul_precision("high")
         if not platform.system() == "Windows":
@@ -254,21 +278,31 @@ class Evaluator:
 
             # Compute losses for each criterion
             batch_losses = {}
+            ds_name = dataset.dataset_name.lower()
+            fields = DATASET_FIELDS.get(ds_name)
+            if fields is None:
+                raise ValueError(
+                    f"Dataset '{ds_name}' not found in DATASET_FIELDS mapping"
+                )
+            y_loss = y[..., fields]
+            target_loss = target[..., fields]
             for name, criterion in self.criteria.items():
                 if name == "MSE":
-                    loss = criterion(y, target).squeeze(1)  # remove T dimension
+                    loss = criterion(y_loss, target_loss).squeeze(
+                        1
+                    )  # remove T dimension
                     loss = torch.mean(loss, dim=(1, 2, 3))  # B
                 elif name == "RVMSE":
                     # RVMSE expects (B, T, H, W, C) and returns (B, T, H, W, C) with dims reduced
                     loss = criterion(
-                        y, target
+                        y_loss, target_loss
                     )  # (B, 1, 1, 1, C) after dimension reduction
                     loss = loss.squeeze()  # Remove singleton dimensions
                     if loss.dim() > 1:
                         loss = torch.mean(loss, dim=-1)  # Average over channels -> (B,)
                 else:
                     # For other custom criteria
-                    loss = criterion(y, target)
+                    loss = criterion(y_loss, target_loss)
                     if loss.dim() > 1:
                         loss = torch.mean(loss, dim=tuple(range(1, loss.dim())))
 
@@ -640,6 +674,7 @@ class Evaluator:
         try:
             # Visualize rollout on all datasets
             for name, dataset in self.datasets.items():
+                print(f"Visualizing rollout for dataset {name}")
                 self.visualize_rollout(
                     dataset,
                     num_timesteps=50,
@@ -652,6 +687,7 @@ class Evaluator:
         try:
             # Visualize rollout on all datasets
             for name, dataset in self.datasets.items():
+                print(f"Visualizing single step for dataset {name}")
                 self.visualize_rollout(
                     dataset,
                     num_timesteps=50,
