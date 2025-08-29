@@ -8,43 +8,43 @@ from gphyt.utils.plotting.base_plotter import BasePlotter, calculate_combined_st
 
 
 RUNS = [
-    ("s-main-03", "GPₕᵧT-S"),
     ("fno-m", "FNO-M"),
     ("unet-m-04", "UNet-M"),
+    ("s-main-03", "GPₕᵧT-S"),
     ("m-main-03", "GPₕᵧT-M"),
     ("l-main-05", "GPₕᵧT-L"),
     ("xl-main-03", "GPₕᵧT-XL"),
 ]
 
 DATASETS = [
-    "cylinder_sym_flow_water",
-    "cylinder_pipe_flow_water",
-    "object_periodic_flow_water",
-    "object_sym_flow_water",
-    "object_sym_flow_air",
-    "rayleigh_benard",
-    "rayleigh_benard_obstacle",
+    [
+        "cylinder_sym_flow_water",
+        "cylinder_pipe_flow_water",
+        "object_periodic_flow_water",
+        "object_sym_flow_water",
+        "object_sym_flow_air",
+    ],
+    ["rayleigh_benard", "rayleigh_benard_obstacle"],
     "twophase_flow",
     "shear_flow",
     "euler_multi_quadrants_periodicBC",
-    "heated_object_pipe_flow_air",
-    "cooled_object_pipe_flow_air",
+    ["heated_object_pipe_flow_air", "cooled_object_pipe_flow_air"],
     # "acoustic_scattering_inclusions",
 ]
 
 
 class LossPlotter(BasePlotter):
     def __init__(self):
-        super().__init__(figsize=(8.3, 4.3))
+        super().__init__(figsize=(4.3 * 2, 4.3))
         self.setup_figure(
             x_ticks=[
                 (i, display_name) for i, (run_name, display_name) in enumerate(RUNS)
             ],
-            y_ticks=[1e-3, 1e-2, 1e-1],
+            y_ticks=[1e-3, 5e-3, 1e-2, 5e-2, 1e-1, 2e-1],
             x_label=None,
             y_label="Loss",
             y_log=True,
-            padding_factor=(0.1, 0.2),
+            padding_factor=(0.1, 0.1),
             minor_ticks=(False, True),
         )
 

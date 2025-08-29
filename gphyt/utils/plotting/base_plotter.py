@@ -530,7 +530,7 @@ def calculate_combined_stats(
 
 
 def calculate_combined_stats_rollout(
-    df: pd.DataFrame, column_patterns: list[str], level: int = 0
+    df: pd.DataFrame, column_patterns: list[str | list[str]], level: int = 0
 ) -> pd.DataFrame:
     """
     Calculate statistics for multi-level columns while preserving the second level structure.
@@ -539,8 +539,12 @@ def calculate_combined_stats_rollout(
     ----------
     df : pandas.DataFrame
         Input DataFrame containing multi-level column data
-    column_patterns : list of str
-        List of dataset names to combine statistics for
+    column_patterns : list of str or list of list of str
+        List of dataset names to combine statistics for. Can be:
+        - List of strings: Each string is treated as a separate pattern
+        - List containing strings and lists: Lists of strings are combined into one result
+        Example: ['pattern1', ['pattern2', 'pattern3'], 'pattern4']
+        This will create separate results for pattern1 and pattern4, and combine pattern2+pattern3
     level : int
         Level of the column to match (default=0 for first level)
 
@@ -552,14 +556,26 @@ def calculate_combined_stats_rollout(
     """
     data = []
     index = []
-    for pattern in column_patterns:
-        # Find columns that match the pattern exactly in the first level
-        matching_cols = [
-            col
-            for col in df.columns.get_level_values(level)
-            if col.startswith(pattern + "_") or col == pattern
-        ]
-        if matching_cols:
+    for pattern_group in column_patterns:
+        # Handle both single patterns and groups of patterns
+        if isinstance(pattern_group, str):
+            patterns_to_combine = [pattern_group]
+            dataset_name = pattern_group
+        else:
+            patterns_to_combine = pattern_group
+            dataset_name = " + ".join(pattern_group)
+
+        all_matching_cols = []
+        for pattern in patterns_to_combine:
+            # Find columns that match the pattern exactly in the first level
+            matching_cols = [
+                col
+                for col in df.columns.get_level_values(level)
+                if col.startswith(pattern + "_") or col == pattern
+            ]
+            all_matching_cols.extend(matching_cols)
+
+        if all_matching_cols:
             # Get all second level columns for the matching first level columns
             second_level_cols = df.columns.get_level_values(1).unique()
             third_level_cols = df.columns.get_level_values(2).unique()
@@ -571,13 +587,13 @@ def calculate_combined_stats_rollout(
                     cols_to_combine = [
                         col
                         for col in df.columns
-                        if col[0] in matching_cols
+                        if col[0] in all_matching_cols
                         and col[1] == second_col
                         and col[2] == third_col
                     ]
 
                     if cols_to_combine:
-                        index.append((pattern, second_col, third_col))
+                        index.append((dataset_name, second_col, third_col))
                         # Calculate statistics across matching columns
                         data.append(df[cols_to_combine].mean(axis=1))
 
@@ -613,3 +629,28 @@ def rollout_median(df: pd.DataFrame) -> pd.DataFrame:
     data = np.array(data)
     data = np.nanmedian(data, axis=0)
     return data
+
+
+def rollout_mean_by_pattern(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate the mean of the rollout data over the channels (third level),
+    keeping patterns (first level) separate for plotting one line per pattern
+    """
+    data = []
+    index = []
+    lvl1_cols = df.columns.get_level_values(0).unique()
+    lvl2_cols = df.columns.get_level_values(1).unique()
+    
+    for lvl1_col in lvl1_cols:
+        for lvl2_col in lvl2_cols:
+            # Get all channels for this pattern-metric combination
+            pattern_data = df[lvl1_col][lvl2_col].values
+            # Calculate mean across channels (axis=1)
+            pattern_mean = np.nanmean(pattern_data, axis=1)
+            data.append(pattern_mean)
+            index.append((lvl1_col, lvl2_col))
+    
+    # Create MultiIndex DataFrame
+    index = pd.MultiIndex.from_tuples(index, names=["pattern", "metric"])
+    result = pd.DataFrame(data, index=index).T
+    return result

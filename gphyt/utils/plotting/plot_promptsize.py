@@ -20,19 +20,19 @@ RUNS_PATCH = [
 ]
 
 DATASETS = [
-    "cylinder_sym_flow_water",
-    "cylinder_pipe_flow_water",
-    "object_periodic_flow_water",
-    "object_sym_flow_water",
-    "object_sym_flow_air",
-    "rayleigh_benard",
-    "rayleigh_benard_obstacle",
+    [
+        "cylinder_sym_flow_water",
+        "cylinder_pipe_flow_water",
+        "object_periodic_flow_water",
+        "object_sym_flow_water",
+        "object_sym_flow_air",
+    ],
+    ["rayleigh_benard", "rayleigh_benard_obstacle"],
     "twophase_flow",
     "shear_flow",
     "euler_multi_quadrants_periodicBC",
-    "heated_object_pipe_flow_air",
-    "cooled_object_pipe_flow_air",
-    "acoustic_scattering_inclusions",
+    ["heated_object_pipe_flow_air", "cooled_object_pipe_flow_air"],
+    # "acoustic_scattering_inclusions",
 ]
 
 
@@ -41,14 +41,14 @@ class PromptSizePlotter(BasePlotter):
         super().__init__(figsize=(4.3, 4.3 / 2))
 
         x_ticks = [1, 2, 4, 8]
-        y_ticks = [1e-4, 1e-3]
+        y_ticks = [2e-2, 2e-1]
         self.setup_figure(
             x_ticks=x_ticks,
             y_ticks=y_ticks,
             x_label=r"$\mathregular{N_{input}}$",
-            y_label="MSE",
-            x_log=True,
-            y_log=True,
+            y_label="VRMSE",
+            x_log=False,
+            y_log=False,
             padding_factor=(0.1, 0.22),
             minor_ticks=False,
         )
@@ -59,14 +59,14 @@ class PatchSizePlotter(BasePlotter):
         super().__init__(figsize=(4.3, 4.3 / 2))
 
         x_ticks = [1, 2, 4]
-        y_ticks = [1e-4, 1e-3]
+        y_ticks = [2e-2, 2e-1]
         self.setup_figure(
             x_ticks=x_ticks,
             y_ticks=y_ticks,
             x_label="Temporal patch size",
-            y_label="MSE",
-            x_log=True,
-            y_log=True,
+            y_label="VRMSE",
+            x_log=False,
+            y_log=False,
             padding_factor=(0.1, 0.22),
             minor_ticks=False,
         )
@@ -87,7 +87,7 @@ if __name__ == "__main__":
         with open(run_dir / "checkpoint_info.json", "r") as f:
             checkpoint_info = json.load(f)
         # load df
-        df = pd.read_csv(run_dir / "mse_losses.csv", index_col=0)
+        df = pd.read_csv(run_dir / "rvmse_losses.csv", index_col=0)
         stats = calculate_combined_stats(df, DATASETS)
         loss = stats.loc["OVERALL", "Combined Mean"]
         losses.append(loss)
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         with open(run_dir / "checkpoint_info.json", "r") as f:
             checkpoint_info = json.load(f)
         # load df
-        df = pd.read_csv(run_dir / "losses.csv", index_col=0)
+        df = pd.read_csv(run_dir / "rvmse_losses.csv", index_col=0)
         stats = calculate_combined_stats(df, DATASETS)
         loss = stats.loc["OVERALL", "Combined Median"]
         losses.append(loss)
