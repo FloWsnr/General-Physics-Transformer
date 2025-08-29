@@ -280,7 +280,7 @@ class BasePlotter:
         x_log=False,
         y_log=False,
         padding_factor: float = 0.1,
-        minor_ticks: bool = True,
+        minor_ticks: bool | tuple[bool, bool] = True,
     ) -> None:
         """
         Setup the figure with the given parameters
@@ -301,11 +301,15 @@ class BasePlotter:
             If True, the y-axis is logarithmic, by default False
         padding_factor : float|tuple[float, float], optional
             Padding of the x-axis and y-axis, by default 0.1
-        minor_ticks : bool, optional
+        minor_ticks : bool|tuple[bool, bool], optional
             If True, show minor ticks (also on log scales), by default True
+            If tuple, do each axis separately
         """
         if isinstance(padding_factor, float):
             padding_factor = (padding_factor, padding_factor)
+
+        if isinstance(minor_ticks, bool):
+            minor_ticks = (minor_ticks, minor_ticks)
 
         # Set the labels
         self.ax.set_xlabel(x_label, fontweight="normal")
@@ -313,8 +317,8 @@ class BasePlotter:
 
         # Handle x_ticks as list of numbers or list of (value, label) tuples
         if x_ticks and isinstance(x_ticks[0], tuple):
-            x_tick_vals = [v for v, l in x_ticks]
-            x_tick_labels = [l for v, l in x_ticks]
+            x_tick_vals = [v for v, _ in x_ticks]
+            x_tick_labels = [l for _, l in x_ticks]
         else:
             x_tick_vals = x_ticks
             x_tick_labels = None
@@ -328,7 +332,7 @@ class BasePlotter:
                 x_min = x_tick_vals[0] / 10**padding
                 x_max = x_tick_vals[-1] * 10**padding
 
-                if minor_ticks:
+                if minor_ticks[0]:
                     self.ax.xaxis.set_minor_locator(LogLocator(subs="auto"))
                 else:
                     self.ax.xaxis.set_minor_locator(NullLocator())
@@ -338,15 +342,13 @@ class BasePlotter:
                 x_min = x_tick_vals[0] - padding
                 x_max = x_tick_vals[-1] + padding
 
-                if minor_ticks:
+                if minor_ticks[0]:
                     self.ax.xaxis.set_minor_locator(AutoMinorLocator(2))
                 else:
                     self.ax.xaxis.set_minor_locator(NullLocator())
 
             self.ax.set_xlim([x_min, x_max])
-            self.ax.set_xticks(x_tick_vals)
-            if x_tick_labels is not None:
-                self.ax.set_xticklabels(x_tick_labels)
+            self.ax.set_xticks(x_tick_vals, labels=x_tick_labels)
 
         # Make the y-axis larger than the biggest and smallest y value
         if y_ticks:
@@ -357,7 +359,7 @@ class BasePlotter:
                 y_min = y_ticks[0] / 10**padding
                 y_max = y_ticks[-1] * 10**padding
 
-                if minor_ticks:
+                if minor_ticks[1]:
                     self.ax.yaxis.set_minor_locator(LogLocator(subs="auto"))
                 else:
                     self.ax.yaxis.set_minor_locator(NullLocator())
@@ -367,7 +369,7 @@ class BasePlotter:
                 y_min = y_ticks[0] - padding
                 y_max = y_ticks[-1] + padding
 
-                if minor_ticks:
+                if minor_ticks[1]:
                     self.ax.yaxis.set_minor_locator(AutoMinorLocator(2))
                 else:
                     self.ax.yaxis.set_minor_locator(NullLocator())
@@ -477,24 +479,24 @@ def calculate_combined_stats(
         else:
             patterns_to_combine = pattern_group
             dataset_name = " + ".join(pattern_group)
-        
+
         all_matching_cols = []
         for pattern in patterns_to_combine:
             # Find columns that match the pattern exactly
-            if hasattr(df.columns, 'get_level_values'):
+            if hasattr(df.columns, "get_level_values"):
                 # MultiIndex columns
                 columns_to_check = df.columns.get_level_values(level)
             else:
                 # Regular columns
                 columns_to_check = df.columns
-                
+
             matching_cols = [
                 col
                 for col in columns_to_check
                 if col.startswith(pattern + "_") or col == pattern
             ]
             all_matching_cols.extend(matching_cols)
-        
+
         if all_matching_cols:
             # Calculate statistics across all matching columns
             matched_df = df[all_matching_cols]
@@ -516,9 +518,9 @@ def calculate_combined_stats(
         [
             {
                 "Dataset": "OVERALL",
-                "Combined Mean": np.nanmean(df.values),
-                "Combined Median": np.nanmedian(df.values),
-                "Combined Std": np.nanstd(df.values),
+                "Combined Mean": np.nanmean(results["Combined Mean"].values),
+                "Combined Median": np.nanmedian(results["Combined Median"].values),
+                "Combined Std": np.nanstd(results["Combined Std"].values),
             }
         ]
     )
