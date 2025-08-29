@@ -390,25 +390,21 @@ class Evaluator:
             )  # Ensure we don't exceed trajectory length
 
         outputs = []
-        with torch.autocast(
-            device_type=self.device.type,
-            dtype=torch.bfloat16,
-        ):
-            for i in range(num_timesteps):
-                # Predict next timestep
-                output = self.model(input)  # (B, 1T, H, W, C)
-                # if the output is nan, stop the rollout
-                if torch.isnan(output).any() or torch.isinf(output).any():
-                    break
+        for i in range(num_timesteps):
+            # Predict next timestep
+            output = self.model(input)  # (B, 1T, H, W, C)
+            # if the output is nan, stop the rollout
+            if torch.isnan(output).any() or torch.isinf(output).any():
+                break
 
-                outputs.append(output.clone())
-                # Update input
-                if rollout:
-                    input = torch.cat([input[:, 1:, ...], output], dim=1)
-                else:
-                    input = torch.cat(
-                        [input[:, 1:, ...], full_traj[:, i, ...].unsqueeze(1)], dim=1
-                    )
+            outputs.append(output.clone())
+            # Update input
+            if rollout:
+                input = torch.cat([input[:, 1:, ...], output], dim=1)
+            else:
+                input = torch.cat(
+                    [input[:, 1:, ...], full_traj[:, i, ...].unsqueeze(1)], dim=1
+                )
 
         # remove batch dimension
         outputs = torch.cat(outputs, dim=1)
@@ -750,7 +746,7 @@ def main(
         num_workers=training_config["num_workers"],
         checkpoint_name=checkpoint_name,
     )
-    evaluator.main(subdir_name=subdir_name)
+    evaluator.main(overwrite=False, subdir_name=subdir_name)
 
 
 if __name__ == "__main__":

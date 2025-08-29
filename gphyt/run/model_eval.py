@@ -54,6 +54,8 @@ DATASET_FIELDS = {
     "acoustic_scattering_inclusions": (0, 3, 4),
     "turbulent_radiative_layer_2d": (0, 1, 3, 4),
     "supersonic_flow": (0, 1, 3, 4),
+    "open_obj_water": (0, 3, 4),
+    "euler_multi_quadrants_openbc": (0, 1, 3, 4),
 }
 
 
@@ -78,12 +80,6 @@ class Evaluator:
         Batch size for evaluation, by default 256
     num_workers : int, optional
         Number of workers for dataloader, by default 4
-    global_rank : int, optional
-        Global rank for distributed training, by default 0
-    local_rank : int, optional
-        Local rank for distributed training, by default 0
-    world_size : int, optional
-        World size for distributed training, by default 1
     """
 
     def __init__(
@@ -94,7 +90,6 @@ class Evaluator:
         batch_size: int = 1,
         num_workers: int = 0,
         log_level: str = "INFO",
-        criteria: dict[str, torch.nn.Module] = None,
     ):
         self.device = (
             torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -117,14 +112,14 @@ class Evaluator:
         self.batch_size = batch_size
         self.num_workers = num_workers
 
-        # Initialize evaluation criteria
-        if criteria is None:
-            self.criteria = {
-                "MSE": torch.nn.MSELoss(reduction="none"),
-                "RVMSE": RVMSELoss(dims=(1, 2, 3), return_scalar=False),
-            }
-        else:
-            self.criteria = criteria
+        self.eval_criteria = {
+            "MSE": torch.nn.MSELoss(reduction="none"),
+            "RVMSE": RVMSELoss(dims=(1, 2, 3), return_scalar=False),
+        }
+        self.rollout_criteria = {
+            "MSE": torch.nn.MSELoss(reduction="none"),
+            "RVMSE": RVMSELoss(dims=(2, 3), return_scalar=False),
+        }
 
     @classmethod
     def from_checkpoint(
@@ -267,7 +262,7 @@ class Evaluator:
     def _eval_on_dataset(self, dataset: PhysicsDataset) -> dict[str, torch.Tensor]:
         loader = self._get_dataloader(dataset, is_distributed=self.ddp_enabled)
 
-        all_losses = {name: [] for name in self.criteria.keys()}
+        all_losses = {name: [] for name in self.eval_criteria.keys()}
 
         for i, (x, target) in enumerate(loader):
             self._log_msg(f"  Batch {i}/{len(loader)}")
@@ -287,7 +282,7 @@ class Evaluator:
                 )
             y_loss = y[..., fields]
             target_loss = target[..., fields]
-            for name, criterion in self.criteria.items():
+            for name, criterion in self.eval_criteria.items():
                 if name == "MSE":
                     loss = criterion(y_loss, target_loss).squeeze(
                         1
@@ -298,9 +293,9 @@ class Evaluator:
                     loss = criterion(
                         y_loss, target_loss
                     )  # (B, 1, 1, 1, C) after dimension reduction
-                    loss = loss.squeeze()  # Remove singleton dimensions
-                    if loss.dim() > 1:
-                        loss = torch.mean(loss, dim=-1)  # Average over channels -> (B,)
+                    # Only squeeze the singleton spatial and temporal dimensions, keep batch and channel dims
+                    loss = loss.squeeze(1).squeeze(1).squeeze(1)  # -> (B, C)
+                    loss = torch.mean(loss, dim=-1)  # Average over channels -> (B,)
                 else:
                     # For other custom criteria
                     loss = criterion(y_loss, target_loss)
@@ -324,12 +319,12 @@ class Evaluator:
 
     def eval_all(self, datasets: dict[str, PhysicsDataset]) -> dict[str, pd.DataFrame]:
         all_criterion_losses = {
-            criterion_name: {} for criterion_name in self.criteria.keys()
+            criterion_name: {} for criterion_name in self.eval_criteria.keys()
         }
         max_timesteps = 0
 
         for name, dataset in datasets.items():
-            criterion_names = ", ".join(self.criteria.keys())
+            criterion_names = ", ".join(self.eval_criteria.keys())
             self._log_msg(f"Evaluating on dataset {name} with {criterion_names}")
             losses_dict = self._eval_on_dataset(dataset)
 
@@ -359,7 +354,7 @@ class Evaluator:
         traj_idx: int = 0,
         num_timesteps: int = -1,
         rollout: bool = False,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
         """Rollout the model on a trajectory.
 
         Parameters
@@ -376,12 +371,10 @@ class Evaluator:
 
         Returns
         -------
-        tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+        tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]
             Tuple containing the predicted outputs,
-            the ground truth, and the loss at each timestep
+            the ground truth, and the losses dict for each criterion at each timestep
         """
-        criterion = torch.nn.MSELoss(reduction="none")
-
         # get first trajectory
         traj_idx = min(traj_idx, len(dataset) - 1)
         input, full_traj = dataset[traj_idx]
@@ -440,13 +433,43 @@ class Evaluator:
         )
         outputs = torch.cat([outputs, pad], dim=0)
 
-        # loss is still a tensor of shape (T, H, W, C)
-        loss = criterion(outputs, full_traj)
-        # reduce over H and W
-        loss = torch.mean(loss, dim=(1, 2))  # (T, C)
+        # Compute losses for each criterion similar to _eval_on_dataset
+        losses_dict = {}
+        ds_name = dataset.dataset_name.lower()
+        fields = DATASET_FIELDS.get(ds_name)
+        if fields is None:
+            raise ValueError(f"Dataset '{ds_name}' not found in DATASET_FIELDS mapping")
+
+        # Select only the relevant fields for loss computation
+        outputs_loss = outputs[..., fields]  # (T, H, W, C_subset)
+        full_traj_loss = full_traj[..., fields]  # (T, H, W, C_subset)
+
+        for name, criterion in self.rollout_criteria.items():
+            if name == "MSE":
+                loss = criterion(outputs_loss, full_traj_loss)  # (T, H, W, C_subset)
+                loss = torch.mean(loss, dim=(1, 2))  # (T, C_subset)
+            elif name == "RVMSE":
+                # Add batch dimension for RVMSE calculation
+                outputs_batch = outputs_loss.unsqueeze(0)  # (1, T, H, W, C_subset)
+                full_traj_batch = full_traj_loss.unsqueeze(0)  # (1, T, H, W, C_subset)
+
+                # RVMSE with dims=(2, 3) reduces over spatial dims only, keeping (B, T, C)
+                loss = criterion(
+                    outputs_batch, full_traj_batch
+                )  # (1, T, 1, 1, C_subset)
+                loss = loss.squeeze(0).squeeze(-2).squeeze(-2)  # -> (T, C_subset)
+            else:
+                # For other custom criteria
+                loss = criterion(outputs_loss, full_traj_loss)
+                if loss.dim() > 1:
+                    loss = torch.mean(
+                        loss, dim=tuple(range(1, loss.dim() - 1))
+                    )  # Keep (T, C)
+
+            losses_dict[name] = loss
 
         # Return predictions and ground truth (excluding first timestep)
-        return outputs, full_traj, loss
+        return outputs, full_traj, losses_dict
 
     def rollout_all(
         self,
@@ -454,9 +477,12 @@ class Evaluator:
         num_samples: int = 10,
         num_timesteps: int = -1,
         rollout: bool = False,
-    ) -> pd.DataFrame:
-        all_losses = {}
+    ) -> dict[str, pd.DataFrame]:
+        all_criterion_losses = {
+            criterion_name: {} for criterion_name in self.rollout_criteria.keys()
+        }
         max_timesteps = 0
+
         for name, dataset in datasets.items():
             # copy the dataset with max rollout steps and full trajectory mode
             dataset = dataset.copy(
@@ -473,70 +499,80 @@ class Evaluator:
                 num_samples = len(indices)
             traj_idxs = np.random.choice(indices, size=num_samples, replace=False)
 
-            traj_losses = []
+            # Store losses for each criterion separately
+            criterion_traj_losses = {name: [] for name in self.rollout_criteria.keys()}
+
             for i, traj_idx in enumerate(traj_idxs):
                 self._log_msg(f"  Trajectory {i}/{num_samples}")
-                _, _, loss = self._rollout(
+                _, _, losses_dict = self._rollout(
                     dataset, traj_idx, num_timesteps, rollout
-                )  # loss is (T, C)
-                max_timesteps = max(max_timesteps, loss.shape[0])
-                traj_losses.append(loss)
+                )  # losses_dict contains losses for each criterion
 
-            # (samples, T, C)
-            traj_losses = torch.stack(traj_losses, dim=0)
-            traj_losses = traj_losses.cpu().numpy()
-            # mean, std and median over the samples (T, C)
-            mean_loss = np.nanmean(traj_losses, axis=0)
-            std_loss = np.nanstd(traj_losses, axis=0)
-            median_loss = np.nanmedian(traj_losses, axis=0)
+                for criterion_name, loss in losses_dict.items():
+                    max_timesteps = max(max_timesteps, loss.shape[0])
+                    criterion_traj_losses[criterion_name].append(loss)
 
-            all_losses[name] = {
-                "mean": mean_loss,
-                "std": std_loss,
-                "median": median_loss,
-            }
+            # Process each criterion separately
+            for criterion_name, traj_losses in criterion_traj_losses.items():
+                # (samples, T, C)
+                traj_losses = torch.stack(traj_losses, dim=0)
+                traj_losses = traj_losses.cpu().numpy()
+                # mean, std and median over the samples (T, C)
+                mean_loss = np.nanmean(traj_losses, axis=0)
+                std_loss = np.nanstd(traj_losses, axis=0)
+                median_loss = np.nanmedian(traj_losses, axis=0)
 
-        # pad all losses to max timesteps
-        for _, metrics in all_losses.items():
-            metrics["mean"] = np.pad(
-                metrics["mean"],
-                ((0, max_timesteps - metrics["mean"].shape[0]), (0, 0)),
-                mode="constant",
-                constant_values=np.nan,
+                all_criterion_losses[criterion_name][name] = {
+                    "mean": mean_loss,
+                    "std": std_loss,
+                    "median": median_loss,
+                }
+
+        # pad all losses to max timesteps for each criterion
+        for criterion_name, dataset_losses in all_criterion_losses.items():
+            for dataset_name, metrics in dataset_losses.items():
+                metrics["mean"] = np.pad(
+                    metrics["mean"],
+                    ((0, max_timesteps - metrics["mean"].shape[0]), (0, 0)),
+                    mode="constant",
+                    constant_values=np.nan,
+                )
+                metrics["std"] = np.pad(
+                    metrics["std"],
+                    ((0, max_timesteps - metrics["std"].shape[0]), (0, 0)),
+                    mode="constant",
+                    constant_values=np.nan,
+                )
+                metrics["median"] = np.pad(
+                    metrics["median"],
+                    ((0, max_timesteps - metrics["median"].shape[0]), (0, 0)),
+                    mode="constant",
+                    constant_values=np.nan,
+                )
+
+        # Create DataFrames for each criterion
+        result_dfs = {}
+        for criterion_name, dataset_losses in all_criterion_losses.items():
+            # Create multi-level index DataFrame for this criterion
+            index_tuples = []
+            data = []
+
+            for dataset_name, metrics in dataset_losses.items():
+                for metric_name, array in metrics.items():
+                    for channel in range(array.shape[1]):
+                        index_tuples.append((dataset_name, metric_name, channel))
+                        data.append(array[:, channel])
+
+            # Create the multi-index
+            index = pd.MultiIndex.from_tuples(
+                index_tuples, names=["dataset", "metric", "channel"]
             )
-            metrics["std"] = np.pad(
-                metrics["std"],
-                ((0, max_timesteps - metrics["std"].shape[0]), (0, 0)),
-                mode="constant",
-                constant_values=np.nan,
-            )
-            metrics["median"] = np.pad(
-                metrics["median"],
-                ((0, max_timesteps - metrics["median"].shape[0]), (0, 0)),
-                mode="constant",
-                constant_values=np.nan,
-            )
 
-        # Create multi-level index DataFrame
-        # First create a list of tuples for the multi-index
-        index_tuples = []
-        data = []
+            # Create DataFrame with multi-index columns
+            df = pd.DataFrame(data, index=index).T
+            result_dfs[criterion_name] = df
 
-        for dataset_name, metrics in all_losses.items():
-            for metric_name, array in metrics.items():
-                for channel in range(array.shape[1]):
-                    index_tuples.append((dataset_name, metric_name, channel))
-                    data.append(array[:, channel])
-
-        # Create the multi-index
-        index = pd.MultiIndex.from_tuples(
-            index_tuples, names=["dataset", "metric", "channel"]
-        )
-
-        # Create DataFrame with multi-index columns
-        df = pd.DataFrame(data, index=index).T
-
-        return df
+        return result_dfs
 
     def visualize_rollout(
         self,
@@ -570,7 +606,7 @@ class Evaluator:
         )
 
         # Get predictions and ground truth
-        predictions, ground_truth, loss = self._rollout(
+        predictions, ground_truth, losses_dict = self._rollout(
             dataset, traj_idx, num_timesteps, rollout
         )
 
@@ -641,12 +677,12 @@ class Evaluator:
             self.eval_dir.mkdir(parents=True, exist_ok=True)
 
         criterion_files = [
-            f"{name.lower()}_losses.csv" for name in self.criteria.keys()
+            f"{name.lower()}_losses.csv" for name in self.eval_criteria.keys()
         ]
         files_exist = all((self.eval_dir / f).exists() for f in criterion_files)
 
         if not overwrite and files_exist:
-            criterion_names = ", ".join(self.criteria.keys())
+            criterion_names = ", ".join(self.eval_criteria.keys())
             self.logger.info(f"{criterion_names} losses already evaluated, skipping...")
         else:
             # Evaluate on all datasets with all criteria
@@ -655,22 +691,47 @@ class Evaluator:
                 filename = f"{criterion_name.lower()}_losses.csv"
                 df.to_csv(self.eval_dir / filename, index=False)
 
-        if not overwrite and (self.eval_dir / "single_step_losses.csv").exists():
-            self.logger.info("Single step losses already evaluated, skipping...")
+        # Check if single step rollout files exist for all criteria
+        single_step_files = [
+            f"single_step_{name.lower()}_losses.csv"
+            for name in self.eval_criteria.keys()
+        ]
+        single_step_files_exist = all(
+            (self.eval_dir / f).exists() for f in single_step_files
+        )
+
+        if not overwrite and single_step_files_exist:
+            criterion_names = ", ".join(self.eval_criteria.keys())
+            self.logger.info(
+                f"Single step {criterion_names} losses already evaluated, skipping..."
+            )
         else:
             # Rollout on all datasets
-            df = self.rollout_all(
+            criterion_dfs = self.rollout_all(
                 self.datasets, num_samples=10, num_timesteps=50, rollout=False
             )
-            df.to_csv(self.eval_dir / "single_step_losses.csv", index=False)
+            for criterion_name, df in criterion_dfs.items():
+                filename = f"single_step_{criterion_name.lower()}_losses.csv"
+                df.to_csv(self.eval_dir / filename, index=False)
 
-        if not overwrite and (self.eval_dir / "rollout_losses.csv").exists():
-            self.logger.info("Rollout losses already evaluated, skipping...")
+        # Check if rollout files exist for all criteria
+        rollout_files = [
+            f"rollout_{name.lower()}_losses.csv" for name in self.eval_criteria.keys()
+        ]
+        rollout_files_exist = all((self.eval_dir / f).exists() for f in rollout_files)
+
+        if not overwrite and rollout_files_exist:
+            criterion_names = ", ".join(self.eval_criteria.keys())
+            self.logger.info(
+                f"Rollout {criterion_names} losses already evaluated, skipping..."
+            )
         else:
-            df = self.rollout_all(
+            criterion_dfs = self.rollout_all(
                 self.datasets, num_samples=10, num_timesteps=50, rollout=True
             )
-            df.to_csv(self.eval_dir / "rollout_losses.csv", index=False)
+            for criterion_name, df in criterion_dfs.items():
+                filename = f"rollout_{criterion_name.lower()}_losses.csv"
+                df.to_csv(self.eval_dir / filename, index=False)
 
         try:
             # Visualize rollout on all datasets
