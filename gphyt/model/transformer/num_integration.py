@@ -1,5 +1,7 @@
 """
 Numerical integration methods
+By: Florian Wiesner
+Date: 2025-05-05
 """
 
 from typing import Callable

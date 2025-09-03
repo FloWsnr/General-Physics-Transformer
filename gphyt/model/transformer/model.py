@@ -241,11 +241,5 @@ class PhysicsTransformer(nn.Module):
         return x
 
     def forward(self, x: torch.Tensor, step_size: float = 1.0) -> torch.Tensor:
-        # if self.integrator is not None:
         out = self.differentiate(x) + x  # Euler integration
-            # out = self.integrator(self.differentiate, x, step_size)
-        # else:
-        #     out = self.differentiate(x)
-
-        # return last time step
         return out[:, -1, ...].unsqueeze(1)

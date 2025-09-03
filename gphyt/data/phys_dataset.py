@@ -1,3 +1,9 @@
+"""
+Wrapper around the WellDataset to provide additional functionality.
+By Florian Wiesner
+Date: 2025-05-05
+"""
+
 from typing import Optional, Any
 from pathlib import Path
 

@@ -156,7 +156,7 @@ def compute_statistics(train_path: str | Path, stats_path: str | Path):
 if __name__ == "__main__":
     """Compute the normalization constants for all datasets"""
 
-    path = Path("/scratch/zsa8rk/datasets/rayleigh_benard/data")
+    path = Path("datasets/rayleigh_benard/data")
 
     for dataset in path.glob("**/train"):
         if dataset.is_dir():

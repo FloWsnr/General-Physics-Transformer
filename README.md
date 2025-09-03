@@ -1,12 +1,37 @@
-# Towards a General Physics Transformer
+# Towards a Physics Foundation Model
+
 ## Introduction
 
-This repository contains the code for the paper "Towards a General Physics Transformer". The GPhyT is a physics-aware transformer model trained to predict over
-11 different physics systems. Specifically, the model leverages "in-context learning", i.e. learning from a set of initial time steps to deduce the physics of the system.
-The makes the model capable of learning new physics systems without any additional pretraining and without any user input.
-We use a differentiator-integrator approach (similar to numerical solvers) to make the model more accurate and robust for long-term predictions.
+This repository contains the official implementation of **General Physics Transformer (GP<sub>hy</sub>T)**, a foundation model for physics simulation presented in our ICLR 2026 paper "Towards a Physics Foundation Model."
 
-<img src="images/arch.png" width="800">
+### What is GP<sub>hy</sub>T?
+
+GP<sub>hy</sub>T represents a paradigm shift in physics-aware machine learning—moving from specialized, single-physics models to a unified "**train once, deploy anywhere**" approach. Our model demonstrates three groundbreaking capabilities:
+
+**Multi-Physics Mastery**: A single model effectively simulates diverse physical systems including fluid-solid interactions, shock waves, thermal convection, and multi-phase dynamics—**without being explicitly told the governing equations**.
+
+**Zero-Shot Generalization**: Through in-context learning, GP<sub>hy</sub>T adapts to entirely unseen physical systems and boundary conditions by inferring the underlying dynamics from input prompts alone.
+
+**Long-Term Stability**: Maintains physically plausible predictions through extended 50-timestep autoregressive rollouts.
+
+### Key Results
+
+- **29× better performance** than specialized neural operators (FNO) on multi-physics benchmarks
+- **Zero-shot adaptation** to new boundary conditions and entirely novel physics
+- **1.8TB training corpus** spanning 8 distinct physical systems
+- **Stable long-term predictions** with consistent physical behavior
+
+<img src="images/arch.png" width="800" alt="GP<sub>hy</sub>T Architecture">
+
+*Architecture overview: GP<sub>hy</sub>T combines a transformer-based neural differentiator with numerical integration, enabling robust and generalizable physics simulation.*
+
+### Why This Matters
+
+Current physics-aware ML models are fundamentally limited to single, narrow domains and require retraining for each new system. GP<sub>hy</sub>T breaks this barrier by learning generalizable physical principles from diverse simulation data, opening the path toward a universal physics foundation model that could:
+
+- **Democratize** access to high-fidelity simulations
+- **Accelerate** scientific discovery across disciplines
+- **Eliminate** the need for specialized solver development for each new problem
 
 ## Installation
 
@@ -19,7 +44,6 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 pip install einops h5py imageio ipykernel matplotlib neuraloperator pandas the-well wandb dotenv torchtnt pytest
 pip install -e .
 ```
-
 
 ## Datasets
 
