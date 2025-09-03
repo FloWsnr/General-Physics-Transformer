@@ -32,7 +32,6 @@ DATASETS = [
     "shear_flow",
     "euler_multi_quadrants_periodicBC",
     ["heated_object_pipe_flow_air", "cooled_object_pipe_flow_air"],
-    # "acoustic_scattering_inclusions",
 ]
 
 

@@ -7,26 +7,25 @@ from gphyt.utils.plotting.base_plotter import BasePlotter, calculate_combined_st
 
 
 RUNS = [
-    "ti-main-4-1-noparc",
-    "ti-main-4-1",
-    "ti-main-4-1-heun",
-    "ti-main-4-1-rk4",
+    "m-main-no-int",
+    "m-main-03",
+    "m-main-heun",
+    "m-main-rk4",
 ]
 
 DATASETS = [
-    "cylinder_sym_flow_water",
-    "cylinder_pipe_flow_water",
-    "object_periodic_flow_water",
-    "object_sym_flow_water",
-    "object_sym_flow_air",
-    "rayleigh_benard",
-    "rayleigh_benard_obstacle",
+    [
+        "cylinder_sym_flow_water",
+        "cylinder_pipe_flow_water",
+        "object_periodic_flow_water",
+        "object_sym_flow_water",
+        "object_sym_flow_air",
+    ],
+    ["rayleigh_benard", "rayleigh_benard_obstacle"],
     "twophase_flow",
     "shear_flow",
     "euler_multi_quadrants_periodicBC",
-    "heated_object_pipe_flow_air",
-    "cooled_object_pipe_flow_air",
-    "acoustic_scattering_inclusions",
+    ["heated_object_pipe_flow_air", "cooled_object_pipe_flow_air"],
 ]
 
 
@@ -49,7 +48,7 @@ class IntegratorPlotter(BasePlotter):
 
 
 if __name__ == "__main__":
-    base_dir = Path("/scratch/zsa8rk/logs")
+    base_dir = Path("")
     # RUNS = ["m-main-4-1"]
 
     plotter = IntegratorPlotter()
@@ -71,5 +70,5 @@ if __name__ == "__main__":
 
     # plot
     plotter.plot_data(steps, losses)
-    plotter.save_figure(base_dir.parent / "plots/integrators.svg")
-    plotter.save_figure(base_dir.parent / "plots/integrators.png")
+    plotter.save_figure(base_dir / "plots/integrators.svg")
+    plotter.save_figure(base_dir / "plots/integrators.png")

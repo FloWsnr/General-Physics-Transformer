@@ -1,7 +1,7 @@
 [project]
 name = "gphyt"
 version = "0.1.0"
-description = "Towards a General Physics Transformer"
+description = "Towards a Physics Foundation Model"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []

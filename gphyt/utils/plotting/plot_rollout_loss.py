@@ -79,7 +79,6 @@ if __name__ == "__main__":
         ["heated_object_pipe_flow_air_dt_1", "cooled_object_pipe_flow_air_dt_1"],
         "shear_flow_dt_1",
         "euler_multi_quadrants_periodicBC_dt_1",
-        # "acoustic_scattering_inclusions",
     ]
 
     DS_NAMES = [
