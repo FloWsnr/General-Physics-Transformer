@@ -7,8 +7,8 @@ import numpy as np
 from gphyt.utils.plotting.base_plotter import BasePlotter
 from gphyt.utils.plotting.base_plotter import (
     calculate_combined_stats_rollout,
-    rollout_mean,
     rollout_mean_by_pattern,
+    rollout_median_by_pattern,
 )
 
 
@@ -20,7 +20,7 @@ class LossVsTimePlotter(BasePlotter):
         color: Literal["white", "black"] = "white",
         y_log: bool = False,
     ):
-        super().__init__(color)
+        super().__init__(color, figsize=(4.3, 2.15))
 
         self.setup_figure(
             x_ticks=x_ticks,
@@ -28,51 +28,26 @@ class LossVsTimePlotter(BasePlotter):
             x_label="Time steps",
             y_label="MSE",
             y_log=y_log,
+            padding_factor=(0.1, 0.2),
         )
 
 
-def plot_rollout(base_dir):
-    DATASETS = [
-        [
-            "cylinder_sym_flow_water",
-            "cylinder_pipe_flow_water",
-            "object_periodic_flow_water",
-            "object_sym_flow_water",
-            "object_sym_flow_air",
-        ],
-        ["rayleigh_benard", "rayleigh_benard_obstacle"],
-        "twophase_flow",
-        "shear_flow",
-        "euler_multi_quadrants_periodicBC",
-        ["heated_object_pipe_flow_air", "cooled_object_pipe_flow_air"],
-        # "acoustic_scattering_inclusions",
-    ]
-
-    DS_NAMES = [
-        "Obstacle flow",
-        "Rayleigh-Bénard",
-        "Twophase flow",
-        "Shear flow",
-        "Euler",
-        "Thermal flow",
-    ]
-
+def plot_rollout(
+    eval_dir: Path, datasets: list[str] | list[list[str]], names: list[str]
+):
     x_ticks = [0, 25, 50]
     y_ticks = [0, 0.5, 1]
     plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks, y_log=False)
 
-    eval_dir = base_dir / "xl-main-03" / "eval" / "best_model"
-
-    rollout_df = pd.read_csv(eval_dir / "rollout_losses.csv", header=[0, 1, 2])
-    single_step_df = pd.read_csv(eval_dir / "single_step_losses.csv", header=[0, 1, 2])
+    rollout_df = pd.read_csv(eval_dir / "rollout_mse_losses.csv", header=[0, 1, 2])
 
     # Calculate combined means for different flow types
 
-    combined_df = calculate_combined_stats_rollout(rollout_df, column_patterns=DATASETS)
+    combined_df = calculate_combined_stats_rollout(rollout_df, column_patterns=datasets)
     data_mean = rollout_mean_by_pattern(combined_df)
     data_mean = data_mean[:]["mean"].values
 
-    for i, ds_name in enumerate(DS_NAMES):
+    for i, ds_name in enumerate(names):
         color = next(plotter.color_cycler)
 
         x_data = np.arange(data_mean.shape[0])
@@ -85,59 +60,54 @@ def plot_rollout(base_dir):
             color=color,
         )
         plotter.legend()
-        plotter.save_figure(base_dir / "plots/rollout.png")
-        plotter.save_figure(base_dir / "plots/rollout.svg")
-
-
-def plot_rollout_generalization(base_dir):
-    DATASETS = [
-        "euler_multi_quadrants_openBC",
-        "open_obj_water",
-        "supersonic_flow",
-        "turbulent_radiative_layer_2D",
-    ]
-
-    DS_NAMES = [
-        "Euler open BC",
-        "Obstacle flow open BC",
-        "Supersonic flow",
-        "Turbulent radiative layer",
-    ]
-
-    x_ticks = [0, 25, 50]
-    y_ticks = [0, 0.5, 1]
-    plotter = LossVsTimePlotter(x_ticks=x_ticks, y_ticks=y_ticks, y_log=False)
-
-    eval_dir = base_dir / "xl-main-03" / "eval" / "generalization"
-
-    rollout_df = pd.read_csv(eval_dir / "rollout_losses.csv", header=[0, 1, 2])
-    single_step_df = pd.read_csv(eval_dir / "single_step_losses.csv", header=[0, 1, 2])
-
-    # Calculate combined means for different flow types
-
-    combined_df = calculate_combined_stats_rollout(rollout_df, column_patterns=DATASETS)
-    data_mean = rollout_mean_by_pattern(combined_df)
-    data_mean = data_mean[:]["mean"].values
-
-    for i, ds_name in enumerate(DS_NAMES):
-        color = next(plotter.color_cycler)
-
-        x_data = np.arange(data_mean.shape[0])
-        y_data = data_mean[:, i]
-        plotter.plot_data(
-            x_data=x_data,
-            y_data=y_data,
-            label=ds_name,
-            symbolstyle="None",
-            color=color,
-        )
-        plotter.legend()
-        plotter.save_figure(base_dir / "plots/rollout_gen.png")
-        plotter.save_figure(base_dir / "plots/rollout_gen.svg")
+        plotter.save_figure(base_dir / f"plots/rollout_{eval_dir.name}.png")
+        plotter.save_figure(base_dir / f"plots/rollout_{eval_dir.name}.svg")
 
 
 if __name__ == "__main__":
     base_dir = Path("/hpcwork/rwth1802/coding/General-Physics-Transformer/results")
+    DATASETS = [
+        ["rayleigh_benard_dt_1", "rayleigh_benard_obstacle_dt_1"],
+        [
+            "cylinder_sym_flow_water_dt_1",
+            "cylinder_pipe_flow_water_dt_1",
+            "object_periodic_flow_water_dt_1",
+            "object_sym_flow_water_dt_1",
+            "object_sym_flow_air_dt_1",
+        ],
+        "twophase_flow_dt_1",
+        ["heated_object_pipe_flow_air_dt_1", "cooled_object_pipe_flow_air_dt_1"],
+        "shear_flow_dt_1",
+        "euler_multi_quadrants_periodicBC_dt_1",
+        # "acoustic_scattering_inclusions",
+    ]
 
-    plot_rollout(base_dir)
-    plot_rollout_generalization(base_dir)
+    DS_NAMES = [
+        "Rayleigh-Bénard",
+        "Obstacle flow",
+        "Twophase flow",
+        "Thermal flow",
+        "Shear flow",
+        "Euler",
+    ]
+
+    eval_dir = base_dir / "xl-main-03" / "eval" / "best_model"
+    plot_rollout(eval_dir, DATASETS, DS_NAMES)
+
+    ############################################################
+    eval_dir = base_dir / "xl-main-03" / "eval" / "generalization"
+    DATASETS = [
+        "turbulent_radiative_layer_2D_dt_1",
+        "euler_multi_quadrants_openBC_dt_1",
+        "open_obj_water_dt_1",
+        "supersonic_flow_dt_1",
+    ]
+
+    DS_NAMES = [
+        "Turbulent layer",
+        "Euler open",
+        "Obs-flow open",
+        "Supersonic",
+    ]
+    eval_dir = base_dir / "xl-main-03" / "eval" / "generalization"
+    plot_rollout(eval_dir, DATASETS, DS_NAMES)

@@ -426,7 +426,7 @@ class BasePlotter:
 
     def legend(self, title=None, loc="upper left", frameon=True):
         num_points = 1  # number of marker points in the legend
-        handlelength = 2.7  # length of the handle (line and marker) in the legend
+        handlelength = 1  # length of the handle (line and marker) in the legend
 
         if self.draw_legend:
             self.ax.legend(
@@ -595,7 +595,12 @@ def calculate_combined_stats_rollout(
                     if cols_to_combine:
                         index.append((dataset_name, second_col, third_col))
                         # Calculate statistics across matching columns
-                        data.append(df[cols_to_combine].mean(axis=1))
+                        vals = df[cols_to_combine].values
+                        # Flatten to 2D array (rows: samples, cols: matching columns)
+                        # Compute mean for each row, ignoring NaN and inf
+                        vals = np.where(np.isfinite(vals), vals, np.nan)
+                        mean_vals = np.nanmean(vals, axis=1)
+                        data.append(mean_vals)
 
     index = pd.MultiIndex.from_tuples(index, names=["pattern", "metric", "channel"])
     df = pd.DataFrame(data, index=index).T
@@ -640,7 +645,7 @@ def rollout_mean_by_pattern(df: pd.DataFrame) -> pd.DataFrame:
     index = []
     lvl1_cols = df.columns.get_level_values(0).unique()
     lvl2_cols = df.columns.get_level_values(1).unique()
-    
+
     for lvl1_col in lvl1_cols:
         for lvl2_col in lvl2_cols:
             # Get all channels for this pattern-metric combination
@@ -649,7 +654,32 @@ def rollout_mean_by_pattern(df: pd.DataFrame) -> pd.DataFrame:
             pattern_mean = np.nanmean(pattern_data, axis=1)
             data.append(pattern_mean)
             index.append((lvl1_col, lvl2_col))
-    
+
+    # Create MultiIndex DataFrame
+    index = pd.MultiIndex.from_tuples(index, names=["pattern", "metric"])
+    result = pd.DataFrame(data, index=index).T
+    return result
+
+
+def rollout_median_by_pattern(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calculate the median of the rollout data over the channels (third level),
+    keeping patterns (first level) separate for plotting one line per pattern
+    """
+    data = []
+    index = []
+    lvl1_cols = df.columns.get_level_values(0).unique()
+    lvl2_cols = df.columns.get_level_values(1).unique()
+
+    for lvl1_col in lvl1_cols:
+        for lvl2_col in lvl2_cols:
+            # Get all channels for this pattern-metric combination
+            pattern_data = df[lvl1_col][lvl2_col].values
+            # Calculate median across channels (axis=1)
+            pattern_median = np.nanmedian(pattern_data, axis=1)
+            data.append(pattern_median)
+            index.append((lvl1_col, lvl2_col))
+
     # Create MultiIndex DataFrame
     index = pd.MultiIndex.from_tuples(index, names=["pattern", "metric"])
     result = pd.DataFrame(data, index=index).T

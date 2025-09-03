@@ -40,9 +40,9 @@ class LossPlotter(BasePlotter):
             x_ticks=[
                 (i, display_name) for i, (run_name, display_name) in enumerate(RUNS)
             ],
-            y_ticks=[1e-3, 5e-3, 1e-2, 5e-2, 1e-1, 2e-1],
+            y_ticks=[1e-5, 1e-4, 1e-3, 1e-2, 1e-1],
             x_label=None,
-            y_label="Loss",
+            y_label="Mean Squared Error",
             y_log=True,
             padding_factor=(0.1, 0.1),
             minor_ticks=(False, True),
@@ -54,8 +54,8 @@ class LossPlotter(BasePlotter):
         width = 0.35  # the width of the bars
 
         # Plot bars
-        rects1 = self.ax.bar(x - width / 2, mse_data, width, label="MSE")
-        rects2 = self.ax.bar(x + width / 2, rvmse_data, width, label="VRMSE")
+        rects1 = self.ax.bar(x - width / 2, mse_data, width, label="Average")
+        rects2 = self.ax.bar(x + width / 2, rvmse_data, width, label="Median")
 
         # Set x-ticks with model names
         model_names = [display_name for _, display_name in RUNS]
@@ -74,6 +74,7 @@ if __name__ == "__main__":
 
     mse_data = []
     rvmse_data = []
+    median_data = []
 
     for run_name, display_name in RUNS:
         run_dir = base_dir / run_name / "eval/best_model"
@@ -83,13 +84,18 @@ if __name__ == "__main__":
         mse = stats_mse.loc["OVERALL", "Combined Mean"]
         mse_data.append(mse)
 
-        df_rvmse = pd.read_csv(run_dir / "rvmse_losses.csv", index_col=0)
-        stats_rvmse = calculate_combined_stats(df_rvmse, DATASETS)
-        rvmse = stats_rvmse.loc["OVERALL", "Combined Mean"]
-        rvmse_data.append(rvmse)
+        df_mse = pd.read_csv(run_dir / "mse_losses.csv")
+        stats_mse = calculate_combined_stats(df_mse, DATASETS)
+        median = stats_mse.loc["OVERALL", "Combined Median"]
+        median_data.append(median)
+
+        # df_rvmse = pd.read_csv(run_dir / "rvmse_losses.csv", index_col=0)
+        # stats_rvmse = calculate_combined_stats(df_rvmse, DATASETS)
+        # rvmse = stats_rvmse.loc["OVERALL", "Combined Mean"]
+        # rvmse_data.append(rvmse)
 
     # Plot the grouped bars
-    plotter.plot_grouped_bars(mse_data, rvmse_data)
+    plotter.plot_grouped_bars(mse_data, median_data)
 
-    plotter.save_figure(base_dir / "plots/model_comp.svg")
-    plotter.save_figure(base_dir / "plots/model_comp.png")
+    plotter.save_figure(base_dir / "plots/model_comp_median.svg")
+    plotter.save_figure(base_dir / "plots/model_comp_median.png")
