@@ -8,7 +8,7 @@ from gphyt.utils.plotting.base_plotter import BasePlotter, calculate_combined_st
 
 RUNS = [
     "m-main-no-int",
-    "m-main-03",
+    "m-main-euler",
     "m-main-heun",
     "m-main-rk4",
 ]

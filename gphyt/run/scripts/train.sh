@@ -1,11 +1,11 @@
 #!/usr/bin/bash
 
 ### Task name
-#SBATCH --account=rwth1802
+#SBATCH --account=xxxxxxx
 #SBATCH --job-name=train_gphyt
 
 ### Output file
-#SBATCH --output=/hpcwork/rwth1802/coding/General-Physics-Transformer/results/slrm_logs/train_gphyt_%j.out
+#SBATCH --output=results/slrm_logs/train_gphyt_%j.out
 
 
 ### Start a parallel job for a distributed-memory system on several nodes
@@ -17,7 +17,7 @@
 
 ### Mail notification configuration
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=zsa8rk@virginia.edu
+#SBATCH --mail-user=email@example.com
 
 ### Maximum runtime per task
 #SBATCH --time=72:00:00
@@ -49,13 +49,13 @@ conda activate gphyt
 # debug mode
 # debug=true
 # Set up paths
-base_dir="/hpcwork/rwth1802/coding/General-Physics-Transformer"
+base_dir="General-Physics-Transformer"
 python_exec="${base_dir}/gphyt/run/train.py"
 log_dir="${base_dir}/results"
 data_dir="${base_dir}/data/datasets"
 base_config_file="${base_dir}/gphyt/run/scripts/config.yaml"
 # sim_name (same as wandb id)
-sim_name="ti-main-run-all-0007"
+sim_name="sim-name"
 nnodes=1
 ngpus_per_node=4
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus

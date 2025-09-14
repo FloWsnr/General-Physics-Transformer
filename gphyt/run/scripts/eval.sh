@@ -1,11 +1,11 @@
 #!/usr/bin/bash
 
 ### Task name
-#SBATCH --account=rwth1802
+#SBATCH --account=xxxx
 #SBATCH --job-name=eval_gphyt
 
 ### Output file
-#SBATCH --output=/hpcwork/rwth1802/coding/General-Physics-Transformer/results/slrm_logs/eval_gphyt_%j.out
+#SBATCH --output=results/slrm_logs/eval_gphyt_%j.out
 
 ### Start a parallel job for a distributed-memory system on several nodes
 #SBATCH --nodes=1
@@ -16,7 +16,7 @@
 
 ### Mail notification configuration
 #SBATCH --mail-type=FAIL
-#SBATCH --mail-user=zsa8rk@virginia.edu
+#SBATCH --mail-user=email@example.com
 
 ### Maximum runtime per task
 #SBATCH --time=24:00:00
@@ -41,18 +41,17 @@ conda activate gphyt
 # debug mode
 # debug=true
 # Set up paths
-base_dir="/hpcwork/rwth1802/coding/General-Physics-Transformer"
+base_dir="General-Physics-Transformer"
 
-python_bin="/home/fw641779/miniforge3/envs/gphyt/bin/python"
+python_bin="/home/xxxxxx/miniforge3/envs/gphyt/bin/python"
 python_exec="${base_dir}/gphyt/run/model_eval.py"
 log_dir="${base_dir}/results"
 data_dir="${base_dir}/data/datasets"
 base_config_file="${base_dir}/gphyt/run/scripts/config.yaml"
-# sim_name (same as wandb id)
-sim_name="ti-main-run-all-0007"
+sim_name="sim-name"
 nnodes=1
 ngpus_per_node=1
-export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
+export OMP_NUM_THREADS=1
 
 # name of the checkpoint to use for evaluation. Can be "best_model" or a number of a epoch directory
 checkpoint_name="best_model"

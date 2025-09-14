@@ -51,7 +51,7 @@ class ScalingLawPlotter(BasePlotter):
 if __name__ == "__main__":
     # RUNS = ["m-main-4-1"]
 
-    base_dir = Path("/hpcwork/rwth1802/coding/General-Physics-Transformer/results")
+    base_dir = Path("General-Physics-Transformer/results")
     plotter = ScalingLawPlotter()
     losses = []
     steps = [0, 1, 2, 3]

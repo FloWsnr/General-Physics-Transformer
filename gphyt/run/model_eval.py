@@ -36,7 +36,7 @@ from gphyt.utils.logger import get_logger
 from gphyt.run.run_utils import load_stored_model, find_checkpoint
 
 
-# Which fields are actually used in which dataset. Needed for VRMSE computation
+# Which fields are actually used in which dataset.
 # 0=pressure, 1=density, 2=temp, 3=velx, 4=vely
 DATASET_FIELDS = {
     "cylinder_sym_flow_water": (0, 3, 4),

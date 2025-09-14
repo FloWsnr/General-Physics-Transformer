@@ -1,16 +1,16 @@
 wandb:
   project: Large-Physics-Foundation-Model
-  entity: wsnr-florian
-  id: ti-
+  entity: xxxxxxxx
+  id: final-training
   tags:
-    - GPT-S
+    - GPT-XL
     - AllDatasets
     - MainRun
   log_model: gradients # log :all", "parameters" or "gradients" or null
-  notes: "T"
+  notes: "Final training run with GPT-XL on all datasets"
 
 logging:
-  log_dir: /scratch/zsa8rk/results
+  log_dir: /results
   log_file: null #log.txt
   log_level: INFO
   subdir_name: val_ # subdir name each cycle, should end with an underscore
@@ -19,17 +19,17 @@ model:
   transformer:
     input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
     # number of hidden channels across all layers (must be divisible by 6 and by num_heads)
-    model_size: GPT_S # model config (GPT_S, GPT_M, GPT_L, GPT_XL)
+    model_size: GPT_XL # model config (GPT_S, GPT_M, GPT_L, GPT_XL)
     att_mode: full # attention mode (full, full_causal)
     dropout: 0.0 # dropout rate
     pos_enc_mode: absolute # positional encoding mode (usually rope or absolute)
-    patch_size: [1, 16, 16] # patch size (usually 4x16x16)
+    patch_size: [1, 16, 16] # patch size (usually 1x16x16)
     stochastic_depth_rate: 0.0 # stochastic depth rate
     use_derivatives: true # whether to use derivatives in the model
     integrator: Euler # integrator to use (Euler, RK4, Heun, null)
   tokenizer:
-    tokenizer_mode: conv_net # tokenizer mode (usually linear or conv_net, or vqvae)
-    detokenizer_mode: conv_net # detokenizer mode (usually linear or conv_net, or vqvae)
+    tokenizer_mode: linear # tokenizer mode (usually linear or conv_net)
+    detokenizer_mode: linear # detokenizer mode (usually linear or conv_net)
     tokenizer_overlap: 0 # pixels overlap between patches, only used for linear tokenizer
     detokenizer_overlap: 0 # pixels overlap between patches, only used for linear detokenizer
 
@@ -60,11 +60,6 @@ training:
     learning_rate: 1e-4
     weight_decay: 0.01
     betas: [0.9, 0.999]
-    # name: Prodigy
-    # learning_rate: 1
-    # weight_decay: 0.001
-    # slice_p: 1
-    # betas: [0.9, 0.999]
   criterion: MSE # MSE or MAE
 
   lr_scheduler:
@@ -77,14 +72,6 @@ training:
       name: CosineAnnealingLR # cosine annealing scheduler
       num_updates: -1 # num batches for cosine annealing, -1 means use all remaining batches
       end_factor: 0.01 # percentage of initial learning rate to use as minimum learning rate
-      # name: LinearLR # linear
-      # end_factor: 0.0001
-      # num_updates: -1 # number of batches for for second stage, -1 means use all remaining batches
-    # third_stage:
-    #   name: LinearLR # linear cool down scheduler
-    #   end_factor: 0
-    #   num_updates: 10 # number of batches for linear cool down
-
 data:
   use_normalization: true # whether to normalize the data
   max_samples_per_ds: null # limit the number of samples per epoch, set to null for no limit
@@ -113,6 +100,3 @@ data:
     - shear_flow
     - euler_multi_quadrants_periodicBC
     - acoustic_scattering_inclusions
-
-    # For testing
-    # - turbulent_radiative_layer_2D

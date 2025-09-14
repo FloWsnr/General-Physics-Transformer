@@ -68,7 +68,7 @@ class LossPlotter(BasePlotter):
 if __name__ == "__main__":
     # RUNS = ["m-main-4-1"]
 
-    base_dir = Path("/hpcwork/rwth1802/coding/General-Physics-Transformer/results")
+    base_dir = Path("General-Physics-Transformer/results")
     plotter = LossPlotter()
 
     mse_data = []
@@ -87,11 +87,6 @@ if __name__ == "__main__":
         stats_mse = calculate_combined_stats(df_mse, DATASETS)
         median = stats_mse.loc["OVERALL", "Combined Median"]
         median_data.append(median)
-
-        # df_rvmse = pd.read_csv(run_dir / "rvmse_losses.csv", index_col=0)
-        # stats_rvmse = calculate_combined_stats(df_rvmse, DATASETS)
-        # rvmse = stats_rvmse.loc["OVERALL", "Combined Mean"]
-        # rvmse_data.append(rvmse)
 
     # Plot the grouped bars
     plotter.plot_grouped_bars(mse_data, median_data)

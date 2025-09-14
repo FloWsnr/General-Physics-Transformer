@@ -65,7 +65,7 @@ def plot_rollout(
 
 
 if __name__ == "__main__":
-    base_dir = Path("/hpcwork/rwth1802/coding/General-Physics-Transformer/results")
+    base_dir = Path("General-Physics-Transformer/results")
     DATASETS = [
         ["rayleigh_benard_dt_1", "rayleigh_benard_obstacle_dt_1"],
         [
