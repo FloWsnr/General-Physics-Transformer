@@ -2,9 +2,13 @@
 
 ## Introduction
 
-This repository contains the official implementation of **General Physics Transformer (GP<sub>hy</sub>T)**, a foundation model for physics simulation presented in our ICLR 2026 paper "Towards a Physics Foundation Model."
+This repository contains the official implementation of the **General Physics Transformer (GP<sub>hy</sub>T)**, a foundation model for physics simulation presented in our paper (under review) "Towards a Physics Foundation Model."
 
 ### What is GP<sub>hy</sub>T?
+
+<img src="images/arch.png" width="800" alt="GP<sub>hy</sub>T Architecture">
+
+*Architecture overview: GP<sub>hy</sub>T combines a transformer-based neural differentiator with numerical integration, enabling robust and generalizable physics simulation.*
 
 GP<sub>hy</sub>T represents a paradigm shift in physics-aware machine learningâ€”moving from specialized, single-physics models to a unified "**train once, deploy anywhere**" approach. Our model demonstrates three groundbreaking capabilities:
 
@@ -21,9 +25,8 @@ GP<sub>hy</sub>T represents a paradigm shift in physics-aware machine learningâ€
 - **1.8TB training corpus** spanning 8 distinct physical systems
 - **Stable long-term predictions** with consistent physical behavior
 
-<img src="images/arch.png" width="800" alt="GP<sub>hy</sub>T Architecture">
-
-*Architecture overview: GP<sub>hy</sub>T combines a transformer-based neural differentiator with numerical integration, enabling robust and generalizable physics simulation.*
+<img src="images/result.png" width="800" alt="GP<sub>hy</sub>T generalization capabilities">
+*GP<sub>hy</sub>T is capable of generalizing across diverse physical scenarios without any finetuning.*
 
 ### Why This Matters
 
@@ -68,5 +71,4 @@ The datasets cover the following physics:
 - Flow with heat transfer
 - Obstacles and wall interactions
 - Two-phase flow
-- Acoustic scattering
 - Natural convection
