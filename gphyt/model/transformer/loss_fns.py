@@ -37,7 +37,7 @@ class NMSELoss(nn.Module):
         self.return_scalar = return_scalar
         self.clip_max = clip_max
 
-    def forward(self, pred, target):
+    def forward(self, pred, target) -> torch.Tensor:
         """Calculate the normalized mean square error.
 
         Parameters
@@ -93,7 +93,7 @@ class VMSELoss(nn.Module):
         self.return_scalar = return_scalar
         self.clip_max = clip_max
 
-    def forward(self, pred, target):
+    def forward(self, pred, target) -> torch.Tensor:
         """Calculate the variance-normalized mean square error.
 
         Parameters
@@ -146,7 +146,7 @@ class RNMSELoss(NMSELoss):
         """Initialize Root NMSE loss."""
         super().__init__(dims, return_scalar, clip_max)
 
-    def forward(self, pred, target):
+    def forward(self, pred, target) -> torch.Tensor:
         """Calculate the root normalized mean square error.
 
         Parameters
@@ -189,7 +189,7 @@ class RVMSELoss(VMSELoss):
         """Initialize Root Variance-Normalized MSE loss."""
         super().__init__(dims, return_scalar, clip_max)
 
-    def forward(self, pred, target):
+    def forward(self, pred, target) -> torch.Tensor:
         """Calculate the root variance-normalized mean square error.
 
         Parameters
@@ -215,5 +215,5 @@ class RMSE(nn.Module):
         super().__init__()
         self.mse = nn.MSELoss()
 
-    def forward(self, pred, target):
+    def forward(self, pred, target) -> torch.Tensor:
         return torch.sqrt(self.mse(pred, target))

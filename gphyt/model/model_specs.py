@@ -60,18 +60,6 @@ class FNO_S:
 
 
 @dataclass
-class DeepONet_S:
-    latent_dim: int = 32
-    branch_hidden_dims: tuple[int, ...] = (16, 32)
-
-
-@dataclass
-class DeepONet_M:
-    latent_dim: int = 64
-    branch_hidden_dims: tuple[int, ...] = (32, 64, 64)
-
-
-@dataclass
 class UNet_S:
     in_channels: int = 5
     out_channels: int = 5

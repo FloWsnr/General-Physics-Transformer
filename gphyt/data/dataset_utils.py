@@ -12,7 +12,9 @@ from torch.utils.data.distributed import DistributedSampler
 from gphyt.data.phys_dataset import SuperDataset, PhysicsDataset
 
 
-def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
+def collate_fn(
+    data: list[tuple[torch.Tensor, torch.Tensor]],
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Collate function for the dataset.
 
     Get input and target field tensors.
@@ -27,17 +29,14 @@ def collate_fn(data: list[tuple[torch.Tensor, torch.Tensor]]) -> torch.Tensor:
 
     Returns
     -------
-    batch : torch.Tensor
+    x, y : torch.Tensor, torch.Tensor
+        Input and target field tensors of shape
         Batch of shape (B, Time steps, H, W, C)
     """
 
     batch = default_collate(data)  # (B, Time steps, H, W, C)
     x = batch[0]
     y = batch[1]
-
-    # # rearrange to (B, Time steps & C, H, W)
-    # x = einops.rearrange(x, "batch time c h w -> batch (time c) h w")
-    # y = einops.rearrange(y, "batch time c h w -> batch (time c) h w")
 
     return x, y
 

@@ -64,7 +64,7 @@ class FiniteDifference(nn.Module):
         self.pad_w = (self.dw_filter.shape[4] - 1) // 2
 
     @torch.no_grad()
-    def forward(self, x):
+    def forward(self, x) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass to compute spatial derivatives.
 
