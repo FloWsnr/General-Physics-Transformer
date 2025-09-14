@@ -26,6 +26,7 @@ GP<sub>hy</sub>T represents a paradigm shift in physics-aware machine learningâ€
 - **Stable long-term predictions** with consistent physical behavior
 
 <img src="images/result.png" width="800" alt="GP<sub>hy</sub>T generalization capabilities">
+
 *GP<sub>hy</sub>T is capable of generalizing across diverse physical scenarios without any finetuning.*
 
 ### Why This Matters
