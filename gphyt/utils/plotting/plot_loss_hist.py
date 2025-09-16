@@ -54,7 +54,14 @@ class LossPlotter(BasePlotter):
 
         # Plot bars
         rects1 = self.ax.bar(x - width / 2, mse_data, width, label="Average")
-        rects2 = self.ax.bar(x + width / 2, rvmse_data, width, label="Median")
+        rects2 = self.ax.bar(
+            x + width / 2,
+            rvmse_data,
+            width,
+            label="Median",
+            hatch="//",
+            color="#9C9E9F",
+        )
 
         # Set x-ticks with model names
         model_names = [display_name for _, display_name in RUNS]
@@ -68,7 +75,7 @@ class LossPlotter(BasePlotter):
 if __name__ == "__main__":
     # RUNS = ["m-main-4-1"]
 
-    base_dir = Path("General-Physics-Transformer/results")
+    base_dir = Path("results")
     plotter = LossPlotter()
 
     mse_data = []
