@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GP_hyT: Towards a Physics Foundation Model</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>General Physics Transformer (GP<sub>hy</sub>T)</h1>
+            <div class="subtitle">Towards a Physics Foundation Model</div>
+            <div class="authors">
+                Florian Wiesner<sup>1,2</sup> • Matthias Wessling<sup>2</sup> • Stephen Baek<sup>1,*</sup>
+            </div>
+            <div class="affiliation">
+                <sup>1</sup>University of Virginia • <sup>2</sup>RWTH Aachen University • <sup>*</sup>Corresponding
+                Author
+            </div>
+
+            <div style="margin: 40px 0;">
+                <div class="hero-stat">
+                    <span class="stat-number">1.8 TB</span>
+                    <span class="stat-label">Training Data</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="stat-number">In-context</span>
+                    <span class="stat-label">Learning</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="stat-number">6</span>
+                    <span class="stat-label">Physics Domains</span>
+                </div>
+            </div>
+
+            <div class="links">
+                <a href="#" class="btn">Paper (PDF)</a>
+                <a href="https://github.com/FloWsnr/General-Physics-Transformer" class="btn">GitHub Repository</a>
+                <!-- <a href="#" class="btn">Model Checkpoints</a>
+                <a href="#" class="btn-secondary">Dataset</a> -->
+            </div>
+        </header>
+
+        <section class="section">
+            <h2>Abstract</h2>
+            <div class="abstract-box">
+                Foundation models have revolutionized natural language processing through a "train once, deploy
+                anywhere" paradigm, where a single pre-trained model adapts to countless downstream tasks without
+                retraining. We present the General Physics Transformer (GP<sub>hy</sub>T), trained on 1.8 TB of diverse
+                simulation data, that demonstrates foundation model capabilities are achievable for physics. Our key
+                insight is that transformers can learn to infer governing dynamics from context, enabling a single model
+                to simulate fluid-solid interactions, shock waves, thermal convection, and multi-phase dynamics without
+                being told the underlying equations.
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Key Contributions</h2>
+
+            <div class="breakthrough">
+                <h4><span class="breakthrough-number">1.</span> Multi-Physics Learning with Superior Performance</h4>
+                <p>GP<sub>hy</sub>T achieves substantial performance gains across diverse physical systems, with a 5×
+                    reduction in median MSE compared to UNet and 29× reduction compared to Fourier Neural Operators at
+                    equivalent model sizes. Even our smallest variant with only 10% of the parameters outperforms
+                    full-sized traditional architectures.</p>
+            </div>
+
+            <div class="breakthrough">
+                <h4><span class="breakthrough-number">2.</span> Zero-Shot In-Context Learning</h4>
+                <p>The model successfully infers new boundary conditions and adapts to entirely novel physical phenomena
+                    through context alone. GP<sub>hy</sub>T correctly predicts supersonic flows and turbulent radiative
+                    layers—systems completely absent from its training data—demonstrating true emergent generalization
+                    capabilities.</p>
+            </div>
+
+            <div class="breakthrough">
+                <h4><span class="breakthrough-number">3.</span> Stable Long-Term Predictions</h4>
+                <p>GP<sub>hy</sub>T maintains physical consistency through 50-timestep autoregressive rollouts, with
+                    near-linear error accumulation for most physics. This stability demonstrates that the model has
+                    learned generalizable physical principles rather than merely memorizing dataset-specific patterns.
+                </p>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Technical Approach</h2>
+
+            <h3>Hybrid Architecture</h3>
+            <p>GP<sub>hy</sub>T employs a novel hybrid architecture combining a transformer-based neural differentiator
+                with classical numerical integration. The neural differentiator models the temporal dynamics (∂X/∂t) of
+                the system, while a standard numerical integrator extrapolates the future state. This approach bridges
+                deep learning with traditional physics simulation methods.</p>
+
+            <h3>Spatiotemporal Attention Mechanism</h3>
+            <p>The model uses unified attention across all time and space dimensions, enabling it to capture complex,
+                non-separable phenomena such as turbulence and shockwave interactions. Input fields are tokenized into
+                spatiotemporal patches (tubelets), with attention computed across the full 4D space (time, height,
+                width, channels).</p>
+
+            <div class="tech-specs">
+                <div class="spec">
+                    <div class="spec-value">796M</div>
+                    <div class="spec-label">Parameters (XL)</div>
+                </div>
+                <div class="spec">
+                    <div class="spec-value">2.4M</div>
+                    <div class="spec-label">Snapshots</div>
+                </div>
+                <div class="spec">
+                    <div class="spec-value">71M</div>
+                    <div class="spec-label">Training Samples</div>
+                </div>
+                <div class="spec">
+                    <div class="spec-value">256×128</div>
+                    <div class="spec-label">Resolution</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Dataset and Training</h2>
+            <p>GP<sub>hy</sub>T was trained on a diverse corpus of 8 distinct physics datasets, spanning vastly
+                different scales and phenomena:</p>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>Fluid Dynamics</h4>
+                    <p>Incompressible flows, shear flows, and flow around obstacles with varying boundary conditions
+                        (wall, symmetric, periodic, open).</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Compressible Flow</h4>
+                    <p>Euler equations with shock waves, multi-quadrant pressure systems, and supersonic flows with Mach
+                        numbers from 1.1 to 5.0.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Heat Transfer</h4>
+                    <p>Rayleigh-Bénard convection with and without obstacles, thermal flows with heating/cooling
+                        elements.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Multi-phase Systems</h4>
+                    <p>Two-phase flows in porous media with varying contact angles and capillary pressure dynamics.</p>
+                </div>
+            </div>
+
+            <h3>Data Augmentation Strategies</h3>
+            <ul>
+                <li><strong>Variable Time Increments:</strong> Sub-sampling trajectories with multiple Δt values forces
+                    the model to infer temporal scales from context.</li>
+                <li><strong>Per-Dataset Normalization:</strong> Independent normalization preserves relative quantities
+                    while requiring the model to infer absolute scales.</li>
+                <li><strong>Spatial Augmentation:</strong> Random axis flips increase data diversity without additional
+                    simulations.</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2>Results and Evaluation</h2>
+
+            <h3>Benchmark Performance</h3>
+            <p>Across all test datasets, GP<sub>hy</sub>T demonstrates consistent superiority over specialized
+                architectures. The model achieves particularly strong performance on smooth systems (obstacle flow,
+                shear flow) while maintaining competitive accuracy on challenging discontinuous systems (Euler shocks,
+                Rayleigh-Bénard convection).</p>
+
+            <h3>Generalization Capabilities</h3>
+            <p>In zero-shot evaluation on unseen physics:</p>
+            <ul>
+                <li>Open boundary conditions achieve MSE nearly identical to known symmetric systems</li>
+                <li>Supersonic flow predictions correctly form bow shocks despite no training data</li>
+                <li>Turbulent radiative layers maintain physically plausible dynamics</li>
+            </ul>
+
+            <h3>Scaling Properties</h3>
+            <p>Performance improvements continue from our smallest (9.2M parameters) to largest (796M parameters)
+                models, suggesting further gains are possible with increased scale. The architecture demonstrates
+                favorable scaling properties compared to traditional approaches.</p>
+        </section>
+
+        <section class="section">
+            <h2>Impact and Applications</h2>
+            <p>GP<sub>hy</sub>T represents a critical step toward creating a universal physics engine that could
+                transform computational science and engineering:</p>
+
+            <ul>
+                <li><strong>Democratized Access:</strong> Eliminates the need for specialized solver development, making
+                    high-fidelity simulations accessible to non-experts</li>
+                <li><strong>Accelerated Discovery:</strong> Enables rapid exploration of design spaces across multiple
+                    physics domains</li>
+                <li><strong>Educational Tools:</strong> Provides interactive physics simulation without computational
+                    barriers</li>
+                <li><strong>Real-time Applications:</strong> Foundation for physics-based digital twins and control
+                    systems</li>
+                <li><strong>Cross-domain Transfer:</strong> Single model applicable to problems spanning microfluidics
+                    to weather forecasting</li>
+            </ul>
+        </section>
+
+        <section class="section">
+            <h2>Future Directions</h2>
+            <p>While GP<sub>hy</sub>T demonstrates promising advances, several areas remain for future work:</p>
+            <ul>
+                <li>Extension to 3D systems and variable-resolution domains</li>
+                <li>Incorporation of additional physics domains (mechanics, chemistry, optics)</li>
+                <li>Improved long-term stability for engineering-grade accuracy</li>
+                <li>Integration with uncertainty quantification methods</li>
+                <li>Development of physics-specific prompting techniques</li>
+            </ul>
+        </section>
+
+        <footer>
+            <p><strong>ICLR 2026 Submission</strong></p>
+            <p>Acknowledgments: DFG Gottfried Wilhelm Leibniz Award 2019 • NSF Award DMREF-2203580 • Research Computing
+                at UVA • WestAI</p>
+        </footer>
+    </div>
+</body>
+
+</html>
