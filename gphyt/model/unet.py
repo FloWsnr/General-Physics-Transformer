@@ -185,7 +185,7 @@ class UNet(nn.Module):
         torch.Tensor
             Output tensor of shape (batch, 1, height, width, out_channels).
         """
-        skip = x.clone()  # only used if integrate is True
+        original_input = x.clone()  # only used if integrate is True
         x = rearrange(x, "b t h w c -> b (t c) h w")
 
         # Input convolution
@@ -211,9 +211,9 @@ class UNet(nn.Module):
         # Add time dimension back as 1
         x = rearrange(x, "b c h w -> b 1 h w c")
         if self.integrate:
-            # Merge time and channel dimensions
-            skip = skip[:, -1, ...].unsqueeze(1)
-            x = x + skip
+            # Add the last timestep of the original input as residual connection
+            residual = original_input[:, -1, ...].unsqueeze(1)
+            x = x + residual
         return x
 
 

@@ -91,16 +91,20 @@ def test_unet_forward_cuda():
 
 def test_get_model():
     """Test the get_model function."""
-    unet_m = get_model(UNet_M(), n_time_steps=8)
+    config_m = {"model_size": "UNet_M", "n_time_steps": 8}
+    unet_m = get_model(config_m)
     assert isinstance(unet_m, UNet)
-    unet_s = get_model(UNet_S(), n_time_steps=8)
+
+    config_s = {"model_size": "UNet_S", "n_time_steps": 8}
+    unet_s = get_model(config_s)
     assert isinstance(unet_s, UNet)
 
 
 def test_unet_s_config():
     """Test UNet with UNet_S configuration."""
     data = torch.randn(2, 4, 32, 32, 5)
-    unet = get_model(UNet_S(), n_time_steps=4)
+    config = {"model_size": "UNet_S", "n_time_steps": 4}
+    unet = get_model(config)
     output = unet(data)
     assert output.shape == (2, 1, 32, 32, 5)
 
@@ -108,7 +112,8 @@ def test_unet_s_config():
 def test_unet_m_config():
     """Test UNet with UNet_M configuration."""
     data = torch.randn(2, 4, 32, 32, 5)
-    unet = get_model(UNet_M(), n_time_steps=4)
+    config = {"model_size": "UNet_M", "n_time_steps": 4}
+    unet = get_model(config)
     output = unet(data)
     assert output.shape == (2, 1, 32, 32, 5)
 
@@ -135,3 +140,92 @@ def test_unet_gradient_flow():
     # Check that model parameters have gradients
     for param in unet.parameters():
         assert param.grad is not None
+
+
+def test_unet_integrate_false():
+    """Test UNet with integrate=False (default behavior)."""
+    data = torch.randn(2, 4, 32, 32, 3)
+    unet = UNet(
+        in_channels=3,
+        out_channels=3,
+        starting_hidden_dim=32,
+        n_down_blocks=2,
+        n_time_steps=4,
+        integrate=False,
+    )
+    output = unet(data)
+    assert output.shape == (2, 1, 32, 32, 3)
+
+    # Test that output is different from input (no residual connection)
+    input_last_timestep = data[:, -1, ...].unsqueeze(1)
+    assert not torch.allclose(output, input_last_timestep, atol=1e-5)
+
+
+def test_unet_integrate_true():
+    """Test UNet with integrate=True (adds residual connection)."""
+    torch.manual_seed(42)  # For reproducible results
+    data = torch.randn(2, 4, 32, 32, 3)
+
+    # Test with integrate=True
+    unet_integrate = UNet(
+        in_channels=3,
+        out_channels=3,
+        starting_hidden_dim=32,
+        n_down_blocks=2,
+        n_time_steps=4,
+        integrate=True,
+    )
+    output_integrate = unet_integrate(data)
+    assert output_integrate.shape == (2, 1, 32, 32, 3)
+
+    # Test with integrate=False for comparison
+    torch.manual_seed(42)  # Reset seed for fair comparison
+    unet_no_integrate = UNet(
+        in_channels=3,
+        out_channels=3,
+        starting_hidden_dim=32,
+        n_down_blocks=2,
+        n_time_steps=4,
+        integrate=False,
+    )
+    output_no_integrate = unet_no_integrate(data)
+
+    # Outputs should be different due to residual connection
+    assert not torch.allclose(output_integrate, output_no_integrate, atol=1e-5)
+
+    # The integrated output should be related to the last timestep input
+    input_last_timestep = data[:, -1, ...].unsqueeze(1)
+    # The difference between integrate and non-integrate should be the input
+    # (this is an approximation test since the weights are random)
+
+
+def test_get_model_with_integrate():
+    """Test get_model function with integrate parameter."""
+    # Test with integrate=False
+    config_false = {
+        "model_size": "UNet_S",
+        "n_time_steps": 4,
+        "integrate": False
+    }
+    unet_false = get_model(config_false)
+    assert isinstance(unet_false, UNet)
+    assert unet_false.integrate is False
+
+    # Test with integrate=True
+    config_true = {
+        "model_size": "UNet_M",
+        "n_time_steps": 4,
+        "integrate": True
+    }
+    unet_true = get_model(config_true)
+    assert isinstance(unet_true, UNet)
+    assert unet_true.integrate is True
+
+    # Test default behavior (should be False)
+    config_default = {
+        "model_size": "UNet_S",
+        "n_time_steps": 4
+    }
+    unet_default = get_model(config_default)
+    assert isinstance(unet_default, UNet)
+    assert unet_default.integrate is False

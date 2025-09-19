@@ -48,8 +48,33 @@ def test_forward_cuda():
 
 def test_get_model():
     """Test the get_model function."""
-    fno_m = get_model(FNO_M())
+    config_m = {"model_size": "FNO_M"}
+    fno_m = get_model(config_m)
     assert isinstance(fno_m, FNO)
 
-    fno_s = get_model(FNO_S())
+    config_s = {"model_size": "FNO_S"}
+    fno_s = get_model(config_s)
     assert isinstance(fno_s, FNO)
+
+    # Test default behavior (should default to FNO_M)
+    config_default = {}
+    fno_default = get_model(config_default)
+    assert isinstance(fno_default, FNO)
+
+
+def test_fno_s_config():
+    """Test FNO with FNO_S configuration."""
+    data = torch.randn(2, 4, 32, 32, 5)
+    config = {"model_size": "FNO_S"}
+    fno = get_model(config)
+    output = fno(data)
+    assert output.shape == (2, 1, 32, 32, 5)
+
+
+def test_fno_m_config():
+    """Test FNO with FNO_M configuration."""
+    data = torch.randn(2, 4, 32, 32, 5)
+    config = {"model_size": "FNO_M"}
+    fno = get_model(config)
+    output = fno(data)
+    assert output.shape == (2, 1, 32, 32, 5)
