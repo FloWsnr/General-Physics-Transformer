@@ -16,9 +16,9 @@ logging:
   subdir_name: val_ # subdir name each cycle, should end with an underscore
 
 model:
+  architecture: gphyt # gphyt or unet or fno
   transformer:
     input_channels: 5 # number of input fields (usually 5 (pressure, density, temperature, vel_x, vel_y))
-    # number of hidden channels across all layers (must be divisible by 6 and by num_heads)
     model_size: GPT_XL # model config (GPT_S, GPT_M, GPT_L, GPT_XL)
     att_mode: full # attention mode (full, full_causal)
     dropout: 0.0 # dropout rate
@@ -32,6 +32,13 @@ model:
     detokenizer_mode: linear # detokenizer mode (usually linear or conv_net)
     tokenizer_overlap: 0 # pixels overlap between patches, only used for linear tokenizer
     detokenizer_overlap: 0 # pixels overlap between patches, only used for linear detokenizer
+
+  # architecture: unet # gphyt or unet or fno
+  # model_size: UNet_M # UNet_S or UNet_M
+  # n_time_steps: 4 # number of input time steps
+  # integrate: false # whether to integrate the output with the last input time step
+
+
 
 training:
   compile: true

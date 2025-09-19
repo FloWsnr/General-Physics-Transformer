@@ -41,20 +41,21 @@ class FNO(nn.Module):
         return x
 
 
-def get_model(model_config: FNO_M | FNO_S):
-    if isinstance(model_config, FNO_M):
-        model_config = FNO_M()
-    elif isinstance(model_config, FNO_S):
-        model_config = FNO_S()
+def get_model(model_config: dict):
+    model_size = model_config.get("model_size", "FNO_M")
+    if model_size == "FNO_M":
+        fno_config = FNO_M()
+    elif model_size == "FNO_S":
+        fno_config = FNO_S()
     else:
-        raise ValueError(f"Invalid model size: {model_config}")
+        raise ValueError(f"Invalid model size: {model_size}")
 
     return FNO(
-        in_channels=model_config.in_channels,
-        out_channels=model_config.out_channels,
-        hidden_channels=model_config.hidden_channels,
-        n_layers=model_config.n_layers,
-        n_modes_height=model_config.n_modes_height,
-        n_modes_width=model_config.n_modes_width,
-        n_modes_time=model_config.n_modes_time,
+        in_channels=fno_config.in_channels,
+        out_channels=fno_config.out_channels,
+        hidden_channels=fno_config.hidden_channels,
+        n_layers=fno_config.n_layers,
+        n_modes_height=fno_config.n_modes_height,
+        n_modes_width=fno_config.n_modes_width,
+        n_modes_time=fno_config.n_modes_time,
     )

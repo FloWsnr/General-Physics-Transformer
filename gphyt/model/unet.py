@@ -67,8 +67,12 @@ class UpBlock(nn.Module):
 
     def __init__(self, in_channels: int, skip_channels: int, out_channels: int):
         super().__init__()
-        self.upconv = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
-        self.conv1 = nn.Conv2d(in_channels // 2 + skip_channels, out_channels, kernel_size=3, padding=1)
+        self.upconv = nn.ConvTranspose2d(
+            in_channels, in_channels // 2, kernel_size=2, stride=2
+        )
+        self.conv1 = nn.Conv2d(
+            in_channels // 2 + skip_channels, out_channels, kernel_size=3, padding=1
+        )
         self.in1 = nn.InstanceNorm2d(out_channels, eps=1e-5)
         self.relu = nn.ReLU()
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
@@ -126,15 +130,17 @@ class UNet(nn.Module):
         starting_hidden_dim: int,
         n_down_blocks: int,
         n_time_steps: int,
+        integrate: bool = False,
     ):
         super().__init__()
         self.n_down_blocks = n_down_blocks
-        
+        self.integrate = integrate
+
         # Input convolution
         self.conv_in = nn.Conv2d(
             in_channels * n_time_steps, starting_hidden_dim, kernel_size=3, padding=1
         )
-        
+
         # Down blocks
         self.down_blocks = nn.ModuleList()
         current_dim = starting_hidden_dim
@@ -142,7 +148,7 @@ class UNet(nn.Module):
             next_dim = current_dim * 2
             self.down_blocks.append(DownBlock(current_dim, next_dim))
             current_dim = next_dim
-        
+
         # Bottleneck
         self.bottleneck = nn.Sequential(
             nn.Conv2d(current_dim, current_dim * 2, kernel_size=3, padding=1),
@@ -152,7 +158,7 @@ class UNet(nn.Module):
             nn.InstanceNorm2d(current_dim * 2, eps=1e-5),
             nn.ReLU(),
         )
-        
+
         # Up blocks
         self.up_blocks = nn.ModuleList()
         current_dim = current_dim * 2  # After bottleneck
@@ -161,7 +167,7 @@ class UNet(nn.Module):
             next_dim = current_dim // 2
             self.up_blocks.append(UpBlock(current_dim, skip_dim, next_dim))
             current_dim = next_dim
-        
+
         # Output convolution
         self.conv_out = nn.Conv2d(current_dim, out_channels, kernel_size=1)
 
@@ -179,61 +185,66 @@ class UNet(nn.Module):
         torch.Tensor
             Output tensor of shape (batch, 1, height, width, out_channels).
         """
-        # Merge time and channel dimensions
+        skip = x.clone()  # only used if integrate is True
         x = rearrange(x, "b t h w c -> b (t c) h w")
-        
+
         # Input convolution
         x = self.conv_in(x)
-        
+
         # Down path
         skip_connections = []
         for down_block in self.down_blocks:
             skip, x = down_block(x)
             skip_connections.append(skip)
-        
+
         # Bottleneck
         x = self.bottleneck(x)
-        
+
         # Up path
         for i, up_block in enumerate(self.up_blocks):
             skip = skip_connections[-(i + 1)]  # Reverse order
             x = up_block(x, skip)
-        
+
         # Output convolution
         x = self.conv_out(x)
-        
+
         # Add time dimension back as 1
         x = rearrange(x, "b c h w -> b 1 h w c")
+        if self.integrate:
+            # Merge time and channel dimensions
+            skip = skip[:, -1, ...].unsqueeze(1)
+            x = x + skip
         return x
 
 
-def get_model(model_config: UNet_M | UNet_S, n_time_steps: int = 4) -> UNet:
+def get_model(model_config: dict) -> UNet:
     """
     Get a UNet model from a configuration dataclass.
 
     Parameters
     ----------
-    model_config : UNet_M or UNet_S
-        Model configuration dataclass.
-    n_time_steps : int
-        Number of time steps.
+    model_config : dict
 
     Returns
     -------
     UNet
         Instantiated UNet model.
     """
-    if isinstance(model_config, UNet_M):
-        model_config = UNet_M()
-    elif isinstance(model_config, UNet_S):
-        model_config = UNet_S()
+    n_time_steps = model_config.get("n_time_steps", 4)
+    integrate = model_config.get("integrate", False)
+    model_size = model_config.get("model_size", "UNet_M")
+    if model_size == "UNet_M":
+        unet_config = UNet_M()
+    elif model_size == "UNet_S":
+        unet_config = UNet_S()
     else:
-        raise ValueError(f"Invalid model size: {model_config}")
+        raise ValueError(f"Invalid model size: {model_size}")
 
     return UNet(
-        in_channels=model_config.in_channels,
-        out_channels=model_config.out_channels,
-        starting_hidden_dim=model_config.starting_hidden_dim,
-        n_down_blocks=model_config.n_down_blocks,
+        in_channels=unet_config.in_channels,
+        out_channels=unet_config.out_channels,
+        starting_hidden_dim=unet_config.starting_hidden_dim,
+        n_down_blocks=unet_config.n_down_blocks,
         n_time_steps=n_time_steps,
+        integrate=integrate,
     )

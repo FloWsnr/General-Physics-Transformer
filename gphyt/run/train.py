@@ -32,7 +32,7 @@ from torch.amp.grad_scaler import GradScaler
 import torch._functorch.config
 
 from gphyt.data.dataset_utils import get_dataloader
-from gphyt.model.transformer.model import get_model
+from gphyt.model.model_specs import get_model
 from gphyt.utils.train_vis import visualize_predictions
 from gphyt.utils.logger import get_logger
 from gphyt.utils.wandb_logger import WandbLogger

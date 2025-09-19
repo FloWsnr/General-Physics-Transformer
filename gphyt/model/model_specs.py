@@ -73,3 +73,25 @@ class UNet_M:
     out_channels: int = 5
     starting_hidden_dim: int = 64
     n_down_blocks: int = 4
+
+
+def get_model(model_config: dict):
+    """
+    Returns the correct model
+    """
+    model_type = model_config.get("architecture")
+    if model_type == "gphyt":
+        from gphyt.model.transformer.model import get_model as get_gpt_model
+
+        model = get_gpt_model(model_config)
+    elif model_type == "unet":
+        from gphyt.model.unet import get_model as get_unet_model
+
+        model = get_unet_model(model_config)
+    elif model_type == "fno":
+        from gphyt.model.fno import get_model as get_fno_model
+
+        model = get_fno_model(model_config)
+    else:
+        raise ValueError(f"Invalid model type: {model_type}")
+    return model
