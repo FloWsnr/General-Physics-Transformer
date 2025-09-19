@@ -74,7 +74,9 @@ def create_field_video(
         print(f"Animation saved to {vid_path}")
 
 
-def generate_channel_gif(data: np.ndarray, output_path: Path, fps: int = 1, cmap: str = "viridis") -> None:
+def generate_channel_gif(
+    data: np.ndarray, output_path: Path, fps: int = 1, cmap: str = "viridis"
+) -> None:
     """Generate a GIF for a single channel of data over time.
 
     Parameters
@@ -89,11 +91,11 @@ def generate_channel_gif(data: np.ndarray, output_path: Path, fps: int = 1, cmap
         Matplotlib colormap name, by default "viridis"
     """
     import matplotlib.cm as cm
-    
+
     frames = []
     vmin = data.min()
     vmax = data.max()
-    
+
     # Get colormap
     colormap = cm.get_cmap(cmap)
     norm = Normalize(vmin=vmin, vmax=vmax)
@@ -105,7 +107,7 @@ def generate_channel_gif(data: np.ndarray, output_path: Path, fps: int = 1, cmap
         # Convert to RGB uint8 (remove alpha channel)
         rgb_frame = (colored_frame[:, :, :3] * 255).astype(np.uint8)
         frames.append(rgb_frame)
-    
+
     print(f"Writing {len(frames)} frames to {output_path}")
-    iio.imwrite(output_path, frames, fps=fps)
+    iio.imwrite(output_path, frames, fps=fps, loop=0)
     print(f"Animation saved to {output_path}")
