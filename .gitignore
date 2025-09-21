@@ -1,5 +1,7 @@
 .vscode/*
 
+node_modules/
+
 /data/
 /results/
 
