@@ -46,11 +46,13 @@ Importantly, we are talking about a replacement of traditional physics-simulator
 Current physics-aware machine learning (PAML) models are typically narrow models, and for good reason, or actually two reasons:
 
 1. Data is scarce, since simulations and experiments are expensive as hell. Espcially 3D simulations take weeks to months on a supercomputer. Also, the physical world is extremely diverse, and it is almost impossible to cover all scenarios.
-2. Predicting physics is extremely hard, even for numerical solvers. Physic simulations are done time-step by time-step, and small errors accumulate quickly. Machine learning models typically struggle with these errors, leading to unphysical results.
+2. Predicting physics is extremely hard, even for numerical solvers. Physics simulations are done time-step by time-step, and small errors accumulate quickly. Machine learning models typically struggle with these errors when predicting long-horizon phenomena.
 
-## What is GPHYT?
+## The General Physics Transformer (GPHYT)
 
-GPHYT is a transformer-based model designed to learn universal physical principles from diverse datasets. Unlike domain-specific models, our goal is to create a unified framework that can:
+The General Physics Transformer is our first step towards a Physics Foundation Model. Its abbreviation GPhyT obviously refers to GPT, the Generative Pre-trained Transformer, by OpenAI. We think of GPhyT as the version 0.1 and hopefully by the time we reach version 3.5 or 4, we will have a true Physics Foundation Model, equally successful as its NLP counterpart.
+
+GPhyT is a transformer-based model designed to learn universal physical principles from a sequence of time steps, a "physics prompt". Unlike domain-specific models, our goal is to create a unified framework that can:
 
 - Understand physics across multiple scales (quantum to cosmic)
 - Transfer knowledge between related physical systems
