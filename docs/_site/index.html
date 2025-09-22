@@ -16,6 +16,9 @@
         h1, h2, h3 {
             color: #2c3e50;
         }
+        header h1 {
+            text-align: center;
+        }
         a {
             color: #3498db;
             text-decoration: none;
@@ -57,6 +60,13 @@
             gap: 0px;
             margin: 0px 0;
         }
+        .gif-grid-4x2-nospace {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 0px;
+            margin: 0px 0;
+        }
 
         .gif-grid-2x2 img,
         .gif-grid-3x3 img {
@@ -65,7 +75,8 @@
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-        .gif-grid-3x3-nospace img {
+        .gif-grid-3x3-nospace img,
+        .gif-grid-4x2-nospace img {
             width: 100%;
             height: auto;
             border-radius: 0;
@@ -74,6 +85,7 @@
         }
 
         .gif-grid-3x3-nospace img:hover,
+        .gif-grid-4x2-nospace img:hover,
         .gif-grid-3x3 img:hover,
         .gif-grid-2x2 img:hover {
             transform: scale(1.02);
@@ -139,7 +151,32 @@
         .zoom-close:hover {
             background: rgba(255, 255, 255, 1);
         }
+
+        .arch-image {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
     </style>
+
+    <!-- MathJax Configuration -->
+    <script>
+    MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']],
+            displayMath: [['$$', '$$'], ['\\[', '\\]']],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        options: {
+            skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+        }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
     <header>
@@ -166,8 +203,7 @@ capable of generalizing to new physical systems and conditions not seen during t
 <blockquote>
 <p>&quot;A Foundation Model exhibits wide generalization capability – without retraining&quot;</p>
 </blockquote>
-<p>Large Language Models (LLMs), especially their newest version of Reasoning Models, are extremely versatile. They can write poems, give summaries, translate, code and solve math problems. This is not only due to their vast training data, but also their ability of in-context and zero-shot learning.
-This means, that they can adapt to new tasks without any additional training, simply by following their instructions. Think for example of this prompt:</p>
+<p>Large Language Models (LLMs), especially their newest version of Reasoning Models, are extremely versatile. They can write poems, give summaries, translate, code and solve math problems. This is not only due to their vast training data, but also their ability of in-context and zero-shot learning; they can adapt to new tasks without any additional training, simply by following their instructions. Think for example of this prompt:</p>
 <pre><code>Take this paper and
 - Translate it to German.
 - Remove all em-dashes.
@@ -182,17 +218,39 @@ Importantly, we are talking about a replacement of traditional physics-simulator
 Current physics-aware machine learning (PAML) models are typically narrow models, and for good reason, or actually two reasons:</p>
 <ol>
 <li>Data is scarce, since simulations and experiments are expensive as hell. Espcially 3D simulations take weeks to months on a supercomputer. Also, the physical world is extremely diverse, and it is almost impossible to cover all scenarios.</li>
-<li>Predicting physics is extremely hard, even for numerical solvers. Physic simulations are done time-step by time-step, and small errors accumulate quickly. Machine learning models typically struggle with these errors, leading to unphysical results.</li>
+<li>Predicting physics is extremely hard, even for numerical solvers. Physics simulations are done time-step by time-step, and small errors accumulate quickly. Machine learning models typically struggle with these errors when predicting long-horizon phenomena.</li>
 </ol>
-<h2>What is GPHYT?</h2>
-<p>GPHYT is a transformer-based model designed to learn universal physical principles from diverse datasets. Unlike domain-specific models, our goal is to create a unified framework that can:</p>
-<ul>
-<li>Understand physics across multiple scales (quantum to cosmic)</li>
-<li>Transfer knowledge between related physical systems</li>
-<li>Generate predictions for novel scenarios</li>
-<li>Assist in scientific discovery</li>
-</ul>
-<h2>What's Next</h2>
+<h2>The General Physics Transformer (GPhyT)</h2>
+<p>The General Physics Transformer is our first step towards a Physics Foundation Model. Its abbreviation GPhyT obviously refers to GPT, the Generative Pre-trained Transformer, by OpenAI. We think of GPhyT as the version 0.1 and hopefully by the time we reach version 3.5 or 4, we will have a true Physics Foundation Model, equally successful as its NLP counterpart.</p>
+<p>GPhyT is a transformer-based model designed to learn universal physical principles from a sequence of time steps, a &quot;physics prompt&quot;. This prompt allows the model to understand the current state of a physical system <strong>without additional input</strong>. Which boundary conditions, which spatial dimensions and which physics are present, is all encoded in the prompt. The model then predicts the next time step, and can be applied autoregressively to predict long-term dynamics.</p>
+<p>The specific architecture is shown below. The model encodes multiple physical fields (e.g. velocity, pressure, temperature) at multiple time steps using a linear encoder (tokenizer) into spatiotemporal patches. Additionally, we compute the spatial and temporal derivatives of these fields using finite differences. This helps the model to better identify the underlying physics. The encoded space-time patches are then processed by a standard transformer architecture. Importantly, the transformer computes the partial derivatives wrt. time ($\frac{\partial X}{\partial t}$), which are then integrated using a numerical integrator. The ML community already knows that predicting differences rather than absolute values is much easier for neural networks (resnets, skip connections, ...), so this is not really surpising. Here, we take this idea to the next level by predicting physical time derivatives.</p>
+<img src="assets/arch.png" alt="Architecture diagram" class="arch-image">
+<h2>Our Results</h2>
+<p>We first evaluated GPhyT on the known physical systems it was trained on and compared against strong baselines. GPhyT outperforms all baselines on all systems, often by a large margin. Below are some example predictions of GPhyT (bottom row) against the ground truth (top row). You almost cannot tell the difference and for the periodic systems like shear flow (left) and euler equations (center-right), the boundaries are almost invisible.</p>
+  <div class="gif-grid-4x2-nospace">
+      <img src="assets/shear_gt_channel_3.gif" alt="Ground truth periodic shear flow simulation showing fluid velocity patterns">
+      <img src="assets/twophase_gt_channel_2.gif" alt="Ground truth two-phase flow simulation with phase boundaries">
+      <img src="assets/euler_peri_gt_channel_2.gif" alt="Ground truth Euler equations simulation with periodic boundary conditions">
+      <img src="assets/rb_gt_channel_2.gif" alt="Ground truth Rayleigh-Bénard convection simulation showing thermal flow patterns">
+      <img src="assets/shear_pred_channel_3.gif" alt="GPhyT prediction of periodic shear flow simulation">
+      <img src="assets/twophase_pred_channel_2.gif" alt="GPhyT prediction of two-phase flow simulation">
+      <img src="assets/euler_peri_pred_channel_2.gif" alt="GPhyT prediction of Euler equations with periodic boundaries">
+      <img src="assets/rb_pred_channel_2.gif" alt="GPhyT prediction of Rayleigh-Bénard convection simulation">
+  </div>
+<p>However, the main point of a Physics Foundation Model is to generalize to new physics. Below, we show some examples of GPhyT predicting <strong>completely unseen physical systems</strong> (bottom row) against the ground truth (top row). Left and center-left are examples of novel boundary conditions, while center-right and right are examples of completely new physics.
+Hopefully, you agree that the new boundary conditions are no challenge for the model. The new physics examples are not perfect, as you can see some artifacts, but still very impressive for a model that has never seen anything like this before.</p>
+  <div class="gif-grid-4x2-nospace">
+      <img src="assets/open_obj_gt_channel_3.gif" alt="Ground truth flow simulation around obstacle with open boundary conditions">
+      <img src="assets/euler_open_gt_channel_2.gif" alt="Ground truth Euler equations with open boundary conditions">
+      <img src="assets/supersonic_gt_channel_1.gif" alt="Ground truth supersonic flow simulation showing shock waves">
+      <img src="assets/turbulent_gt_channel_2.gif" alt="Ground truth turbulent flow simulation with complex vortex structures">
+      <img src="assets/open_obj_pred_channel_3.gif" alt="GPhyT prediction of flow around obstacle with open boundaries">
+      <img src="assets/euler_open_pred_channel_2.gif" alt="GPhyT prediction of Euler equations with open boundaries">
+      <img src="assets/supersonic_pred_channel_1.gif" alt="GPhyT prediction of supersonic flow with shock wave formation">
+      <img src="assets/turbulent_pred_channel_2.gif" alt="GPhyT prediction of turbulent flow patterns">
+  </div>
+<p>Our final experiment are long-horizon predictions, i.e. autoregressive rollouts of the model. This task is incredibly difficult and not current Physics Foundation Model can achieve high enough accuracy to actually replace a numerical solver.</p>
+<h2>What's next?</h2>
 <p>Our roadmap includes:</p>
 
     </main>

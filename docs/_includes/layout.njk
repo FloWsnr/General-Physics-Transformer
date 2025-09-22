@@ -16,6 +16,9 @@
         h1, h2, h3 {
             color: #2c3e50;
         }
+        header h1 {
+            text-align: center;
+        }
         a {
             color: #3498db;
             text-decoration: none;
@@ -57,6 +60,13 @@
             gap: 0px;
             margin: 0px 0;
         }
+        .gif-grid-4x2-nospace {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 0px;
+            margin: 0px 0;
+        }
 
         .gif-grid-2x2 img,
         .gif-grid-3x3 img {
@@ -65,7 +75,8 @@
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-        .gif-grid-3x3-nospace img {
+        .gif-grid-3x3-nospace img,
+        .gif-grid-4x2-nospace img {
             width: 100%;
             height: auto;
             border-radius: 0;
@@ -74,6 +85,7 @@
         }
 
         .gif-grid-3x3-nospace img:hover,
+        .gif-grid-4x2-nospace img:hover,
         .gif-grid-3x3 img:hover,
         .gif-grid-2x2 img:hover {
             transform: scale(1.02);
@@ -139,7 +151,32 @@
         .zoom-close:hover {
             background: rgba(255, 255, 255, 1);
         }
+
+        .arch-image {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
     </style>
+
+    <!-- MathJax Configuration -->
+    <script>
+    MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']],
+            displayMath: [['$$', '$$'], ['\\[', '\\]']],
+            processEscapes: true,
+            processEnvironments: true
+        },
+        options: {
+            skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+        }
+    };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
     <header>
