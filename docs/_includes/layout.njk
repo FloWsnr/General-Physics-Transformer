@@ -67,6 +67,13 @@
             gap: 0px;
             margin: 0px 0;
         }
+        .gif-grid-3x2-nospace {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 0px;
+            margin: 0px 0;
+        }
 
         .gif-grid-2x2 img,
         .gif-grid-3x3 img {
@@ -76,7 +83,8 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         .gif-grid-3x3-nospace img,
-        .gif-grid-4x2-nospace img {
+        .gif-grid-4x2-nospace img,
+        .gif-grid-3x2-nospace img {
             width: 100%;
             height: auto;
             border-radius: 0;
@@ -86,6 +94,7 @@
 
         .gif-grid-3x3-nospace img:hover,
         .gif-grid-4x2-nospace img:hover,
+        .gif-grid-3x2-nospace img:hover,
         .gif-grid-3x3 img:hover,
         .gif-grid-2x2 img:hover {
             transform: scale(1.02);
@@ -118,13 +127,14 @@
             height: 98vh;
             cursor: default;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
         }
 
         .zoomed-image {
             width: 98vw;
-            height: 98vh;
+            height: 85vh;
             object-fit: contain;
             border-radius: 8px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
@@ -152,12 +162,33 @@
             background: rgba(255, 255, 255, 1);
         }
 
+        .zoom-caption {
+            color: white;
+            font-size: 20px;
+            font-weight: 500;
+            text-align: center;
+            margin-top: 15px;
+            padding: 12px 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 6px;
+            max-width: 80%;
+            line-height: 1.4;
+        }
+
         .arch-image {
             width: 100%;
             height: auto;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             margin: 20px 0;
+        }
+
+        .authors {
+            text-align: center;
+            margin: 20px 0 40px 0;
+            font-size: 1.1em;
+            color: #666;
+            font-style: italic;
         }
     </style>
 
@@ -188,7 +219,7 @@
     </main>
 
     <footer>
-        <p>Generated with Eleventy</p>
+        <p>&copy; Florian Wiesner</p>
     </footer>
 
     <script src="assets/gif-zoom.js"></script>

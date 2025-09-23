@@ -59,6 +59,14 @@ class GifZoom {
             e.stopPropagation();
         }, { passive: false });
 
+        // Create alt text caption if it exists
+        if (img.alt && img.alt.trim() !== '') {
+            const caption = document.createElement('div');
+            caption.className = 'zoom-caption';
+            caption.textContent = img.alt;
+            zoomedContainer.appendChild(caption);
+        }
+
         // Create close button
         const closeBtn = document.createElement('button');
         closeBtn.className = 'zoom-close';

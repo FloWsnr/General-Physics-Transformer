@@ -1,5 +1,6 @@
-export default function(eleventyConfig) {
+export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy("assets");
+  eleventyConfig.ignores.add("CLAUDE.md");
 
   return {
     dir: {
@@ -8,7 +9,6 @@ export default function(eleventyConfig) {
       data: "_data",
       output: "_site"
     },
-    eleventyExclude: ["claude.md"],
     markdownTemplateEngine: "njk",
     htmlTemplateEngine: "njk"
   };
