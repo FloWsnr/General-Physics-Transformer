@@ -15,7 +15,7 @@ class GifZoom {
     }
 
     setupZoomHandlers() {
-        const images = document.querySelectorAll('.gif-grid-3x3-nospace img, .gif-grid-4x2-nospace img, .gif-grid-3x3 img, .gif-grid-2x2 img');
+        const images = document.querySelectorAll('.gif-grid-3x3-nospace img, .gif-grid-4x2-nospace img, .gif-grid-3x2-nospace img, .gif-grid-3x3 img, .gif-grid-2x2 img');
 
         images.forEach(img => {
             img.style.cursor = 'pointer';

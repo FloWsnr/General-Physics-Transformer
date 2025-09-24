@@ -113,9 +113,12 @@ Long-horizon predictions for unknown physics are still out of reach, as errors a
 
 For a true Physics Foundation Model, we need to solve two practical challenges:
 
-1. How to scale to more physics? We only trained on 6 systems, but the physical world is much more diverse. We need a lot more data!!! Espcially 3D simulations are needed, which are much more expensive to generate. Also, not all physics is best described by pixel data, we also need to include particle-based methods and meshes.
+1. How to scale to more physics? We only trained on 6 systems, but the physical world is much more diverse. We need a lot more data!!! Espcially 3D simulations are needed, which are much more expensive to generate. Also, not all physics is best described by pixel data, we also need to include particle-based methods and meshes, which in turn means Graph Neural Networks or similar approaches as encoders. Finally, real-world data could be included, for examples experimental data from fluid dynamics, material science or even astronomy.
 2. How to ensure physical consistency? LLMs hallucinations are a known problem, but for physics, this is even more critical. A model that violates conservation of mass or energy is absolutely useless. We need to find ways to enforce physical laws in the model, either through architecture, loss functions or data augmentation.
 
-## Philosophical Discussion
+## Meta-Questions
 
-What is the natural representation of physics? Is it pixel data, particles, meshes, graphs or something else? Our numerical solvers mostly run on mesh and particle data, but these are often also approximations.
+While building this Physics Foundation Model, some more fundamental questions arose:
+
+1. What is the natural representation of physics? Is it pixel data, particles, meshes, graphs or something else? Our numerical solvers mostly run on mesh and particle data, but these are often also approximations. Should we rather learn from real-world data, for example from videos of the natural world?
+2. A world model, i.e. a system that models the real world, might be a better approach than a surrogate model for numerical solvers. Such a world model could perhaps learn a more natural representation of physics, similar to how humans understand the world. 
