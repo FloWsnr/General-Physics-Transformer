@@ -1,5 +1,8 @@
 # Towards a Physics Foundation Model
 
+Paper: https://arxiv.org/abs/2509.13805
+Consider reading the blog post if you want to see some cool results: https://flowsnr.github.io/blog/physics-foundation-model/
+
 ## Introduction
 
 This repository contains the official implementation of the **General Physics Transformer (GP<sub>hy</sub>T)**, a foundation model for physics simulation presented in our paper (under review) "Towards a Physics Foundation Model."
