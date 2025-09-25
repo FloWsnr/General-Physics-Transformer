@@ -1,6 +1,7 @@
 # Towards a Physics Foundation Model
 
 Paper: https://arxiv.org/abs/2509.13805
+
 Consider reading the blog post if you want to see some cool results: https://flowsnr.github.io/blog/physics-foundation-model/
 
 ## Introduction
