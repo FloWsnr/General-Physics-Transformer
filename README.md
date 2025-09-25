@@ -2,7 +2,7 @@
 
 Paper: https://arxiv.org/abs/2509.13805
 
-Consider reading the blog post if you want to see some cool results: https://flowsnr.github.io/blog/physics-foundation-model/
+Blog post if you want to see some cool results: https://flowsnr.github.io/blog/physics-foundation-model/
 
 ## Introduction
 
@@ -29,9 +29,10 @@ GP<sub>hy</sub>T represents a paradigm shift in physics-aware machine learningâ€
 - **1.8TB training corpus** spanning 8 distinct physical systems
 - **Stable long-term predictions** with consistent physical behavior
 
+The image below showcases GP<sub>hy</sub>T's ability to predict the evolution of physical systems it has never seen during training, purely from context.
+
 <img src="images/result.png" width="800" alt="GP<sub>hy</sub>T generalization capabilities">
 
-*GP<sub>hy</sub>T is capable of generalizing across diverse physical scenarios without any finetuning.*
 
 ### Why This Matters
 
