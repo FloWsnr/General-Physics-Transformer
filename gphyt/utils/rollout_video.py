@@ -91,10 +91,9 @@ def generate_channel_gif(
         Matplotlib colormap name, by default "viridis"
     """
     import matplotlib.cm as cm
-
     frames = []
-    vmin = data.min()
-    vmax = data.max()
+    vmin = np.percentile(data, 10)
+    vmax = np.percentile(data, 90)
 
     # Get colormap
     colormap = cm.get_cmap(cmap)

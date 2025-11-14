@@ -3,6 +3,7 @@ import numpy as np
 import torch
 
 from gphyt.model.transformer.model import get_model
+from gphyt.model.fno import get_model as get_fno_model
 from gphyt.utils.rollout_video import generate_channel_gif
 from gphyt.data.phys_dataset import PhysicsDataset
 
@@ -52,6 +53,10 @@ model_config = {
     },
 }
 
+# fno_config = {
+#     "model_size": "FNO_M",
+# }
+
 
 @torch.inference_mode()
 def _rollout(
@@ -60,6 +65,7 @@ def _rollout(
     x: torch.Tensor,
     y: torch.Tensor,
     rollout: bool = False,
+    amp: bool = True,
 ) -> torch.Tensor:
     """Rollout the model on a trajectory.
 
@@ -98,12 +104,14 @@ def _rollout(
     with torch.autocast(
         device_type=device.type,
         dtype=torch.bfloat16,
+        enabled=amp,
     ):
         for i in range(num_timesteps):
             # Predict next timestep
             output = model(input)  # (B, 1T, H, W, C)
             # if the output is nan, stop the rollout
             if torch.isnan(output).any() or torch.isinf(output).any():
+                print(f"Output is NaN or Inf at timestep {i}, stopping rollout.")
                 break
 
             outputs.append(output.clone())
@@ -133,6 +141,7 @@ def clean_cp(cp: dict) -> dict:
         # Keep the key as is
         clean_state_dict[key] = value
 
+    clean_state_dict.pop("_metadata", None)
     cp["model_state_dict"] = clean_state_dict
     return cp
 
@@ -142,10 +151,11 @@ if __name__ == "__main__":
         torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     )
     data_dir = Path("data/datasets")
-    video_dir = Path("results/videos")
-    checkpoint_dir = video_dir.parent / "xl-main-03"
+    video_dir = Path("results/videos/xl-main-ft")
+    checkpoint_dir = Path("results") / "xl-main-ft-02"
 
     model = get_model(model_config)
+    # model = get_fno_model(fno_config)
     cp = torch.load(
         checkpoint_dir / "best_model.pth", map_location=device, weights_only=False
     )
@@ -167,13 +177,7 @@ if __name__ == "__main__":
 
         print(f"Rolling out for dataset {sub_dir}")
         predictions = (
-            _rollout(
-                model=model,
-                device=device,
-                x=x,
-                y=y,
-                rollout=False,
-            )
+            _rollout(model=model, device=device, x=x, y=y, rollout=True, amp=True)
             .cpu()
             .numpy()
         )
