@@ -36,7 +36,7 @@ from gphyt.model.model_specs import get_model
 from gphyt.utils.train_vis import visualize_predictions
 from gphyt.utils.logger import get_logger
 from gphyt.utils.wandb_logger import WandbLogger
-from gphyt.model.transformer.loss_fns import RMSE
+from gphyt.model.transformer.loss_fns import RMSE, RNMSELoss, RVMSELoss
 from gphyt.run.run_utils import (
     find_checkpoint,
     human_format,
@@ -292,6 +292,8 @@ class Trainer:
             "MAE": nn.L1Loss(),
             "MSE": nn.MSELoss(),
             "RMSE": RMSE(),
+            "RNMSE": RNMSELoss(dims=(1, 2, 3)),
+            "RVMSE": RVMSELoss(dims=(1, 2, 3)),
         }
 
         if self.config["training"]["criterion"] == "MSE":
@@ -463,6 +465,8 @@ class Trainer:
             "total-MAE": torch.tensor(0.0, device=self.device),
             "total-MSE": torch.tensor(0.0, device=self.device),
             "total-RMSE": torch.tensor(0.0, device=self.device),
+            "total-RNMSE": torch.tensor(0.0, device=self.device),
+            "total-RVMSE": torch.tensor(0.0, device=self.device),
         }
 
         samples_trained = 0
@@ -474,19 +478,33 @@ class Trainer:
         train_iter = iter(self.train_loader)
         while (batches_trained < num_batches) and self.shutdown_flag.item() == 0:
             try:
-                x, target = next(train_iter)
+                xx, target = next(train_iter)
             except StopIteration:
                 train_iter = iter(self.train_loader)
-                x, target = next(train_iter)
+                xx, target = next(train_iter)
 
-            x = x.to(self.device)
+            xx = xx.to(self.device)
             target = target.to(self.device)
 
             self.optimizer.zero_grad()
             with torch.autocast(
                 device_type=self.device.type, dtype=torch.bfloat16, enabled=self.use_amp
             ):
-                output = self.model(x)
+                ar_steps = target.shape[1]  # num of timesteps
+                raw_loss = torch.tensor(0.0, device=self.device)
+                outputs = []
+                for _ar_step in range(ar_steps):
+                    if _ar_step == 0:
+                        x = xx
+                    else:
+                        x = torch.cat(
+                            (xx[:, _ar_step:, ...], output.detach()),
+                            dim=1,
+                        )  # remove first input step, append output step
+                    output = self.model(x)
+                    outputs.append(output)
+
+                output = torch.cat(outputs, dim=1)
                 raw_loss = self.criterion(output, target)
 
             # Log training loss
@@ -677,6 +695,8 @@ class Trainer:
             "total-MAE": torch.tensor(0.0, device=self.device),
             "total-MSE": torch.tensor(0.0, device=self.device),
             "total-RMSE": torch.tensor(0.0, device=self.device),
+            "total-RNMSE": torch.tensor(0.0, device=self.device),
+            "total-RVMSE": torch.tensor(0.0, device=self.device),
         }
 
         if self.ddp_enabled:
@@ -685,8 +705,8 @@ class Trainer:
         samples_validated = 0
         batches_validated = 0
         start_val_time = time.time()
-        for x, target in self.val_loader:
-            x = x.to(self.device)
+        for xx, target in self.val_loader:
+            xx = xx.to(self.device)
             target = target.to(self.device)
 
             with torch.autocast(
@@ -694,7 +714,21 @@ class Trainer:
                 dtype=torch.bfloat16,
                 enabled=self.use_amp,
             ):
-                output = self.model(x)
+                ar_steps = target.shape[1]  # num of timesteps
+                outputs = []
+                output = None  # Initialize for linter
+                for _ar_step in range(ar_steps):
+                    if _ar_step == 0:
+                        x = xx
+                    else:
+                        x = torch.cat(
+                            (xx[:, _ar_step:, ...], output.detach()),
+                            dim=1,
+                        )  # remove first input step, append output step
+                    output = self.model(x)
+                    outputs.append(output)
+
+                output = torch.cat(outputs, dim=1)
 
             # Log validation loss
             log_losses = self._compute_log_metrics(output.detach(), target.detach())
