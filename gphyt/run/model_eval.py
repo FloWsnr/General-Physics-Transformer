@@ -29,7 +29,7 @@ import torch.distributed as dist
 from gphyt.model.transformer.model import get_model as get_model_gphyt
 from gphyt.model.unet import get_model as get_model_unet
 from gphyt.model.model_specs import UNet_M
-from gphyt.model.transformer.loss_fns import RVMSELoss
+from gphyt.model.transformer.loss_fns import RVMSELoss, RNMSELoss
 from gphyt.data.dataset_utils import get_dt_datasets
 from gphyt.data.phys_dataset import PhysicsDataset
 from gphyt.utils.logger import get_logger
@@ -113,11 +113,11 @@ class Evaluator:
         self.num_workers = num_workers
 
         self.eval_criteria = {
-            "MSE": torch.nn.MSELoss(reduction="none"),
+            "RNMSE": RNMSELoss(dims=(1, 2, 3), return_scalar=False),
             "RVMSE": RVMSELoss(dims=(1, 2, 3), return_scalar=False),
         }
         self.rollout_criteria = {
-            "MSE": torch.nn.MSELoss(reduction="none"),
+            "RNMSE": RNMSELoss(dims=(2, 3), return_scalar=False),
             "RVMSE": RVMSELoss(dims=(2, 3), return_scalar=False),
         }
 
@@ -274,13 +274,13 @@ class Evaluator:
             with torch.amp.autocast(device_type=self.device.type, dtype=torch.bfloat16):
                 ar_steps = target.shape[1]  # num of timesteps
                 outputs = []
-                output = None  # Initialize for linter
+                output = torch.tensor(0.0, device=self.device)  # Initialize for linter
                 for _ar_step in range(ar_steps):
                     if _ar_step == 0:
                         x = xx
                     else:
                         x = torch.cat(
-                            (x[:, 1:, ...], output.detach()),
+                            (x[:, 1:, ...], output),
                             dim=1,
                         )  # remove first input step, append output step
                     output = self.model(x)
@@ -301,25 +301,13 @@ class Evaluator:
             y_loss = final_output[..., fields]
             target_loss = final_target[..., fields]
             for name, criterion in self.eval_criteria.items():
-                if name == "MSE":
-                    loss = criterion(y_loss, target_loss).squeeze(
-                        1
-                    )  # remove T dimension
-                    loss = torch.mean(loss, dim=(1, 2, 3))  # B
-                elif name == "RVMSE":
-                    # RVMSE expects (B, T, H, W, C) and returns (B, T, H, W, C) with dims reduced
-                    loss = criterion(
-                        y_loss, target_loss
-                    )  # (B, 1, 1, 1, C) after dimension reduction
-                    # Only squeeze the singleton spatial and temporal dimensions, keep batch and channel dims
-                    loss = loss.squeeze(1).squeeze(1).squeeze(1)  # -> (B, C)
-                    loss = torch.mean(loss, dim=-1)  # Average over channels -> (B,)
-                else:
-                    # For other custom criteria
-                    loss = criterion(y_loss, target_loss)
-                    if loss.dim() > 1:
-                        loss = torch.mean(loss, dim=tuple(range(1, loss.dim())))
-
+                # RVMSE expects (B, T, H, W, C) and returns (B, T, H, W, C) with dims reduced
+                loss = criterion(
+                    y_loss, target_loss
+                )  # (B, 1, 1, 1, C) after dimension reduction
+                # Only squeeze the singleton spatial and temporal dimensions, keep batch and channel dims
+                loss = loss.squeeze(1).squeeze(1).squeeze(1)  # -> (B, C)
+                loss = torch.mean(loss, dim=-1)  # Average over channels -> (B,)
                 batch_losses[name] = loss
 
             for name, loss in batch_losses.items():
@@ -749,73 +737,73 @@ class Evaluator:
                         df.to_csv(self.eval_dir / filename, index=False)
                         self._log_msg(f"Saved {filename}")
 
-        # Check if single step rollout files exist for all criteria
-        single_step_files = [
-            f"single_step_{name.lower()}_losses.csv"
-            for name in self.eval_criteria.keys()
-        ]
-        single_step_files_exist = all(
-            (self.eval_dir / f).exists() for f in single_step_files
-        )
+        # # Check if single step rollout files exist for all criteria
+        # single_step_files = [
+        #     f"single_step_{name.lower()}_losses.csv"
+        #     for name in self.eval_criteria.keys()
+        # ]
+        # single_step_files_exist = all(
+        #     (self.eval_dir / f).exists() for f in single_step_files
+        # )
 
-        if not overwrite and single_step_files_exist:
-            criterion_names = ", ".join(self.eval_criteria.keys())
-            self.logger.info(
-                f"Single step {criterion_names} losses already evaluated, skipping..."
-            )
-        else:
-            # Rollout on all datasets
-            criterion_dfs = self.rollout_all(
-                self.datasets, num_samples=10, num_timesteps=50, rollout=False
-            )
-            for criterion_name, df in criterion_dfs.items():
-                filename = f"single_step_{criterion_name.lower()}_losses.csv"
-                df.to_csv(self.eval_dir / filename, index=False)
+        # if not overwrite and single_step_files_exist:
+        #     criterion_names = ", ".join(self.eval_criteria.keys())
+        #     self.logger.info(
+        #         f"Single step {criterion_names} losses already evaluated, skipping..."
+        #     )
+        # else:
+        #     # Rollout on all datasets
+        #     criterion_dfs = self.rollout_all(
+        #         self.datasets, num_samples=10, num_timesteps=50, rollout=False
+        #     )
+        #     for criterion_name, df in criterion_dfs.items():
+        #         filename = f"single_step_{criterion_name.lower()}_losses.csv"
+        #         df.to_csv(self.eval_dir / filename, index=False)
 
-        # Check if rollout files exist for all criteria
-        rollout_files = [
-            f"rollout_{name.lower()}_losses.csv" for name in self.eval_criteria.keys()
-        ]
-        rollout_files_exist = all((self.eval_dir / f).exists() for f in rollout_files)
+        # # Check if rollout files exist for all criteria
+        # rollout_files = [
+        #     f"rollout_{name.lower()}_losses.csv" for name in self.eval_criteria.keys()
+        # ]
+        # rollout_files_exist = all((self.eval_dir / f).exists() for f in rollout_files)
 
-        if not overwrite and rollout_files_exist:
-            criterion_names = ", ".join(self.eval_criteria.keys())
-            self.logger.info(
-                f"Rollout {criterion_names} losses already evaluated, skipping..."
-            )
-        else:
-            criterion_dfs = self.rollout_all(
-                self.datasets, num_samples=10, num_timesteps=50, rollout=True
-            )
-            for criterion_name, df in criterion_dfs.items():
-                filename = f"rollout_{criterion_name.lower()}_losses.csv"
-                df.to_csv(self.eval_dir / filename, index=False)
+        # if not overwrite and rollout_files_exist:
+        #     criterion_names = ", ".join(self.eval_criteria.keys())
+        #     self.logger.info(
+        #         f"Rollout {criterion_names} losses already evaluated, skipping..."
+        #     )
+        # else:
+        #     criterion_dfs = self.rollout_all(
+        #         self.datasets, num_samples=10, num_timesteps=50, rollout=True
+        #     )
+        #     for criterion_name, df in criterion_dfs.items():
+        #         filename = f"rollout_{criterion_name.lower()}_losses.csv"
+        #         df.to_csv(self.eval_dir / filename, index=False)
 
-        try:
-            # Visualize rollout on all datasets
-            for name, dataset in self.datasets.items():
-                print(f"Visualizing rollout for dataset {name}")
-                self.visualize_rollout(
-                    dataset,
-                    num_timesteps=50,
-                    save_path=self.eval_dir / "images_rollout" / name,
-                    rollout=True,
-                )
-        except Exception as e:
-            self.logger.error(f"Error visualizing rollout: {e}")
+        # try:
+        #     # Visualize rollout on all datasets
+        #     for name, dataset in self.datasets.items():
+        #         print(f"Visualizing rollout for dataset {name}")
+        #         self.visualize_rollout(
+        #             dataset,
+        #             num_timesteps=50,
+        #             save_path=self.eval_dir / "images_rollout" / name,
+        #             rollout=True,
+        #         )
+        # except Exception as e:
+        #     self.logger.error(f"Error visualizing rollout: {e}")
 
-        try:
-            # Visualize rollout on all datasets
-            for name, dataset in self.datasets.items():
-                print(f"Visualizing single step for dataset {name}")
-                self.visualize_rollout(
-                    dataset,
-                    num_timesteps=50,
-                    save_path=self.eval_dir / "images_single_step" / name,
-                    rollout=False,
-                )
-        except Exception as e:
-            self.logger.error(f"Error visualizing single step: {e}")
+        # try:
+        #     # Visualize rollout on all datasets
+        #     for name, dataset in self.datasets.items():
+        #         print(f"Visualizing single step for dataset {name}")
+        #         self.visualize_rollout(
+        #             dataset,
+        #             num_timesteps=50,
+        #             save_path=self.eval_dir / "images_single_step" / name,
+        #             rollout=False,
+        #         )
+        # except Exception as e:
+        #     self.logger.error(f"Error visualizing single step: {e}")
 
 
 def main(
