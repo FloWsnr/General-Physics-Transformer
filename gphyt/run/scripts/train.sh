@@ -49,16 +49,16 @@ conda activate gphyt
 # debug mode
 # debug=true
 # Set up paths
-base_dir="General-Physics-Transformer"
+base_dir="/hpcwork/rwth1802/coding/General-Physics-Transformer"
 python_exec="${base_dir}/gphyt/run/train.py"
 log_dir="${base_dir}/results"
 data_dir="${base_dir}/data/datasets"
 base_config_file="${base_dir}/gphyt/run/scripts/config.yaml"
 # sim_name (same as wandb id)
-sim_name="sim-name"
+sim_name="gphyt_ar_test02"
 nnodes=1
-ngpus_per_node=4
-export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
+ngpus_per_node=2
+export OMP_NUM_THREADS=4 # (num cpu - num_workers) / num_gpus
 
 # name of the checkpoint to use for training. Can be "best_model" or a number of a epoch directory
 # if last_checkpoint, the last checkpoint is used
