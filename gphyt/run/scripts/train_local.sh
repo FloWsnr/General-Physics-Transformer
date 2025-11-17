@@ -1,36 +1,5 @@
 #!/usr/bin/bash
 
-### Task name
-#SBATCH --account=xxxxxxx
-#SBATCH --job-name=train_gphyt
-
-### Output file
-#SBATCH --output=results/slrm_logs/train_gphyt_%j.out
-
-
-### Start a parallel job for a distributed-memory system on several nodes
-#SBATCH --nodes=1
-
-### How many CPU cores to use
-#SBATCH --ntasks-per-node=96
-#SBATCH --exclusive
-
-### Mail notification configuration
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=email@example.com
-
-### Maximum runtime per task
-#SBATCH --time=72:00:00
-
-### set number of GPUs per task
-#SBATCH --gres=gpu:4
-
-### create time series, i.e. 100 jobs one after another. Each runs for 24 hours
-##SBATCH --array=1-10%1
-
-### Set the time limit for the job, allows for graceful shutdown
-### Should be lower than the time limit of the partition
-### Format: HH:MM:SS
 time_limit="72:00:00"
 
 #####################################################################################
@@ -49,15 +18,15 @@ conda activate gphyt
 # debug mode
 # debug=true
 # Set up paths
-base_dir="General-Physics-Transformer"
+base_dir="/home/flwi01/coding/General-Physics-Transformer"
 python_exec="${base_dir}/gphyt/run/train.py"
 log_dir="${base_dir}/results"
-data_dir="${base_dir}/data/datasets"
+data_dir="/home/flwi01/coding/gphyt_datasets"
 base_config_file="${base_dir}/gphyt/run/scripts/config.yaml"
 # sim_name (same as wandb id)
-sim_name="sim-name"
+sim_name="test_ar_01"
 nnodes=1
-ngpus_per_node=4
+ngpus_per_node=1
 export OMP_NUM_THREADS=1 # (num cpu - num_workers) / num_gpus
 
 # name of the checkpoint to use for training. Can be "best_model" or a number of a epoch directory

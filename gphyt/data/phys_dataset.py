@@ -9,7 +9,7 @@ from pathlib import Path
 
 import torch
 
-from gphyt.data.well_dataset import WellDataset
+from gphyt.data.well_dataset import WellDataset, ZScoreNormalization
 
 
 def zero_field_to_value(x: torch.Tensor, value: float) -> torch.Tensor:
@@ -42,28 +42,12 @@ class PhysicsDataset(WellDataset):
     n_steps_output : int
         Number of output time steps per sample
         By default 1
-    split : str
-        Split to load ("train", "val", "test")
-        By default "train"
-    normalization_path: Optional[Path]
-        Path to the normalization file (e.g. "data/physics_data/normalization.yaml")
-        By default None
     use_normalization: bool
         Whether to use normalization
-        By default False
-    dt_stride: int
+        By default True
+    dt_stride: int | list[int]
         Time step stride between samples
         By default 1
-    transform: Optional[Compose]
-        Transform to apply to the data
-        By default None
-    channels_first: bool
-        Whether to have (time, channels, height, width) or (time, height, width, channels)
-        By default (time, height, width, channels)
-    include_field_names: dict[str, list[str]]
-        Dictionary of field names to include in the dataset.
-        The keys are the order of the field (t0, t1, t2) and the values are lists of field names.
-        By default {}
     full_trajectory_mode: bool
         Whether to use the full trajectory mode of the well dataset.
         This returns full trajectories instead of individual timesteps.
@@ -84,9 +68,8 @@ class PhysicsDataset(WellDataset):
         data_dir: Path,
         n_steps_input: int = 1,
         n_steps_output: int = 1,
-        use_normalization: bool = False,
+        use_normalization: bool = True,
         dt_stride: int | list[int] = 1,
-        include_field_names: dict[str, list[str]] = {},
         full_trajectory_mode: bool = False,
         max_rollout_steps: int = 10000,
         nan_to_zero: bool = True,
@@ -99,7 +82,6 @@ class PhysicsDataset(WellDataset):
             "n_steps_output": n_steps_output,
             "use_normalization": use_normalization,
             "dt_stride": dt_stride,
-            "include_field_names": include_field_names,
             "full_trajectory_mode": full_trajectory_mode,
             "max_rollout_steps": max_rollout_steps,
             "nan_to_zero": nan_to_zero,
@@ -114,14 +96,21 @@ class PhysicsDataset(WellDataset):
             min_dt_stride = dt_stride
             max_dt_stride = dt_stride
 
+        norm_path = None
+        for p in (0, 1):
+            norm_path = data_dir.parents[p] / "stats.yaml"
+            if norm_path.exists():
+                break
+
         super().__init__(
-            path=data_dir,
+            path=str(data_dir),
+            normalization_path=str(norm_path) if norm_path is not None else None,
+            normalization_type=ZScoreNormalization,
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
             use_normalization=use_normalization,
             min_dt_stride=min_dt_stride,
             max_dt_stride=max_dt_stride,
-            include_field_names=include_field_names,
             full_trajectory_mode=full_trajectory_mode,
             max_rollout_steps=max_rollout_steps,
         )
@@ -154,7 +143,6 @@ class PhysicsDataset(WellDataset):
             n_steps_output=config["n_steps_output"],
             use_normalization=config["use_normalization"],
             dt_stride=config["dt_stride"],
-            include_field_names=config["include_field_names"],
             full_trajectory_mode=config["full_trajectory_mode"],
             max_rollout_steps=config["max_rollout_steps"],
             nan_to_zero=config["nan_to_zero"],

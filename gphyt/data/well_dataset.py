@@ -8,66 +8,41 @@ Date: 2025-04-03
 """
 
 import itertools
+import os
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import (
+    TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
     List,
+    Literal,
     Optional,
     Tuple,
     TypedDict,
+    cast,
 )
-from pathlib import Path
 
+import fsspec
 import h5py as h5
 import numpy as np
 import torch
 import yaml
 from torch.utils.data import Dataset
 
+from the_well.data.utils import (
+    IO_PARAMS,
+    WELL_DATASETS,
+    is_dataset_in_the_well,
+    maximum_stride_for_initial_index,
+    raw_steps_to_possible_sample_t0s,
+)
+from the_well.utils.export import hdf5_to_xarray
 
-def raw_steps_to_possible_sample_t0s(
-    total_steps_in_trajectory: int,
-    n_steps_input: int,
-    n_steps_output: int,
-    dt_stride: int,
-):
-    """Given the total number of steps in a trajectory returns the number of samples that can be taken from the
-      trajectory such that all samples have at least n_steps_input + n_steps_output steps with steps separated
-      by dt_stride.
-
-    ex1: total_steps_in_trajectory = 5, n_steps_input = 1, n_steps_output = 1, dt_stride = 1
-        Possible samples are: [0, 1], [1, 2], [2, 3], [3, 4]
-    ex2: total_steps_in_trajectory = 5, n_steps_input = 1, n_steps_output = 1, dt_stride = 2
-        Possible samples are: [0, 2], [1, 3], [2, 4]
-    ex3: total_steps_in_trajectory = 5, n_steps_input = 1, n_steps_output = 1, dt_stride = 3
-        Possible samples are: [0, 3], [1, 4]
-    ex4: total_steps_in_trajectory = 5, n_steps_input = 2, n_steps_output = 1, dt_stride = 2
-        Possible samples are: [0, 2, 4]
-
-    """
-    elapsed_steps_per_sample = 1 + dt_stride * (
-        n_steps_input + n_steps_output - 1
-    )  # Number of steps needed for sample
-    return max(0, total_steps_in_trajectory - elapsed_steps_per_sample + 1)
-
-
-def maximum_stride_for_initial_index(
-    time_idx: int,
-    total_steps_in_trajectory: int,
-    n_steps_input: int,
-    n_steps_output: int,
-):
-    """Given the total number of steps in a file and the current step returns the maximum stride
-    that can be taken from the file such that all samples have at least n_steps_input + n_steps_output steps with a stride of
-      dt_stride
-    """
-    used_steps_per_sample = n_steps_input + n_steps_output
-    return max(
-        0,
-        int((total_steps_in_trajectory - time_idx - 1) // (used_steps_per_sample - 1)),
-    )
+if TYPE_CHECKING:
+    from the_well.data.augmentation import Augmentation
 
 
 # Boundary condition codes
@@ -76,16 +51,6 @@ class BoundaryCondition(Enum):
     OPEN = 1
     PERIODIC = 2
     SYMMETRIC = 3
-
-
-def flatten_field_names(metadata, include_constants=True):
-    flat_field_names = itertools.chain(*metadata.field_names.values())
-    flat_constant_field_names = itertools.chain(*metadata.constant_field_names.values())
-
-    if include_constants:
-        return [*flat_field_names, *flat_constant_field_names]
-    else:
-        return [*flat_field_names]
 
 
 @dataclass
@@ -147,10 +112,10 @@ class TrajectoryData(TypedDict):
 @dataclass
 class TrajectoryMetadata:
     dataset: "WellDataset"
-    file_idx: int
-    sample_idx: int
-    time_idx: int
-    time_stride: int
+    file_idx: int | List[int]
+    sample_idx: int | List[int]
+    time_idx: int | List[int]
+    time_stride: int | List[int]
 
 
 class WellDataset(Dataset):
@@ -167,14 +132,22 @@ class WellDataset(Dataset):
             must be specified
         normalization_path:
             Path to normalization constants - assumed to be in same format as constructed data.
+        well_base_path:
+            Path to well dataset directory, only used with dataset_name
+        well_dataset_name:
+            Name of well dataset to load - overrides path if specified
+        well_split_name:
+            Name of split to load - options are 'train', 'valid', 'test'
         include_filters:
             Only include files whose name contains at least one of these strings
         exclude_filters:
             Exclude any files whose name contains at least one of these strings
         use_normalization:
             Whether to normalize data in the dataset
+        normlization_type:
+            What type of dataset normalization. Callable Options: ZSCORE and RMS
         max_rollout_steps:
-            Maximum number of steps to rollout
+            Maximum number of output steps to return in a single sample. Return the full trajectory if larger than its actual length.
         n_steps_input:
             Number of steps to include in each sample
         n_steps_output:
@@ -185,65 +158,120 @@ class WellDataset(Dataset):
             Maximum stride between samples
         flatten_tensors:
             Whether to flatten tensor valued field into channels
-
+        restrict_num_trajectories:
+            Whether to restrict the number of trajectories to a subset of the dataset. Integer inputs restrict to a number. Float to a percentage.
+        restrict_num_samples:
+            Whether to restrict the number of samples to a subset of the dataset. Integer inputs restrict to a number. Float to a percentage.
+        restriction_seed:
+            Seed used to generate restriction set. Necessary to ensure same set is sampled across runs.
+        cache_small:
+            Whether to cache small tensors in memory for faster access
+        max_cache_size:
+            Maximum numel of constant tensor to cache
+        return_grid:
+            Whether to return grid coordinates
+        normalize_time_grid:
+            Whether to normalize the time grid so that it returns relative rather than absolute time.
+            Default is True as absolute time generally leads to better scenario fitting in the well,
+            but poor generalization.
+        boundary_return_type: options=['padding', 'mask', 'exact', 'none']
+            How to return boundary conditions. Currently only padding supported.
         full_trajectory_mode:
             Overrides to return full trajectory starting from t0 instead of samples
                 for long run validation.
+        start_output_steps_at_t:
+            For full trajectory mode, this is the first step returned by "output_fields". If -1,
+            start from end of n_steps_input. Otherwise, build initial n_steps_input backwards from this step.
+        name_override:
+            Override name of dataset (used for more precise logging)
+        transform:
+            Transform to apply to data. In the form `f(data: TrajectoryData, metadata:
+            TrajectoryMetadata) -> TrajectoryData`, where `data` contains a piece of
+            trajectory (fields, scalars, BCs, ...) and `metadata` contains additional
+            informations, including the dataset itself.
         min_std:
             Minimum standard deviation for field normalization. If a field standard
             deviation is lower than this value, it is replaced by this value.
-
-        include_field_names : dict[list[str]]
-            Dictionary of field names to include in the dataset in that order.
-            The keys are the order of the field (t0, t1, t2) and the values are lists of field names.
-
-        return_grounding_frame : int, by default 0
-            How many starting frames to return as the grounding frames.
+        storage_options :
+            Option for the ffspec storage.
     """
 
     def __init__(
         self,
-        path: str | Path,
+        path: Optional[str] = None,
+        normalization_path: Optional[str] = None,  # "../stats.yaml",
+        well_base_path: Optional[str] = None,
+        well_dataset_name: Optional[str] = None,
+        well_split_name: Literal["train", "valid", "test", None] = None,
         include_filters: List[str] = [],
         exclude_filters: List[str] = [],
         use_normalization: bool = False,
-        max_rollout_steps: int = 10000,
+        normalization_type: Optional[Callable[..., Any]] = None,
+        max_rollout_steps=100,
         n_steps_input: int = 1,
         n_steps_output: int = 1,
         min_dt_stride: int = 1,
         max_dt_stride: int = 1,
         flatten_tensors: bool = True,
+        restrict_num_trajectories: Optional[float | int] = None,
+        restrict_num_samples: Optional[float | int] = None,
+        restriction_seed: int = 0,
+        cache_small: bool = True,
+        max_cache_size: float = 1e9,
+        return_grid: bool = True,
+        normalize_time_grid: bool = True,
+        boundary_return_type: str = "padding",
         full_trajectory_mode: bool = False,
+        start_output_steps_at_t: int = -1,
+        name_override: Optional[str] = None,
+        transform: Optional["Augmentation"] = None,
         min_std: float = 1e-4,
-        include_field_names: Dict[int, List[str]] = {},
-        return_grounding_frame: int = 0,
+        storage_options: Optional[Dict] = None,
     ):
         super().__init__()
+        assert path is not None or (
+            well_base_path is not None and well_dataset_name is not None
+        ), "Must specify path or well_base_path and well_dataset_name"
+        if path is not None:
+            self.data_path = path
+            trunk_path = path
+            if normalization_path is None:
+                normalization_path = "stats.yaml"
+            if well_split_name is not None:
+                self.data_path = os.path.join(path, "data", well_split_name)
 
-        self.data_path = Path(path).resolve()
-        self.normalization_path = self.data_path.parent / "stats.yaml"
-
-        if use_normalization:
-            with open(self.normalization_path, mode="r") as f:
-                stats = yaml.safe_load(f)
-
-            self.means = {
-                field: torch.as_tensor(val, dtype=torch.float32)
-                for field, val in stats["mean"].items()
-            }
-            self.stds = {
-                field: torch.clip(
-                    torch.as_tensor(val, dtype=torch.float32), min=min_std
+        else:
+            assert is_dataset_in_the_well(well_dataset_name), (
+                f"Dataset name {well_dataset_name} not in the expected list {WELL_DATASETS}."
+            )
+            self.data_path = os.path.join(
+                well_base_path, well_dataset_name, "data", well_split_name
+            )
+            trunk_path = os.path.join(well_base_path, well_dataset_name)
+            if normalization_path is None:
+                normalization_path = os.path.join(
+                    well_base_path, well_dataset_name, "stats.yaml"
                 )
-                for field, val in stats["std"].items()
-            }
+        if os.path.isabs(normalization_path):
+            self.normalization_path = normalization_path
+        else:
+            self.normalization_path = os.path.join(
+                trunk_path,
+                str(normalization_path).removeprefix(str(trunk_path)).lstrip("./"),
+            )
 
-        # field_names is a list of field names to include in the dataset in that order.
-        # If empty, all fields are included.
-        self.include_field_names = include_field_names
-        self.return_grounding_frame = return_grounding_frame
+        self.fs, _ = fsspec.url_to_fs(self.data_path, **(storage_options or {}))
+
+        # Input checks
+        if boundary_return_type is not None and boundary_return_type not in ["padding"]:
+            raise NotImplementedError("Only padding boundary conditions supported")
+        if not flatten_tensors:
+            raise NotImplementedError("Only flattened tensors supported right now")
+
         # Copy params
+        self.well_dataset_name = well_dataset_name
         self.use_normalization = use_normalization
+        self.normalization_type = normalization_type
         self.include_filters = include_filters
         self.exclude_filters = exclude_filters
         self.max_rollout_steps = max_rollout_steps
@@ -252,15 +280,42 @@ class WellDataset(Dataset):
         self.min_dt_stride = min_dt_stride
         self.max_dt_stride = max_dt_stride
         self.flatten_tensors = flatten_tensors
+        self.restrict_num_trajectories = restrict_num_trajectories
+        self.restrict_num_samples = restrict_num_samples
+        self.restriction_seed = restriction_seed
+        self.return_grid = return_grid
+        self.normalize_time_grid = normalize_time_grid
+        self.boundary_return_type = boundary_return_type
         self.full_trajectory_mode = full_trajectory_mode
-
+        self.start_output_steps_at_t = start_output_steps_at_t
+        self.cache_small = cache_small
+        self.max_cache_size = max_cache_size
+        self.transform = transform
         if self.min_dt_stride < self.max_dt_stride and self.full_trajectory_mode:
             raise ValueError(
                 "Full trajectory mode not supported with variable stride lengths"
             )
+        if (
+            self.full_trajectory_mode
+            and self.start_output_steps_at_t >= 0
+            and (self.n_steps_input + 1) * self.min_dt_stride
+            > self.start_output_steps_at_t
+        ):
+            raise ValueError(
+                f"Full trajectory set to begin target at t={start_output_steps_at_t}, but first available step is t={(self.n_steps_input + 1) * self.min_dt_stride} "
+                f"given n_steps_input={self.n_steps_input} and  min_dt_stride={self.min_dt_stride}."
+            )
+        if self.start_output_steps_at_t > 0 and (
+            self.restrict_num_samples is not None
+            or self.restrict_num_trajectories is not None
+        ):
+            raise NotImplementedError(
+                "Full trajectory mode not currently supported with sample/trajectory restrictions as restrictions are currently implemented"
+                "for training while full trajectory mode is implemented for validation."
+            )
         # Check the directory has hdf5 that meet our exclusion criteria
-        sub_files = list(self.data_path.glob("*.h5")) + list(
-            self.data_path.glob("*.hdf5")
+        sub_files = self.fs.glob(self.data_path + "/*.h5") + self.fs.glob(
+            self.data_path + "/*.hdf5"
         )
         # Check filters - only use file if include_filters are present and exclude_filters are not
         if len(self.include_filters) > 0:
@@ -276,8 +331,96 @@ class WellDataset(Dataset):
         )
         self.files_paths = sub_files
         self.files_paths.sort()
+        self.caches = [{} for _ in self.files_paths]
         # Build multi-index
         self.metadata = self._build_metadata()
+        # Override name if necessary for logging
+        if name_override is not None:
+            self.dataset_name = name_override
+
+        # Initialize normalization classes if True
+        if use_normalization and normalization_type:
+            with self.fs.open(self.normalization_path, mode="r") as f:
+                stats = yaml.safe_load(f)
+
+            self.norm = normalization_type(
+                stats, self.core_field_names, self.core_constant_field_names
+            )
+        else:
+            self.norm = None
+
+        # If we're limiting number of samples/trajectories...
+        self.restriction_set = None
+        if restrict_num_samples is not None or restrict_num_trajectories is not None:
+            self._build_restriction_set(
+                restrict_num_samples, restrict_num_trajectories, restriction_seed
+            )
+
+    def _build_restriction_set(
+        self,
+        restrict_num_samples: Optional[int | float],
+        restrict_num_trajectories: Optional[int | float],
+        seed: int,
+    ):
+        """Builds a restriction set for the dataset based on the specified restrictions"""
+        gen = np.random.default_rng(seed)
+        if restrict_num_samples is not None and restrict_num_trajectories is not None:
+            warnings.warn(
+                "Both restrict_num_samples and restrict_num_trajectories are set. Using restrict_num_samples."
+            )
+        global_indices = np.arange(self.len)
+        if restrict_num_trajectories is not None:
+            # Compute total number of trajectories, collect all indices corresponding to them, then select a subset
+            total_trajectories = sum(self.n_trajectories_per_file)
+            if 0 < restrict_num_trajectories < 1:
+                restrict_num_trajectories = int(
+                    total_trajectories * restrict_num_trajectories
+                )
+            elif restrict_num_trajectories > total_trajectories:
+                warnings.warn(
+                    f"Requested {restrict_num_trajectories} trajectories, but only {total_trajectories} available. Using all available trajectories."
+                )
+                restrict_num_trajectories = int(total_trajectories)
+
+            # Get all indices corresponding to the trajectories
+            trajectories = np.arange(total_trajectories)
+            gen.shuffle(
+                trajectories
+            )  # Shuffle instead of sampling so that subsequent runs are nested
+            trajectories_sampled = trajectories[:restrict_num_trajectories]
+
+            global_indices = []
+            current_index = 0
+            for traj in range(total_trajectories):
+                file_index = int(
+                    np.searchsorted(
+                        self.file_index_offsets, current_index, side="right"
+                    )
+                    - 1
+                )
+                if traj in trajectories_sampled:
+                    global_indices = global_indices + list(
+                        range(0, self.n_windows_per_trajectory[file_index])
+                    )
+                current_index += self.n_windows_per_trajectory[file_index]
+            global_indices = np.array(global_indices)
+
+        if restrict_num_samples is not None:
+            if 0.0 < restrict_num_samples < 1.0:
+                restrict_num_samples = int(self.len * restrict_num_samples)
+            elif restrict_num_samples > self.len:
+                warnings.warn(
+                    f"Requested {restrict_num_samples} samples, but only {self.len} available. Using all available samples."
+                )
+                restrict_num_samples = self.len
+            # Compute total number of samples, collect all indices corresponding to them, then select a subset
+            gen.shuffle(
+                global_indices
+            )  # Shuffle instead of sampling so that increasing runs with the same seed are nested
+            global_indices = global_indices[:restrict_num_samples]
+
+        self.restriction_set = global_indices
+        self.len = len(global_indices)
 
     def _build_metadata(self):
         """Builds multi-file indices and checks that folder contains consistent dataset"""
@@ -293,18 +436,21 @@ class WellDataset(Dataset):
         bcs = set()
         lowest_steps = 1e9  # Note - we should never have 1e9 steps
         for index, file in enumerate(self.files_paths):
-            with h5.File(file, "r") as f:
-                grid_type = f.attrs["grid_type"]
+            with (
+                self.fs.open(file, "rb", **IO_PARAMS["fsspec_params"]) as f,
+                h5.File(f, "r", **IO_PARAMS["h5py_params"]) as _f,
+            ):
+                grid_type = _f.attrs["grid_type"]
                 # Run sanity checks - all files should have same ndims, size_tuple, and names
-                trajectories = int(f.attrs["n_trajectories"])
+                trajectories = int(_f.attrs["n_trajectories"])
                 # Number of steps is always last dim of time
-                steps = f["dimensions"]["time"].shape[-1]
+                steps = _f["dimensions"]["time"].shape[-1]
                 size_tuple = [
-                    f["dimensions"][d].shape[-1]
-                    for d in f["dimensions"].attrs["spatial_dims"]
+                    _f["dimensions"][d].shape[-1]
+                    for d in _f["dimensions"].attrs["spatial_dims"]
                 ]
-                ndims.add(f.attrs["n_spatial_dims"])
-                names.add(f.attrs["dataset_name"])
+                ndims.add(_f.attrs["n_spatial_dims"])
+                names.add(_f.attrs["dataset_name"])
                 size_tuples.add(tuple(size_tuple))
                 # Fast enough that I'd rather check each file rather than processing extra files before checking
                 assert len(names) == 1, "Multiple dataset names found in specified path"
@@ -331,16 +477,16 @@ class WellDataset(Dataset):
                     self.file_index_offsets[-1] + trajectories * windows_per_trajectory
                 )
                 # Check BCs
-                for bc in f["boundary_conditions"].keys():
-                    bcs.add(f["boundary_conditions"][bc].attrs["bc_type"])
+                for bc in _f["boundary_conditions"].keys():
+                    bcs.add(_f["boundary_conditions"][bc].attrs["bc_type"])
 
                 if index == 0:
                     # Populate scalar names
                     self.scalar_names = []
                     self.constant_scalar_names = []
 
-                    for scalar in f["scalars"].attrs["field_names"]:
-                        if f["scalars"][scalar].attrs["time_varying"]:
+                    for scalar in _f["scalars"].attrs["field_names"]:
+                        if _f["scalars"][scalar].attrs["time_varying"]:
                             self.scalar_names.append(scalar)
                         else:
                             self.constant_scalar_names.append(scalar)
@@ -349,6 +495,11 @@ class WellDataset(Dataset):
                     self.field_names = {i: [] for i in range(3)}
                     self.constant_field_names = {i: [] for i in range(3)}
 
+                    # Store the core names without the tensor indices appended
+                    self.core_field_names = []
+                    self.core_constant_field_names = []
+                    seen = set()
+
                     for i in range(3):
                         ti = f"t{i}_fields"
                         # if _f[ti][field].attrs["symmetric"]:
@@ -356,27 +507,39 @@ class WellDataset(Dataset):
                         ti_field_dims = [
                             "".join(xyz)
                             for xyz in itertools.product(
-                                f["dimensions"].attrs["spatial_dims"],
+                                _f["dimensions"].attrs["spatial_dims"],
                                 repeat=i,
                             )
                         ]
 
-                        for field in f[ti].attrs["field_names"]:
+                        for field in _f[ti].attrs["field_names"]:
                             for dims in ti_field_dims:
                                 field_name = f"{field}_{dims}" if dims else field
 
-                                if f[ti][field].attrs["time_varying"]:
+                                if _f[ti][field].attrs["time_varying"]:
                                     self.field_names[i].append(field_name)
+                                    if field not in seen:
+                                        seen.add(field)
+                                        self.core_field_names.append(field)
                                 else:
                                     self.constant_field_names[i].append(field_name)
+                                    if field not in seen:
+                                        seen.add(field)
+                                        self.core_constant_field_names.append(field)
+
         # Full trajectory mode overrides the above and just sets each sample to "full"
         # trajectory where full = min(lowest_steps_per_file, max_rollout_steps)
         if self.full_trajectory_mode:
             self.n_steps_output = (
-                lowest_steps // self.min_dt_stride
-            ) - self.n_steps_input
+                lowest_steps
+                - max(
+                    self.n_steps_input * self.min_dt_stride,
+                    self.start_output_steps_at_t,
+                )
+            ) // self.min_dt_stride
             assert self.n_steps_output > 0, (
-                f"Full trajectory mode not supported for dataset {names[0]} with {lowest_steps} minimum steps"
+                f"Full trajectory mode not supported for dataset {list(names)[0]} with {lowest_steps} minimum steps"
+                f"starting output at step {self.start_output_steps_at_t}"
                 f" and a minimum stride of {self.min_dt_stride} and {self.n_steps_input} input steps"
             )
             self.n_windows_per_trajectory = [1] * self.n_files
@@ -385,8 +548,6 @@ class WellDataset(Dataset):
 
         # Just to make sure it doesn't put us in file -1
         self.file_index_offsets[0] = -1
-        # Remove file caching
-        # self.files: List[h5.File | None] = [None for _ in self.files_paths]  # We open file references as they come
         # Dataset length is last number of samples
         self.len = self.file_index_offsets[-1]
         self.n_spatial_dims = int(ndims.pop())  # Number of spatial dims
@@ -411,31 +572,18 @@ class WellDataset(Dataset):
             n_steps_per_trajectory=self.n_steps_per_trajectory,
         )
 
+    def _check_cache(self, cache: Dict[str, Any], name: str, data: Any):
+        if self.cache_small and data.numel() < self.max_cache_size:
+            cache[name] = data
+
     def _pad_axes(
         self,
-        field_data: torch.Tensor,
-        use_dims: List[bool],
+        field_data: Any,
+        use_dims,
         time_varying: bool = False,
         tensor_order: int = 0,
-    ) -> torch.Tensor:
-        """Repeats data over axes not used in storage.
-
-        Parameters
-        ----------
-        field_data : torch.Tensor
-            The tensor to pad
-        use_dims : List[bool]
-            List indicating which dimensions are used in storage
-        time_varying : bool, optional
-            Whether the field varies in time, by default False
-        tensor_order : int, optional
-            Order of the tensor, by default 0
-
-        Returns
-        -------
-        torch.Tensor
-            The padded tensor
-        """
+    ):
+        """Repeats data over axes not used in storage"""
         # Look at which dimensions currently are not used and tile based on their sizes
         expand_dims = (1,) if time_varying else ()
         expand_dims = expand_dims + tuple(
@@ -448,7 +596,7 @@ class WellDataset(Dataset):
         return torch.tile(field_data, expand_dims)
 
     def _reconstruct_fields(
-        self, file: h5.File, sample_idx: int, time_idx: int, n_steps: int, dt: int
+        self, file: h5.File, cache, sample_idx, time_idx, n_steps, dt
     ):
         """Reconstruct space fields starting at index sample_idx, time_idx, with
         n_steps and dt stride."""
@@ -456,40 +604,35 @@ class WellDataset(Dataset):
         constant_fields = {0: {}, 1: {}, 2: {}}
         # Iterate through field types and apply appropriate transforms to stack them
         for i, order_fields in enumerate(["t0_fields", "t1_fields", "t2_fields"]):
-            # If field_names is not empty, use only the fields in field_names
-            if order_fields in self.include_field_names:
-                field_names: list = self.include_field_names[order_fields]
-            else:
-                # if the order_fields is not in include_field_names, but include_field_names is not empty,
-                # we need to skip this order_fields
-                if len(self.include_field_names) > 0:
-                    field_names = []
-                # if the order_fields is not in include_field_names, and include_field_names is empty,
-                # we use all the fields in the order_fields
-                else:
-                    field_names = file[order_fields].attrs["field_names"]
-
+            field_names = file[order_fields].attrs["field_names"]
             for field_name in field_names:
                 field = file[order_fields][field_name]
                 use_dims = field.attrs["dim_varying"]
-                # Initialize field_data
-                field_data = field
-                # Index is built gradually since there can be different numbers of leading fields
-                multi_index = ()
-                if field.attrs["sample_varying"]:
-                    multi_index = multi_index + (sample_idx,)
-                if field.attrs["time_varying"]:
-                    multi_index = multi_index + (
-                        slice(time_idx, time_idx + n_steps * dt, dt),
-                    )
-                field_data = field_data[multi_index]
-                field_data = torch.as_tensor(field_data, dtype=torch.float32)
-                # Normalize
-                if self.use_normalization:
-                    if field_name in self.means:
-                        field_data = field_data - self.means[field_name]
-                    if field_name in self.stds:
-                        field_data = field_data / (self.stds[field_name] + 1e-6)
+                # If the field is in the cache, use it, otherwise go through read/pad
+                if field_name in cache:
+                    field_data = cache[field_name]
+                else:
+                    field_data = field
+                    # Index is built gradually since there can be different numbers of leading fields
+                    multi_index = ()
+                    if field.attrs["sample_varying"]:
+                        multi_index = multi_index + (sample_idx,)
+                    if field.attrs["time_varying"]:
+                        multi_index = multi_index + (
+                            slice(time_idx, time_idx + n_steps * dt, dt),
+                        )
+                    field_data = field_data[multi_index]
+                    field_data = torch.as_tensor(field_data)
+                    # Normalize
+                    if self.use_normalization and self.norm:
+                        field_data = self.norm.normalize(field_data, field_name)
+                    # If constant, try to cache
+                    if (
+                        not field.attrs["time_varying"]
+                        and not field.attrs["sample_varying"]
+                    ):
+                        self._check_cache(cache, field_name, field_data)
+
                 # Expand dims
                 field_data = self._pad_axes(
                     field_data,
@@ -505,8 +648,148 @@ class WellDataset(Dataset):
 
         return (variable_fields, constant_fields)
 
-    def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
+    def _reconstruct_scalars(
+        self, file: h5.File, cache, sample_idx, time_idx, n_steps, dt
+    ):
+        """Reconstruct scalar values (not fields) starting at index sample_idx, time_idx, with
+        n_steps and dt stride."""
+        variable_scalars = {}
+        constant_scalars = {}
+        for scalar_name in file["scalars"].attrs["field_names"]:
+            scalar = file["scalars"][scalar_name]
+
+            if scalar_name in cache:
+                scalar_data = cache[scalar_name]
+            else:
+                scalar_data = scalar
+                # Build index gradually to account for different leading dims
+                multi_index = ()
+                if scalar.attrs["sample_varying"]:
+                    multi_index = multi_index + (sample_idx,)
+                if scalar.attrs["time_varying"]:
+                    multi_index = multi_index + (
+                        slice(time_idx, time_idx + n_steps * dt, dt),
+                    )
+                scalar_data = scalar_data[multi_index]
+                scalar_data = torch.as_tensor(scalar_data)
+                # If constant, try to cache
+                if (
+                    not scalar.attrs["time_varying"]
+                    and not scalar.attrs["sample_varying"]
+                ):
+                    self._check_cache(cache, scalar_name, scalar_data)
+
+            if scalar.attrs["time_varying"]:
+                variable_scalars[scalar_name] = scalar_data
+            else:
+                constant_scalars[scalar_name] = scalar_data
+
+        return (variable_scalars, constant_scalars)
+
+    def _reconstruct_grids(
+        self, file: h5.File, cache, sample_idx, time_idx, n_steps, dt
+    ):
+        """Reconstruct grid values starting at index sample_idx, time_idx, with
+        n_steps and dt stride."""
+        # Time
+        if "time_grid" in cache:
+            time_grid = cache["time_grid"]
+        elif file["dimensions"]["time"].attrs["sample_varying"]:
+            time_grid = torch.tensor(file["dimensions"]["time"][sample_idx, :])
+        else:
+            time_grid = torch.tensor(file["dimensions"]["time"][:])
+            self._check_cache(cache, "time_grid", time_grid)
+        # We have already sampled leading index if it existed so timegrid should be 1D
+        time_grid = time_grid[time_idx : time_idx + n_steps * dt : dt]
+        # Nothing should depend on absolute time - might change if we add weather
+        if self.normalize_time_grid:
+            time_grid = time_grid - time_grid.min()
+
+        # Space - TODO - support time-varying grids or non-tensor product grids
+        if "space_grid" in cache:
+            space_grid = cache["space_grid"]
+        else:
+            space_grid = []
+            sample_invariant = True
+            for dim in file["dimensions"].attrs["spatial_dims"]:
+                if file["dimensions"][dim].attrs["sample_varying"]:
+                    sample_invariant = False
+                    coords = torch.tensor(file["dimensions"][dim][sample_idx])
+                else:
+                    coords = torch.tensor(file["dimensions"][dim][:])
+                space_grid.append(coords)
+            space_grid = torch.stack(torch.meshgrid(*space_grid, indexing="ij"), -1)
+            if sample_invariant:
+                self._check_cache(cache, "space_grid", space_grid)
+        return space_grid, time_grid
+
+    def _padding_bcs(self, file: h5.File, cache, sample_idx, time_idx, n_steps, dt):
+        """Handles BC case where BC corresponds to a specific padding type
+
+        Note/TODO - currently assumes boundaries to be axis-aligned and cover the entire
+        domain. This is a simplification that will need to be addressed in the future.
+        """
+        if "boundary_output" in cache:
+            boundary_output = cache["boundary_output"]
+        else:
+            bcs = file["boundary_conditions"]
+            dim_indices = {
+                dim: i for i, dim in enumerate(file["dimensions"].attrs["spatial_dims"])
+            }
+            boundary_output = torch.ones(
+                self.n_spatial_dims, 2
+            )  # Open unless otherwise specified
+            for bc_name in bcs.keys():
+                bc = bcs[bc_name]
+                bc_type = bc.attrs["bc_type"].upper()  # Enum is in upper case
+                if len(bc.attrs["associated_dims"]) > 1:
+                    warnings.warn(
+                        "Only axis-aligned boundary fully supported. Boundary for axis counted as `open` or `periodic` if any part of it is and `wall` otherwise."
+                        "If this does not fit your desired usecase, set `boundary_return_type=None`.",
+                        RuntimeWarning,
+                    )
+                for dim in bc.attrs["associated_dims"]:
+                    # Check all entries at the boundary - if any `open` or `periodic`, set that. However, for wall, the full boundary must be wall
+                    first_slice = tuple(
+                        slice(None) if dim != other_dim else 0
+                        for other_dim in bc.attrs["associated_dims"]
+                    )
+                    last_slice = tuple(
+                        slice(None) if dim != other_dim else -1
+                        for other_dim in bc.attrs["associated_dims"]
+                    )
+                    agg_op = np.min if bc_type == "WALL" else np.max
+                    mask = bc["mask"][:]
+                    if agg_op(mask[first_slice]):
+                        boundary_output[dim_indices[dim]][0] = BoundaryCondition[
+                            bc_type
+                        ].value
+                    if agg_op(mask[last_slice]):
+                        boundary_output[dim_indices[dim]][1] = BoundaryCondition[
+                            bc_type
+                        ].value
+            self._check_cache(cache, "boundary_output", boundary_output)
+        return boundary_output
+
+    def _reconstruct_bcs(self, file: h5.File, cache, sample_idx, time_idx, n_steps, dt):
+        """Needs work to support arbitrary BCs.
+
+        Currently supports finite set of boundary condition types that describe
+        the geometry of the domain. Implements these as mask channels. The total
+        number of channels is determined by the number of BC types in the
+        data.
+
+        #TODO generalize boundary types
+        """
+        if self.boundary_return_type == "padding":
+            return self._padding_bcs(file, cache, sample_idx, time_idx, n_steps, dt)
+        else:
+            raise NotImplementedError()
+
+    def _load_one_sample(self, index):
         # Find specific file and local index
+        if self.restriction_set is not None:
+            index = self.restriction_set[index]
         file_idx = int(
             np.searchsorted(self.file_index_offsets, index, side="right") - 1
         )  # which file we are on
@@ -516,9 +799,14 @@ class WellDataset(Dataset):
         )  # First offset is -1
         sample_idx = local_idx // windows_per_trajectory
         time_idx = local_idx % windows_per_trajectory
-
-        # Open file, get data, and close file
-        with h5.File(self.files_paths[file_idx], "r") as file:
+        # open hdf5 file (and cache the open object)
+        with h5.File(
+            self.fs.open(
+                self.files_paths[file_idx], "rb", **IO_PARAMS["fsspec_params"]
+            ),
+            "r",
+            **IO_PARAMS["h5py_params"],
+        ) as file:
             # If we gave a stride range, decide the largest size we can use given the sample location
             dt = self.min_dt_stride
             if self.max_dt_stride > self.min_dt_stride:
@@ -536,42 +824,427 @@ class WellDataset(Dataset):
             data = {}
 
             output_steps = min(self.n_steps_output, self.max_rollout_steps)
+            # If start_output_steps_at_t set, then work backwards for initial time index
+            if self.full_trajectory_mode and self.start_output_steps_at_t >= 0:
+                time_idx = self.start_output_steps_at_t - (self.n_steps_input) * dt
+
             data["variable_fields"], data["constant_fields"] = self._reconstruct_fields(
                 file,
+                self.caches[file_idx],
                 sample_idx,
                 time_idx,
                 self.n_steps_input + output_steps,
                 dt,
             )
-            # Concatenate fields and scalars
-            for key in ("variable_fields", "constant_fields"):
-                data[key] = [
-                    field.unsqueeze(-1).flatten(-order - 1)
-                    for order, fields in data[key].items()
-                    for _, field in fields.items()
-                ]
+            data["variable_scalars"], data["constant_scalars"] = (
+                self._reconstruct_scalars(
+                    file,
+                    self.caches[file_idx],
+                    sample_idx,
+                    time_idx,
+                    self.n_steps_input + output_steps,
+                    dt,
+                )
+            )
 
-                if data[key]:
-                    data[key] = torch.concatenate(data[key], dim=-1)
-                else:
-                    data[key] = torch.tensor([])
+            if self.boundary_return_type is not None:
+                data["boundary_conditions"] = self._reconstruct_bcs(
+                    file,
+                    self.caches[file_idx],
+                    sample_idx,
+                    time_idx,
+                    self.n_steps_input + output_steps,
+                    dt,
+                )
 
-            # Input/Output split
-            sample = {
-                "input_fields": data["variable_fields"][
-                    : self.n_steps_input
-                ],  # Ti x H x W x C
-                "output_fields": data["variable_fields"][
-                    self.n_steps_input :
-                ],  # To x H x W x C
-                "constant_fields": data["constant_fields"],  # H x W x C
-            }
+            if self.return_grid:
+                data["space_grid"], data["time_grid"] = self._reconstruct_grids(
+                    file,
+                    self.caches[file_idx],
+                    sample_idx,
+                    time_idx,
+                    self.n_steps_input + output_steps,
+                    dt,
+                )
+        return data, file_idx, sample_idx, time_idx, dt
 
-        # Return only non-empty keys - maybe change this later
+    def _preprocess_data(
+        self, data: TrajectoryData, traj_metadata: TrajectoryMetadata
+    ) -> TrajectoryData:
+        """Preprocess the data before applying transformations. Identity in Well"""
+        return data
+
+    def _postprocess_data(
+        self, data: TrajectoryData, traj_metadata: TrajectoryMetadata
+    ) -> TrajectoryData:
+        """Postprocess the data after applying transformations. Flattens fields and scalars into single channel dim."""
+        # Start with field data
+        for key in ("variable_fields", "constant_fields"):
+            # Flatten all tensor fields
+            data[key] = [
+                field.unsqueeze(-1).flatten(-order - 1)
+                for order, fields in data[key].items()
+                for _, field in fields.items()
+            ]
+            # Then concatenate them along new single channel
+            if data[key]:
+                data[key] = torch.concatenate(data[key], dim=-1)
+            else:
+                data[key] = torch.tensor([])
+        # Then do the same for scalars but no flattening since no tensor-order
+        for key in ("variable_scalars", "constant_scalars"):
+            data[key] = [scalar.unsqueeze(-1) for _, scalar in data[key].items()]
+            if data[key]:
+                data[key] = torch.concatenate(data[key], dim=-1)
+            else:
+                data[key] = torch.tensor([])
+
+        return data
+
+    def _construct_sample(
+        self, data: TrajectoryData, traj_metadata: TrajectoryMetadata
+    ) -> Dict[str, torch.Tensor]:
+        # Input/Output split
+        sample = {
+            "input_fields": data["variable_fields"][
+                : self.n_steps_input
+            ],  # Ti x H x W x C
+            "output_fields": data["variable_fields"][
+                self.n_steps_input :
+            ],  # To x H x W x C
+            "constant_fields": data["constant_fields"],  # H x W x C
+            "input_scalars": data["variable_scalars"][: self.n_steps_input],  # Ti x C
+            "output_scalars": data["variable_scalars"][self.n_steps_input :],  # To x C
+            "constant_scalars": data["constant_scalars"],  # C
+        }
+
+        if self.boundary_return_type is not None:
+            sample["boundary_conditions"] = data["boundary_conditions"]  # N x 2
+
+        if self.return_grid:
+            sample["space_grid"] = data["space_grid"]  # H x W x D
+            sample["input_time_grid"] = data["time_grid"][: self.n_steps_input]  # Ti
+            sample["output_time_grid"] = data["time_grid"][self.n_steps_input :]  # To
+
         return {k: v for k, v in sample.items() if v.numel() > 0}
+
+    def __getitem__(self, index):
+        data, file_idx, sample_idx, time_idx, dt = self._load_one_sample(index)
+        # Break out into sub-processes to make inheritance easier
+        data = cast(TrajectoryData, data)
+        traj_metadata = TrajectoryMetadata(
+            dataset=self,
+            file_idx=file_idx,
+            sample_idx=sample_idx,
+            time_idx=time_idx,
+            time_stride=dt,
+        )
+        # Apply any type of pre-processing that needs to be applied before augmentation
+        data = self._preprocess_data(data, traj_metadata)
+        # Apply augmentations and other transformations
+        if self.transform is not None:
+            data = self.transform(data, traj_metadata)
+        # Convert ingestable format - in this class this flattens the fields
+        data = self._postprocess_data(data, traj_metadata)
+        # Break apart into x, y
+        sample = self._construct_sample(data, traj_metadata)
+        # Return only non-empty keys - maybe change this later
+        return sample
 
     def __len__(self):
         return self.len
 
+    def to_xarray(self, backend: Literal["numpy", "dask"] = "dask"):
+        """Export the dataset to an Xarray Dataset by stacking all HDF5 files as Xarray datasets
+        along the existing 'sample' dimension.
+
+        Args:
+            backend: 'numpy' for eager loading, 'dask' for lazy loading.
+
+        Returns:
+            xarray.Dataset:
+                The stacked Xarray Dataset.
+
+        Examples:
+            To convert a dataset and plot the pressure for 5 different times for a single trajectory:
+            >>> ds = dataset.to_xarray()
+            >>> ds.pressure.isel(sample=0, time=[0, 10, 20, 30, 40]).plot(col='time', col_wrap=5)
+        """
+
+        import xarray as xr
+
+        datasets = []
+        total_samples = 0
+        for file_idx in range(len(self.files_paths)):
+            with h5.File(
+                self.fs.open(
+                    self.files_paths[file_idx], "rb", **IO_PARAMS["fsspec_params"]
+                ),
+                "r",
+                **IO_PARAMS["h5py_params"],
+            ) as file:
+                # Load the dataset using the hdf5_to_xarray function
+                ds = hdf5_to_xarray(file, backend=backend)
+                # Ensure 'sample' dimension is always present
+                if "sample" not in ds.sizes:
+                    ds = ds.expand_dims("sample")
+                # Adjust the 'sample' coordinate
+                if "sample" in ds.coords:
+                    n_samples = ds.sizes["sample"]
+                    ds = ds.assign_coords(sample=ds.coords["sample"] + total_samples)
+                    total_samples += n_samples
+                datasets.append(ds)
+
+        combined_ds = xr.concat(datasets, dim="sample")
+        return combined_ds
+
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}: {self.data_path}>"
+
+
+class DeltaWellDataset(WellDataset):
+    """Dataset for delta target type, modifying the field reconstruction to compute deltas."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if (
+            (self.min_dt_stride != 1)
+            or (self.max_dt_stride != 1)
+            and (self.use_normalization)
+        ):
+            raise ValueError(
+                "DeltaWellDataset does not support non-unity stride and normalization."
+            )
+
+    def _compute_deltas(self, field_data: torch.Tensor) -> torch.Tensor:
+        """Compute deltas for time-varying fields while ensuring continuity."""
+        x = field_data[: self.n_steps_input]
+        y = field_data[self.n_steps_input - 1 :]
+        return torch.cat([x, y[1:, ...] - y[:-1, ...]], dim=0)
+
+    def _process_field_data(
+        self, field_data: torch.Tensor, field_name: str, time_varying: bool
+    ) -> torch.Tensor:
+        """Process field data by computing deltas if time-varying and applying normalization."""
+        if time_varying:
+            field_data = self._compute_deltas(field_data)
+            if self.use_normalization and self.norm:
+                field_data[: self.n_steps_input] = self.norm.normalize(
+                    field_data[: self.n_steps_input], field_name
+                )
+                field_data[self.n_steps_input :] = self.norm.delta_normalize(
+                    field_data[self.n_steps_input :], field_name
+                )
+        elif self.use_normalization and self.norm:
+            field_data = self.norm.normalize(field_data, field_name)
+        return field_data
+
+    def _reconstruct_fields(self, file, cache, sample_idx, time_idx, n_steps, dt):
+        """Reconstruct space fields with delta transformation for output steps."""
+
+        # Store the original normalization state
+        original_use_normalization = self.use_normalization
+
+        # Temporarily disable normalization
+        self.use_normalization = False
+
+        # Call the parent method without normalization
+        variable_fields, constant_fields = super()._reconstruct_fields(
+            file, cache, sample_idx, time_idx, n_steps, dt
+        )
+
+        # Restore the original normalization state
+        self.use_normalization = original_use_normalization
+
+        for i in variable_fields:
+            for field_name, field_data in variable_fields[i].items():
+                variable_fields[i][field_name] = self._process_field_data(
+                    field_data, field_name, time_varying=True
+                )
+
+        for i in constant_fields:
+            for field_name, field_data in constant_fields[i].items():
+                constant_fields[i][field_name] = self._process_field_data(
+                    field_data, field_name, time_varying=False
+                )
+
+        return variable_fields, constant_fields
+
+
+def safe_cat(tensor_list):
+    """Helper function to safely concatenate tensors, returning a dummy tensor if empty."""
+    if tensor_list:
+        return torch.cat(tensor_list, dim=-1)
+    else:
+        return torch.tensor([1.0])  # Dummy tensor to prevent errors
+
+
+class ZScoreNormalization:
+    def __init__(
+        self,
+        stats: Dict,
+        core_field_names: List[str],
+        core_constant_field_names: List[str],
+        min_denom: float = 1e-4,
+    ):
+        """Initialize the Z-Score Normalizer with statistics."""
+        self.core_field_names = core_field_names
+        self.core_constant_field_names = core_constant_field_names
+
+        required_keys = {"mean", "std", "mean_delta", "std_delta"}
+        assert required_keys.issubset(stats.keys()), (
+            f"Missing required keys: {required_keys - set(stats.keys())}"
+        )
+
+        # Store stats for individual fields
+        self.means = {
+            field: torch.as_tensor(stats["mean"][field])
+            for field in core_field_names + core_constant_field_names
+        }
+        self.stds = {
+            field: torch.clip(torch.as_tensor(stats["std"][field]), min=min_denom)
+            for field in core_field_names + core_constant_field_names
+        }
+        self.means_delta = {
+            field: torch.as_tensor(stats["mean_delta"][field])
+            for field in core_field_names
+        }
+        self.stds_delta = {
+            field: torch.clip(
+                torch.as_tensor(stats["std_delta"].get(field, min_denom)), min=min_denom
+            )
+            for field in core_field_names
+        }
+
+        # Initialize missing deltas for constant fields
+        self.constant_means_delta = {
+            field: torch.full_like(self.means[field], min_denom)
+            for field in core_constant_field_names
+        }
+        self.constant_stds_delta = {
+            field: torch.full_like(self.stds[field], min_denom)
+            for field in core_constant_field_names
+        }
+
+        # Precompute flattened stats for each mode
+        self._precompute_flattened_stats()
+
+    def _precompute_flattened_stats(self):
+        """Precompute mean and std tensors for both variable and constant modes, avoiding empty tensor issues."""
+
+        self.flattened_means = {
+            "variable": safe_cat(
+                [self.means[field].flatten() for field in self.core_field_names]
+            ),
+            "constant": safe_cat(
+                [
+                    self.means[field].flatten()
+                    for field in self.core_constant_field_names
+                ]
+            ),
+        }
+        self.flattened_stds = {
+            "variable": safe_cat(
+                [self.stds[field].flatten() for field in self.core_field_names]
+            ),
+            "constant": safe_cat(
+                [self.stds[field].flatten() for field in self.core_constant_field_names]
+            ),
+        }
+        self.flattened_means_delta = {
+            "variable": safe_cat(
+                [self.means_delta[field].flatten() for field in self.core_field_names]
+            ),
+            "constant": safe_cat(
+                [
+                    self.constant_means_delta[field].flatten()
+                    for field in self.core_constant_field_names
+                ]
+            ),
+        }
+        self.flattened_stds_delta = {
+            "variable": safe_cat(
+                [self.stds_delta[field].flatten() for field in self.core_field_names]
+            ),
+            "constant": safe_cat(
+                [
+                    self.constant_stds_delta[field].flatten()
+                    for field in self.core_constant_field_names
+                ]
+            ),
+        }
+
+    def normalize(self, x: torch.Tensor, field: str) -> torch.Tensor:
+        """Normalize a single field (field-wise normalization)."""
+        assert field in self.means and field in self.stds, (
+            f"Field '{field}' not found in statistics."
+        )
+        return (x - self.means[field]) / self.stds[field]
+
+    def delta_normalize(self, x: torch.Tensor, field: str) -> torch.Tensor:
+        """Delta normalize a single field (field-wise normalization)."""
+        assert field in self.means_delta and field in self.stds_delta, (
+            f"Field '{field}' not found in delta statistics."
+        )
+        return (x - self.means_delta[field]) / self.stds_delta[field]
+
+    def normalize_flattened(self, x: torch.Tensor, mode: str) -> torch.Tensor:
+        """Normalize an input tensor where fields are flattened as channels.
+
+        Args:
+            x (torch.Tensor): The input tensor with channels as last dimension.
+            mode (str): "variable" for core fields, "constant" for constant fields.
+        """
+        assert mode in self.flattened_means, (
+            f"Invalid mode '{mode}'. Choose from 'variable' or 'constant'."
+        )
+
+        mean_values = self.flattened_means[mode].to(x.device)
+        std_values = self.flattened_stds[mode].to(x.device)
+
+        assert x.shape[-1] == mean_values.shape[-1], (
+            f"Channel mismatch: expected {mean_values.shape[-1]}, got {x.shape[-1]}"
+        )
+        return (x - mean_values) / std_values
+
+    def denormalize_flattened(self, x: torch.Tensor, mode: str) -> torch.Tensor:
+        """Denormalize an input tensor where fields are flattened as channels."""
+        assert mode in self.flattened_means, (
+            f"Invalid mode '{mode}'. Choose from 'variable' or 'constant'."
+        )
+
+        mean_values = self.flattened_means[mode].to(x.device)
+        std_values = self.flattened_stds[mode].to(x.device)
+
+        assert x.shape[-1] == mean_values.shape[-1], (
+            f"Channel mismatch: expected {mean_values.shape[-1]}, got {x.shape[-1]}"
+        )
+        return x * std_values + mean_values
+
+    def delta_normalize_flattened(self, x: torch.Tensor, mode: str) -> torch.Tensor:
+        """Delta normalize an input tensor where fields are flattened as channels."""
+        assert mode in self.flattened_means_delta, (
+            f"Invalid mode '{mode}'. Choose from 'variable' or 'constant'."
+        )
+
+        mean_values = self.flattened_means_delta[mode].to(x.device)
+        std_values = self.flattened_stds_delta[mode].to(x.device)
+
+        assert x.shape[-1] == mean_values.shape[-1], (
+            f"Channel mismatch: expected {mean_values.shape[-1]}, got {x.shape[-1]}"
+        )
+        return (x - mean_values) / std_values
+
+    def delta_denormalize_flattened(self, x: torch.Tensor, mode: str) -> torch.Tensor:
+        """Reverses delta normalization for a flattened input tensor."""
+        assert mode in self.flattened_means_delta, (
+            f"Invalid mode '{mode}'. Choose from 'variable' or 'constant'."
+        )
+
+        mean_values = self.flattened_means_delta[mode].to(x.device)
+        std_values = self.flattened_stds_delta[mode].to(x.device)
+
+        assert x.shape[-1] == mean_values.shape[-1], (
+            f"Channel mismatch: expected {mean_values.shape[-1]}, got {x.shape[-1]}"
+        )
+        return x * std_values + mean_values

@@ -116,11 +116,6 @@ def get_dataloader(
 def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDataset]:
     """Get the datasets."""
 
-    include_field_names = {
-        "t0_fields": ["pressure", "density", "temperature"],
-        "t1_fields": ["velocity"],
-    }
-
     split_name = split
     if split == "val":
         split_name = "valid"
@@ -136,7 +131,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
     n_steps_input = data_config["n_steps_input"]
     n_steps_output = data_config["n_steps_output"]
     dt_stride = data_config["dt_stride"]
-    use_normalization = data_config.get("use_normalization", False)
+    use_normalization = data_config.get("use_normalization", True)
     flip_x = data_config.get("flip_x", 0.0)
     flip_y = data_config.get("flip_y", 0.0)
     datasets = {}
@@ -150,7 +145,6 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             dt_stride=dt_stride,
             full_trajectory_mode=full_traj,
             max_rollout_steps=max_rollout_steps,
-            include_field_names=include_field_names,
             use_normalization=use_normalization,
             flip_x=flip_x,
             flip_y=flip_y,

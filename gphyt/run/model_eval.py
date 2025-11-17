@@ -264,15 +264,33 @@ class Evaluator:
 
         all_losses = {name: [] for name in self.eval_criteria.keys()}
 
-        for i, (x, target) in enumerate(loader):
+        for i, (xx, target) in enumerate(loader):
             self._log_msg(f"  Batch {i}/{len(loader)}")
 
-            x = x.to(self.device)
+            xx = xx.to(self.device)
             target = target.to(self.device)
-            with torch.amp.autocast(device_type=self.device.type, dtype=torch.bfloat16):
-                y = self.model(x)
 
-            # Compute losses for each criterion
+            # Perform autoregressive prediction
+            with torch.amp.autocast(device_type=self.device.type, dtype=torch.bfloat16):
+                ar_steps = target.shape[1]  # num of timesteps
+                outputs = []
+                output = None  # Initialize for linter
+                for _ar_step in range(ar_steps):
+                    if _ar_step == 0:
+                        x = xx
+                    else:
+                        x = torch.cat(
+                            (x[:, 1:, ...], output.detach()),
+                            dim=1,
+                        )  # remove first input step, append output step
+                    output = self.model(x)
+                    outputs.append(output)
+
+                # Use the final step for evaluation
+                final_output = outputs[-1]  # (B, 1, H, W, C)
+                final_target = target[:, -1:, ...]  # (B, 1, H, W, C)
+
+            # Compute losses for each criterion using final step
             batch_losses = {}
             ds_name = dataset.dataset_name.lower()
             fields = DATASET_FIELDS.get(ds_name)
@@ -280,8 +298,8 @@ class Evaluator:
                 raise ValueError(
                     f"Dataset '{ds_name}' not found in DATASET_FIELDS mapping"
                 )
-            y_loss = y[..., fields]
-            target_loss = target[..., fields]
+            y_loss = final_output[..., fields]
+            target_loss = final_target[..., fields]
             for name, criterion in self.eval_criteria.items():
                 if name == "MSE":
                     loss = criterion(y_loss, target_loss).squeeze(
@@ -671,25 +689,65 @@ class Evaluator:
                 gt_path = save_path / f"{field}_gt_t{t}.png"
                 gt_img.save(gt_path)
 
-    def main(self, overwrite: bool = False, subdir_name: str | None = None):
+    def main(
+        self,
+        overwrite: bool = False,
+        subdir_name: str | None = None,
+        forecast_horizons: list[int] | None = None,
+    ):
         if subdir_name is not None:
             self.eval_dir = self.eval_dir / subdir_name
             self.eval_dir.mkdir(parents=True, exist_ok=True)
 
-        criterion_files = [
-            f"{name.lower()}_losses.csv" for name in self.eval_criteria.keys()
-        ]
-        files_exist = all((self.eval_dir / f).exists() for f in criterion_files)
+        # If no forecast horizons specified, use default behavior
+        if forecast_horizons is None:
+            criterion_files = [
+                f"{name.lower()}_losses.csv" for name in self.eval_criteria.keys()
+            ]
+            files_exist = all((self.eval_dir / f).exists() for f in criterion_files)
 
-        if not overwrite and files_exist:
-            criterion_names = ", ".join(self.eval_criteria.keys())
-            self.logger.info(f"{criterion_names} losses already evaluated, skipping...")
+            if not overwrite and files_exist:
+                criterion_names = ", ".join(self.eval_criteria.keys())
+                self.logger.info(
+                    f"{criterion_names} losses already evaluated, skipping..."
+                )
+            else:
+                # Evaluate on all datasets with all criteria
+                criterion_dfs = self.eval_all(self.datasets)
+                for criterion_name, df in criterion_dfs.items():
+                    filename = f"{criterion_name.lower()}_losses.csv"
+                    df.to_csv(self.eval_dir / filename, index=False)
         else:
-            # Evaluate on all datasets with all criteria
-            criterion_dfs = self.eval_all(self.datasets)
-            for criterion_name, df in criterion_dfs.items():
-                filename = f"{criterion_name.lower()}_losses.csv"
-                df.to_csv(self.eval_dir / filename, index=False)
+            # Evaluate for each forecast horizon
+            for horizon in forecast_horizons:
+                self._log_msg(f"Evaluating for forecast horizon: {horizon} steps")
+
+                # Create datasets with the specified n_steps_output
+                horizon_datasets = {}
+                for name, dataset in self.datasets.items():
+                    horizon_datasets[name] = dataset.copy(
+                        overwrites={"n_steps_output": horizon}
+                    )
+
+                # Check if files exist for this horizon
+                criterion_files = [
+                    f"{name.lower()}_losses_h{horizon}.csv"
+                    for name in self.eval_criteria.keys()
+                ]
+                files_exist = all((self.eval_dir / f).exists() for f in criterion_files)
+
+                if not overwrite and files_exist:
+                    criterion_names = ", ".join(self.eval_criteria.keys())
+                    self.logger.info(
+                        f"Horizon {horizon}: {criterion_names} losses already evaluated, skipping..."
+                    )
+                else:
+                    # Evaluate on datasets with this horizon
+                    criterion_dfs = self.eval_all(horizon_datasets)
+                    for criterion_name, df in criterion_dfs.items():
+                        filename = f"{criterion_name.lower()}_losses_h{horizon}.csv"
+                        df.to_csv(self.eval_dir / filename, index=False)
+                        self._log_msg(f"Saved {filename}")
 
         # Check if single step rollout files exist for all criteria
         single_step_files = [
@@ -767,6 +825,7 @@ def main(
     sim_name: str | None,
     data_dir: Path | None,
     subdir_name: str | None,
+    forecast_horizons: list[int] | None = None,
 ):
     """Main evaluation function.
 
@@ -784,6 +843,10 @@ def main(
         Path to the data directory
     subdir_name : str | None
         Name of the subdirectory where the evaluation is stored
+    forecast_horizons : list[int] | None
+        List of forecast horizons (n_steps_output) to evaluate.
+        E.g., [4, 8, 12] will evaluate with 4, 8, and 12 output steps.
+        If None, uses default behavior with config's n_steps_output.
     """
     # Load config
     config_path = Path(config_path)
@@ -823,7 +886,7 @@ def main(
         num_workers=training_config["num_workers"],
         checkpoint_name=checkpoint_name,
     )
-    evaluator.main(subdir_name=subdir_name)
+    evaluator.main(subdir_name=subdir_name, forecast_horizons=forecast_horizons)
 
 
 if __name__ == "__main__":
@@ -837,6 +900,13 @@ if __name__ == "__main__":
     parser.add_argument("--sim_name", type=str)
     parser.add_argument("--data_dir", type=str)
     parser.add_argument("--subdir_name", type=str, default=None)
+    parser.add_argument(
+        "--forecast_horizons",
+        type=int,
+        nargs="+",
+        default=None,
+        help="List of forecast horizons to evaluate (e.g., 4 8 12 16)",
+    )
     args = parser.parse_args()
 
     config_path = args.config_file
@@ -845,6 +915,7 @@ if __name__ == "__main__":
     data_dir = args.data_dir
     checkpoint_name = args.checkpoint_name
     subdir_name = args.subdir_name
+    forecast_horizons = args.forecast_horizons
 
     main(
         config_path=config_path,
@@ -853,4 +924,5 @@ if __name__ == "__main__":
         data_dir=data_dir,
         checkpoint_name=checkpoint_name,
         subdir_name=subdir_name,
+        forecast_horizons=forecast_horizons,
     )
