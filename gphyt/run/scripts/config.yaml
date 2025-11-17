@@ -1,13 +1,10 @@
 wandb:
   project: Large-Physics-Foundation-Model
-  entity: xxxxxxxx
+  entity: wsnr-florian
   id: final-training
-  tags:
-    - GPT-XL
-    - AllDatasets
-    - MainRun
+  tags: []
   log_model: gradients # log :all", "parameters" or "gradients" or null
-  notes: "Final training run with GPT-XL on all datasets"
+  notes: ""
 
 logging:
   log_dir: /results
