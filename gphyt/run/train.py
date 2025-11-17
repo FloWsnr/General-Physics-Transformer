@@ -486,13 +486,14 @@ class Trainer:
             xx = xx.to(self.device)
             target = target.to(self.device)
 
-            self.optimizer.zero_grad()
             with torch.autocast(
                 device_type=self.device.type, dtype=torch.bfloat16, enabled=self.use_amp
             ):
                 ar_steps = target.shape[1]  # num of timesteps
-                raw_loss = torch.tensor(0.0, device=self.device)
                 outputs = []
+                output = torch.tensor(
+                    0.0, device=self.device
+                )  # Initialize for first iteration
                 for _ar_step in range(ar_steps):
                     if _ar_step == 0:
                         x = xx
@@ -503,29 +504,26 @@ class Trainer:
                         )  # remove first input step, append output step
 
                     output = self.model(x)
-                    outputs.append(output)
 
+                    # Compute loss and backward per step to reduce memory usage
+                    step_target = target[:, _ar_step, ...].unsqueeze(1)
+                    step_loss = self.criterion(output, step_target) / ar_steps
+
+                    if self.use_amp:
+                        self.grad_scaler.scale(step_loss).backward()
+                    else:
+                        step_loss.backward()
+
+                    # Store detached output for logging only
+                    outputs.append(output.detach())
+
+                # Concatenate detached outputs for logging
                 output = torch.cat(outputs, dim=1)
-                raw_loss = self.criterion(output, target)
 
-            # Log training loss - overall
-            log_losses = self._compute_log_metrics(output.detach(), target.detach())
-
-            # Log training loss - per AR step
-            per_step_losses = {}
-            for _ar_step in range(ar_steps):
-                step_output = output[:, _ar_step, ...].detach().unsqueeze(1)
-                step_target = target[:, _ar_step, ...].detach().unsqueeze(1)
-                step_losses = self._compute_log_metrics(step_output, step_target)
-                for loss_name, loss_val in step_losses.items():
-                    per_step_losses[f"{loss_name}_step{_ar_step}"] = loss_val
-
+            # Apply gradients ONCE after all AR steps
             if self.use_amp:
-                # Scale loss, backpropagate, unscale, clip, step, update
-                self.grad_scaler.scale(raw_loss).backward()
                 self.grad_scaler.unscale_(self.optimizer)
                 if self.max_grad_norm is not None:
-                    # Clip gradients to norm 1
                     torch.nn.utils.clip_grad_norm_(
                         self.model.parameters(),
                         max_norm=self.max_grad_norm,
@@ -533,14 +531,25 @@ class Trainer:
                 self.grad_scaler.step(self.optimizer)
                 self.grad_scaler.update()
             else:
-                raw_loss.backward()
                 if self.max_grad_norm is not None:
-                    # Clip gradients to norm 1
                     torch.nn.utils.clip_grad_norm_(
                         self.model.parameters(),
                         max_norm=self.max_grad_norm,
                     )
                 self.optimizer.step()
+            self.optimizer.zero_grad()
+
+            # Log training loss - overall
+            log_losses = self._compute_log_metrics(output, target)
+
+            # Log training loss - per AR step
+            per_step_losses = {}
+            for _ar_step in range(ar_steps):
+                step_output = output[:, _ar_step, ...].unsqueeze(1)
+                step_target = target[:, _ar_step, ...].unsqueeze(1)
+                step_losses = self._compute_log_metrics(step_output, step_target)
+                for loss_name, loss_val in step_losses.items():
+                    per_step_losses[f"{loss_name}_step{_ar_step}"] = loss_val
 
             ############################################################
             # Step learning rate scheduler #############################
@@ -741,7 +750,7 @@ class Trainer:
             ):
                 ar_steps = target.shape[1]  # num of timesteps
                 outputs = []
-                output = None  # Initialize for linter
+                output = None  # Initialize for first iteration
                 for _ar_step in range(ar_steps):
                     if _ar_step == 0:
                         x = xx
@@ -751,8 +760,10 @@ class Trainer:
                             dim=1,
                         )  # remove first input step, append output step
                     output = self.model(x)
-                    outputs.append(output)
+                    # Store detached output for logging only
+                    outputs.append(output.detach())
 
+                # Concatenate detached outputs for logging
                 output = torch.cat(outputs, dim=1)
 
             # Log validation loss - overall
