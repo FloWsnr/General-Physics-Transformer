@@ -631,15 +631,15 @@ class Trainer:
             if self.global_rank == 0:
                 self.wandb_logger.log(
                     {
-                        "training/total_batches_trained": self.total_batches_trained,
-                        "training/total_samples_trained": self.total_samples_trained,
-                        "training/total_samples_remaining": self.total_samples
+                        "stats/total_batches_trained": self.total_batches_trained,
+                        "stats/total_samples_trained": self.total_samples_trained,
+                        "stats/total_samples_remaining": self.total_samples
                         - self.total_samples_trained,
-                        "training/total_batches_remaining": self.total_batches
+                        "stats/total_batches_remaining": self.total_batches
                         - self.total_batches_trained,
-                        "training/learning_rate": lr,
-                        "training/avg_sec_per_1k_batches": self.avg_sec_per_1k_batches,
-                        "training/avg_sec_per_checkpoint": self.avg_sec_per_checkpoint,
+                        "stats/learning_rate": lr,
+                        "stats/avg_sec_per_1k_batches": self.avg_sec_per_1k_batches,
+                        "stats/avg_sec_per_checkpoint": self.avg_sec_per_checkpoint,
                     },
                     commit=False,
                 )
