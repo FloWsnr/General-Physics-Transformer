@@ -170,7 +170,7 @@ class Trainer:
 
         if self.config["training"]["compile"] and not platform.system() == "Windows":
             self.log_msg("Compiling model")
-            self.model = torch.compile(self.model, mode="max-autotune")
+            self.model = torch.compile(self.model, mode="reduce-overhead")
         if self.config["training"]["amp"] and torch.cuda.is_available():
             self.log_msg("Using AMP")
             self.use_amp = True
