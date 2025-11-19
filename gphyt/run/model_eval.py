@@ -29,7 +29,7 @@ import torch.distributed as dist
 from gphyt.model.transformer.model import get_model as get_model_gphyt
 from gphyt.model.unet import get_model as get_model_unet
 from gphyt.model.model_specs import UNet_M
-from gphyt.model.transformer.loss_fns import RVMSELoss, RNMSELoss
+from gphyt.model.transformer.loss_fns import VMSELoss, NMSELoss
 from gphyt.data.dataset_utils import get_dt_datasets
 from gphyt.data.phys_dataset import PhysicsDataset
 from gphyt.utils.logger import get_logger
@@ -113,12 +113,12 @@ class Evaluator:
         self.num_workers = num_workers
 
         self.eval_criteria = {
-            "RNMSE": RNMSELoss(dims=(1, 2, 3), return_scalar=False),
-            "RVMSE": RVMSELoss(dims=(1, 2, 3), return_scalar=False),
+            "NMSE": NMSELoss(dims=(1, 2, 3), return_scalar=False),
+            "VMSE": VMSELoss(dims=(1, 2, 3), return_scalar=False),
         }
         self.rollout_criteria = {
-            "RNMSE": RNMSELoss(dims=(2, 3), return_scalar=False),
-            "RVMSE": RVMSELoss(dims=(2, 3), return_scalar=False),
+            "NMSE": NMSELoss(dims=(2, 3), return_scalar=False),
+            "VMSE": VMSELoss(dims=(2, 3), return_scalar=False),
         }
 
     @classmethod
@@ -172,7 +172,7 @@ class Evaluator:
         model.to(device)
         torch.set_float32_matmul_precision("high")
         if not platform.system() == "Windows":
-            model = torch.compile(model, mode="max-autotune")
+            model = torch.compile(model, mode="default")
 
         model, checkpoint_info = cls._load_checkpoint(
             base_path, device, model, checkpoint_name
@@ -271,7 +271,7 @@ class Evaluator:
             target = target.to(self.device)
 
             # Perform autoregressive prediction
-            with torch.amp.autocast(device_type=self.device.type, dtype=torch.bfloat16):
+            with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16):
                 ar_steps = target.shape[1]  # num of timesteps
                 outputs = []
                 output = torch.tensor(0.0, device=self.device)  # Initialize for linter
@@ -301,7 +301,7 @@ class Evaluator:
             y_loss = final_output[..., fields]
             target_loss = final_target[..., fields]
             for name, criterion in self.eval_criteria.items():
-                # RVMSE expects (B, T, H, W, C) and returns (B, T, H, W, C) with dims reduced
+                # VMSE expects (B, T, H, W, C) and returns (B, T, H, W, C) with dims reduced
                 loss = criterion(
                     y_loss, target_loss
                 )  # (B, 1, 1, 1, C) after dimension reduction
@@ -451,26 +451,13 @@ class Evaluator:
         full_traj_loss = full_traj[..., fields]  # (T, H, W, C_subset)
 
         for name, criterion in self.rollout_criteria.items():
-            if name == "MSE":
-                loss = criterion(outputs_loss, full_traj_loss)  # (T, H, W, C_subset)
-                loss = torch.mean(loss, dim=(1, 2))  # (T, C_subset)
-            elif name == "RVMSE":
-                # Add batch dimension for RVMSE calculation
-                outputs_batch = outputs_loss.unsqueeze(0)  # (1, T, H, W, C_subset)
-                full_traj_batch = full_traj_loss.unsqueeze(0)  # (1, T, H, W, C_subset)
+            # Add batch dimension for VMSE calculation
+            outputs_batch = outputs_loss.unsqueeze(0)  # (1, T, H, W, C_subset)
+            full_traj_batch = full_traj_loss.unsqueeze(0)  # (1, T, H, W, C_subset)
 
-                # RVMSE with dims=(2, 3) reduces over spatial dims only, keeping (B, T, C)
-                loss = criterion(
-                    outputs_batch, full_traj_batch
-                )  # (1, T, 1, 1, C_subset)
-                loss = loss.squeeze(0).squeeze(-2).squeeze(-2)  # -> (T, C_subset)
-            else:
-                # For other custom criteria
-                loss = criterion(outputs_loss, full_traj_loss)
-                if loss.dim() > 1:
-                    loss = torch.mean(
-                        loss, dim=tuple(range(1, loss.dim() - 1))
-                    )  # Keep (T, C)
+            # VMSE with dims=(2, 3) reduces over spatial dims only, keeping (B, T, C)
+            loss = criterion(outputs_batch, full_traj_batch)  # (1, T, 1, 1, C_subset)
+            loss = loss.squeeze(0).squeeze(-2).squeeze(-2)  # -> (T, C_subset)
 
             losses_dict[name] = loss
 
