@@ -53,6 +53,12 @@ class BoundaryCondition(Enum):
     SYMMETRIC = 3
 
 
+INCLUDE_FIELDS = {
+    "t0_fields": ["pressure", "density", "temperature"],
+    "t1_fields": ["velocity"],
+}
+
+
 @dataclass
 class WellMetadata:
     """Dataclass to store metadata for each dataset."""
@@ -604,7 +610,11 @@ class WellDataset(Dataset):
         constant_fields = {0: {}, 1: {}, 2: {}}
         # Iterate through field types and apply appropriate transforms to stack them
         for i, order_fields in enumerate(["t0_fields", "t1_fields", "t2_fields"]):
-            field_names = file[order_fields].attrs["field_names"]
+            # field_names = file[order_fields].attrs["field_names"]
+            if order_fields not in INCLUDE_FIELDS:
+                field_names = field_names = file[order_fields].attrs["field_names"]
+            else:
+                field_names = INCLUDE_FIELDS[order_fields]
             for field_name in field_names:
                 field = file[order_fields][field_name]
                 use_dims = field.attrs["dim_varying"]
@@ -1101,10 +1111,13 @@ class ZScoreNormalization:
             field: torch.as_tensor(stats["mean"][field])
             for field in core_field_names + core_constant_field_names
         }
-        self.stds = {
-            field: torch.clip(torch.as_tensor(stats["std"][field]), min=min_denom)
-            for field in core_field_names + core_constant_field_names
-        }
+        self.stds = {}
+        for field in core_field_names + core_constant_field_names:
+            std_value = torch.as_tensor(stats["std"][field])
+            if torch.equal(std_value, torch.tensor(0)):
+                std_value = torch.as_tensor(1.0)
+            self.stds[field] = torch.clip(std_value, min=min_denom)
+
         self.means_delta = {
             field: torch.as_tensor(stats["mean_delta"][field])
             for field in core_field_names
