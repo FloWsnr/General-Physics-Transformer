@@ -80,6 +80,8 @@ class Evaluator:
         Batch size for evaluation, by default 256
     num_workers : int, optional
         Number of workers for dataloader, by default 4
+    debug : bool, optional
+        Enable debug mode, by default False
     """
 
     def __init__(
@@ -89,13 +91,15 @@ class Evaluator:
         eval_dir: Path,
         batch_size: int = 1,
         num_workers: int = 0,
-        log_level: str = "INFO",
+        debug: bool = False,
     ):
         self.device = (
             torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
         )
         self.ddp_enabled = dist.is_initialized()
 
+        log_level = "DEBUG" if debug else "INFO"
+        self.debug = debug
         self.logger = get_logger(
             "Evaluator",
             log_file=None,
@@ -127,11 +131,13 @@ class Evaluator:
     def from_checkpoint(
         cls,
         base_path: Path,
+        name: str,
         data_config: dict,
         model_config: dict,
         batch_size: int = 64,
         num_workers: int = 4,
         checkpoint_name: str = "best_model",
+        debug: bool = False,
     ) -> "Evaluator":
         """Create an Evaluator instance from a checkpoint.
 
@@ -139,6 +145,8 @@ class Evaluator:
         ----------
         base_path : Path
             Path to the base directory of the model
+        name : str
+            Name of the evaluation run
         data_config : dict
             Data configuration dictionary
         model_config : dict
@@ -149,12 +157,8 @@ class Evaluator:
             Number of workers for dataloader, by default 4
         checkpoint_name : str, optional
             Name of the checkpoint to load, by default "best_model"
-        global_rank : int, optional
-            Global rank for distributed training, by default 0
-        local_rank : int, optional
-            Local rank for distributed training, by default 0
-        world_size : int, optional
-            World size for distributed training, by default 1
+        debug : bool, optional
+            Enable debug mode, by default False
 
         Returns
         -------
@@ -182,7 +186,7 @@ class Evaluator:
         model.eval()
         datasets = get_dt_datasets(data_config, split="test")
 
-        eval_dir = base_path / "eval" / checkpoint_name
+        eval_dir = base_path / name
         eval_dir.mkdir(parents=True, exist_ok=True)
 
         # save the checkpoint info
@@ -195,6 +199,7 @@ class Evaluator:
             eval_dir=eval_dir,
             batch_size=batch_size,
             num_workers=num_workers,
+            debug=debug,
         )
 
     @staticmethod
@@ -260,6 +265,25 @@ class Evaluator:
         high_losses = losses > 10
         return high_losses
 
+    def _get_stats(self, losses: torch.Tensor) -> dict[str, torch.Tensor]:
+        """Get statistics of a tensor, per channel
+
+        Parameters
+        ----------
+        losses : torch.Tensor
+            Tensor of losses
+
+        Returns
+        -------
+        dict[str, float]
+            Dictionary of statistics
+        """
+        stats = {
+            "mean": torch.mean(losses, dim=(0, 1, 2, 3)),
+            "std": torch.std(losses, dim=(0, 1, 2, 3)),
+        }
+        return stats
+
     @torch.inference_mode()
     def _eval_on_dataset(self, dataset: PhysicsDataset) -> dict[str, torch.Tensor]:
         loader = self._get_dataloader(dataset, is_distributed=self.ddp_enabled)
@@ -302,6 +326,23 @@ class Evaluator:
                 )
             y_loss = final_output[..., fields]
             target_loss = final_target[..., fields]
+            self.logger.debug(f"    Target shape: {target_loss.shape}")
+
+            if self.debug:
+                target_stats = self._get_stats(target_loss)
+                out_stats = self._get_stats(y_loss)
+                input_stats = self._get_stats(xx[..., fields])
+                for c in range(target_loss.shape[-1]):
+                    self.logger.debug(
+                        f"    Target channel {c} - mean: {target_stats['mean'][c]:.6f}, std: {target_stats['std'][c]:.6f}"
+                    )
+                    self.logger.debug(
+                        f"    Output channel {c} - mean: {out_stats['mean'][c]:.6f}, std: {out_stats['std'][c]:.6f}"
+                    )
+                    self.logger.debug(
+                        f"    Input channel {c} - mean: {input_stats['mean'][c]:.6f}, std: {input_stats['std'][c]:.6f}"
+                    )
+
             for name, criterion in self.eval_criteria.items():
                 # VMSE expects (B, T, H, W, C) and returns (B, T, H, W, C) with dims reduced
                 loss = criterion(
@@ -314,6 +355,10 @@ class Evaluator:
 
             for name, loss in batch_losses.items():
                 all_losses[name].append(loss.cpu())
+
+            if self.debug and i == 0:
+                self.logger.debug("Only do one batch in debug mode.")
+                break
 
         # Concatenate all losses
         result = {}
@@ -669,13 +714,8 @@ class Evaluator:
     def main(
         self,
         overwrite: bool = False,
-        subdir_name: str | None = None,
         forecast_horizons: list[int] | None = None,
     ):
-        if subdir_name is not None:
-            self.eval_dir = self.eval_dir / subdir_name
-            self.eval_dir.mkdir(parents=True, exist_ok=True)
-
         # If no forecast horizons specified, use default behavior
         if forecast_horizons is None:
             criterion_files = [
@@ -803,6 +843,7 @@ def main(
     data_dir: Path | None,
     subdir_name: str | None,
     forecast_horizons: list[int] | None = None,
+    debug: bool = False,
 ):
     """Main evaluation function.
 
@@ -854,16 +895,17 @@ def main(
     training_config = config["training"]
 
     data_config["datasets"] = data_config["datasets"]  # + eval_ds
-
     evaluator = Evaluator.from_checkpoint(
         base_path=log_dir / sim_name,
+        name=subdir_name,
         data_config=data_config,
         model_config=model_config,
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
         checkpoint_name=checkpoint_name,
+        debug=debug,
     )
-    evaluator.main(subdir_name=subdir_name, forecast_horizons=forecast_horizons)
+    evaluator.main(forecast_horizons=forecast_horizons)
 
 
 if __name__ == "__main__":
@@ -884,6 +926,7 @@ if __name__ == "__main__":
         default=None,
         help="List of forecast horizons to evaluate (e.g., 4 8 12 16)",
     )
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     args = parser.parse_args()
 
     config_path = args.config_file
@@ -893,6 +936,7 @@ if __name__ == "__main__":
     checkpoint_name = args.checkpoint_name
     subdir_name = args.subdir_name
     forecast_horizons = args.forecast_horizons
+    debug = args.debug
 
     main(
         config_path=config_path,
@@ -902,4 +946,5 @@ if __name__ == "__main__":
         checkpoint_name=checkpoint_name,
         subdir_name=subdir_name,
         forecast_horizons=forecast_horizons,
+        debug=debug,
     )
