@@ -162,7 +162,7 @@ class PhysicsDataset(WellDataset):
         return x, y
 
     def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
-        data = super().__getitem__(index)  # returns (time, h, w, c)
+        data, _ = super().__getitem__(index)  # returns (time, h, w, c)
         x = data["input_fields"]
         y = data["output_fields"]
 

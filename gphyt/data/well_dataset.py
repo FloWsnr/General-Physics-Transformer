@@ -959,7 +959,7 @@ class WellDataset(Dataset):
         # Break apart into x, y
         sample = self._construct_sample(data, traj_metadata)
         # Return only non-empty keys - maybe change this later
-        return sample
+        return sample, traj_metadata
 
     def __len__(self):
         return self.len
