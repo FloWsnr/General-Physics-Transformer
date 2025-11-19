@@ -509,7 +509,7 @@ class Trainer:
                     step_loss.backward()
 
                 # Log training loss - per AR step
-                step_losses = self._compute_log_metrics(output, step_target)
+                step_losses = self._compute_log_metrics(output.detach(), step_target)
                 for loss_name, loss_val in step_losses.items():
                     metrics_per_step[f"{loss_name}_step{_ar_step}"] = loss_val
                     metrics[loss_name] += loss_val / ar_steps
@@ -670,7 +670,7 @@ class Trainer:
                 visualize_predictions(
                     vis_path,
                     x.float(),
-                    output.float(),
+                    output.detach().float(),
                     step_target.float(),
                     num_samples=4,
                     svg=False,
@@ -735,7 +735,7 @@ class Trainer:
 
                 # Compute metrics per AR step
                 step_target = target[:, _ar_step, ...].unsqueeze(1)
-                step_losses = self._compute_log_metrics(output, step_target)
+                step_losses = self._compute_log_metrics(output.detach(), step_target)
                 for loss_name, loss_val in step_losses.items():
                     metrics_per_step[f"{loss_name}_step{_ar_step}"] = loss_val
                     metrics[loss_name] += loss_val / ar_steps
@@ -786,7 +786,7 @@ class Trainer:
                 visualize_predictions(
                     vis_path,
                     x.float(),
-                    output.float(),
+                    output.detach().float(),
                     step_target.float(),
                     num_samples=4,
                     svg=False,
