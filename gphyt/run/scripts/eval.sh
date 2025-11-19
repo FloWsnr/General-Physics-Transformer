@@ -49,6 +49,12 @@ log_dir="${base_dir}/results"
 data_dir="${base_dir}/data/datasets"
 base_config_file="${base_dir}/gphyt/run/scripts/config.yaml"
 sim_name="sim-name"
+# forcasts
+forecast="1 4 8 12 16 20 24"
+# subdir name
+sub_dir="sub-directory-name"
+
+
 nnodes=1
 ngpus_per_node=1
 export OMP_NUM_THREADS=1
@@ -59,8 +65,6 @@ checkpoint_name="best_model"
 # sim directory
 sim_dir="${log_dir}/${sim_name}"
 
-# forcasts
-forecast="1 4 8 12 16 20 24"
 
 
 #######################################################################################
@@ -97,7 +101,8 @@ exec_args="--config_file $config_file \
     --log_dir $log_dir \
     --data_dir $data_dir \
     --checkpoint_name $checkpoint_name \
-    --forecast_horizons $forecast"
+    --forecast_horizons $forecast \
+    --subdir_name $sub_dir"
 
 # Capture Python output and errors in a variable and run the script
 $python_bin $python_exec $exec_args
