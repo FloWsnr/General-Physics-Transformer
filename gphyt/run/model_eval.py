@@ -29,7 +29,7 @@ import torch.distributed as dist
 from gphyt.model.transformer.model import get_model as get_model_gphyt
 from gphyt.model.unet import get_model as get_model_unet
 from gphyt.model.model_specs import UNet_M
-from gphyt.model.transformer.loss_fns import VMSELoss, NMSELoss
+from gphyt.model.transformer.loss_fns import VMSELoss, NMSELoss, MSELoss
 from gphyt.data.dataset_utils import get_dt_datasets
 from gphyt.data.phys_dataset import PhysicsDataset
 from gphyt.utils.logger import get_logger
@@ -115,10 +115,12 @@ class Evaluator:
         self.eval_criteria = {
             "NMSE": NMSELoss(dims=(1, 2, 3), return_scalar=False),
             "VMSE": VMSELoss(dims=(1, 2, 3), return_scalar=False),
+            "MSE": MSELoss(dims=(1, 2, 3), return_scalar=False),
         }
         self.rollout_criteria = {
             "NMSE": NMSELoss(dims=(2, 3), return_scalar=False),
             "VMSE": VMSELoss(dims=(2, 3), return_scalar=False),
+            "MSE": MSELoss(dims=(2, 3), return_scalar=False),
         }
 
     @classmethod

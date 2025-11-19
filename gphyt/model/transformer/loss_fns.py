@@ -10,6 +10,57 @@ import torch
 import torch.nn as nn
 
 
+class MSELoss(nn.Module):
+    """Mean Squared Error loss function.
+
+    Parameters
+    ----------
+    dims : tuple, optional
+        Dimensions to reduce over, by default (1, 2, 3)
+        which is time, height, width
+    return_scalar: bool, optional
+        Whether to return a scalar loss, by default True
+    clip_max: float, optional
+        Maximum value for the loss, by default None
+    """
+
+    def __init__(
+        self,
+        dims: tuple = (1, 2, 3),
+        return_scalar: bool = True,
+        clip_max: Optional[float] = None,
+    ):
+        super().__init__()
+        self.dims = dims
+        self.return_scalar = return_scalar
+        self.clip_max = clip_max
+
+    def forward(self, pred, target) -> torch.Tensor:
+        """Calculate the mean square error.
+
+        Parameters
+        ----------
+        pred : torch.Tensor
+            Predicted values
+        target : torch.Tensor
+            Target values
+
+        Returns
+        -------
+        torch.Tensor
+            MSE loss
+        """
+        # Calculate residuals
+        residuals = pred - target
+        # Calculate MSE
+        mse = residuals.pow(2).mean(self.dims, keepdim=True)
+        if self.return_scalar:
+            return mse.mean()
+        if self.clip_max is not None:
+            mse = torch.clamp(mse, max=self.clip_max)
+        return mse
+
+
 class NMSELoss(nn.Module):
     """Normalized Mean Squared Error loss function.
 
