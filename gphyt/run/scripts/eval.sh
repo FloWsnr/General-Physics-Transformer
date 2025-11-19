@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 ### Task name
-#SBATCH --account=rwh1802
+#SBATCH --account=rwth1802
 #SBATCH --job-name=eval_gphyt
 
 ### Output file
