@@ -53,6 +53,7 @@ sim_name="sim-name"
 forecast="1 4 8 12 16 20 24"
 # subdir name
 sub_dir="sub-directory-name"
+debug=false
 
 
 nnodes=1
@@ -70,11 +71,6 @@ sim_dir="${log_dir}/${sim_name}"
 #######################################################################################
 ############################# Setup sim dir and config file ###########################
 #######################################################################################
-
-# delete the sim_dir if it exists and debug is true
-if [ "$debug" = true ]; then
-    rm -rf $sim_dir
-fi
 
 # create the sim_dir if it doesn't exist
 mkdir -p $sim_dir
@@ -103,6 +99,11 @@ exec_args="--config_file $config_file \
     --checkpoint_name $checkpoint_name \
     --forecast_horizons $forecast \
     --subdir_name $sub_dir"
+
+if [ "$debug" = true ]; then
+    echo "Running in debug mode."
+    exec_args ="$exec_args --debug"
+fi
 
 # Capture Python output and errors in a variable and run the script
 $python_bin $python_exec $exec_args
