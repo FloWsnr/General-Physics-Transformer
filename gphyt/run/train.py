@@ -443,31 +443,18 @@ class Trainer:
         else:
             return self.optimizer.param_groups[0]["lr"]
 
-    def train_for_x_batches(self, num_batches: int) -> dict[str, torch.Tensor]:
+    def train_for_x_batches(self, num_batches: int) -> None:
         """Train the model for a given number of batches.
 
         Parameters
         ----------
         num_batches : int
             Number of batches to train for
-
-        Returns
-        -------
-        dict[str, torch.Tensor]
-            Average training loss for the batches
         """
         self.model.train()
 
         if self.ddp_enabled:
             self.train_loader.sampler.set_epoch(self.cycle_idx)
-
-        loss_per_cycle = {
-            "total-MAE": torch.tensor(0.0, device=self.device),
-            "total-MSE": torch.tensor(0.0, device=self.device),
-            "total-RMSE": torch.tensor(0.0, device=self.device),
-            "total-RNMSE": torch.tensor(0.0, device=self.device),
-            "total-RVMSE": torch.tensor(0.0, device=self.device),
-        }
 
         samples_trained = 0
         train_time = time.time()
@@ -477,6 +464,12 @@ class Trainer:
         batches_trained = 0
         train_iter = iter(self.train_loader)
         while (batches_trained < num_batches) and self.shutdown_flag.item() == 0:
+            # clean metrics dict for this iteration
+            metrics = {
+                k: torch.tensor(0.0, device=self.device) for k in self.loss_fns.keys()
+            }
+            metrics_per_step = {}
+
             try:
                 xx, target = next(train_iter)
             except StopIteration:
@@ -486,39 +479,40 @@ class Trainer:
             xx = xx.to(self.device)
             target = target.to(self.device)
 
-            with torch.autocast(
-                device_type=self.device.type, dtype=torch.bfloat16, enabled=self.use_amp
-            ):
-                ar_steps = target.shape[1]  # num of timesteps
-                outputs = []
-                output = torch.tensor(
-                    0.0, device=self.device
-                )  # Initialize for first iteration
-                for _ar_step in range(ar_steps):
-                    if _ar_step == 0:
-                        x = xx
-                    else:
-                        x = torch.cat(
-                            (x[:, 1:, ...], output.detach()),
-                            dim=1,
-                        )  # remove first input step, append output step
+            output = torch.tensor(
+                0.0, device=self.device
+            )  # Initialize for first iteration
+            ar_steps = target.shape[1]  # num of timesteps
+            for _ar_step in range(ar_steps):
+                if _ar_step == 0:
+                    x = xx
+                else:
+                    x = torch.cat(
+                        (x[:, 1:, ...], output.detach()),
+                        dim=1,
+                    )  # remove first input step, append output step
 
+                with torch.autocast(
+                    device_type=self.device.type,
+                    dtype=torch.bfloat16,
+                    enabled=self.use_amp,
+                ):
                     output = self.model(x)
 
                     # Compute loss and backward per step to reduce memory usage
                     step_target = target[:, _ar_step, ...].unsqueeze(1)
                     step_loss = self.criterion(output, step_target) / ar_steps
 
-                    if self.use_amp:
-                        self.grad_scaler.scale(step_loss).backward()
-                    else:
-                        step_loss.backward()
+                if self.use_amp:
+                    self.grad_scaler.scale(step_loss).backward()
+                else:
+                    step_loss.backward()
 
-                    # Store detached output for logging only
-                    outputs.append(output.detach())
-
-                # Concatenate detached outputs for logging
-                output = torch.cat(outputs, dim=1)
+                # Log training loss - per AR step
+                step_losses = self._compute_log_metrics(output, step_target)
+                for loss_name, loss_val in step_losses.items():
+                    metrics_per_step[f"{loss_name}_step{_ar_step}"] = loss_val
+                    metrics[loss_name] += loss_val / ar_steps
 
             # Apply gradients ONCE after all AR steps
             if self.use_amp:
@@ -539,18 +533,6 @@ class Trainer:
                 self.optimizer.step()
             self.optimizer.zero_grad()
 
-            # Log training loss - overall
-            log_losses = self._compute_log_metrics(output, target)
-
-            # Log training loss - per AR step
-            per_step_losses = {}
-            for _ar_step in range(ar_steps):
-                step_output = output[:, _ar_step, ...].unsqueeze(1)
-                step_target = target[:, _ar_step, ...].unsqueeze(1)
-                step_losses = self._compute_log_metrics(step_output, step_target)
-                for loss_name, loss_val in step_losses.items():
-                    per_step_losses[f"{loss_name}_step{_ar_step}"] = loss_val
-
             ############################################################
             # Step learning rate scheduler #############################
             ############################################################
@@ -563,19 +545,8 @@ class Trainer:
             ###############################################################
             if self.ddp_enabled:
                 # average the losses across all GPUs
-                log_losses = self._reduce_all_losses(log_losses)
-                per_step_losses = self._reduce_all_losses(per_step_losses)
-
-            for loss_name, log_loss in log_losses.items():
-                loss_per_cycle[f"total-{loss_name}"] += log_loss
-
-            # Accumulate per-step losses
-            for loss_name, log_loss in per_step_losses.items():
-                if f"total-{loss_name}" not in loss_per_cycle:
-                    loss_per_cycle[f"total-{loss_name}"] = torch.tensor(
-                        0.0, device=self.device
-                    )
-                loss_per_cycle[f"total-{loss_name}"] += log_loss
+                metrics = self._reduce_all_losses(metrics)
+                metrics_per_step = self._reduce_all_losses(metrics_per_step)
 
             ############################################################
             # Log training progress ####################################
@@ -611,15 +582,16 @@ class Trainer:
             ############################################################
             wandb_log_losses = {}
             log_string = "Training - Batch: "
-            for loss_name, loss in log_losses.items():
+            for loss_name, loss in metrics.items():
                 loss = loss.item()
                 log_string += f"{loss_name}: {loss:.8f}, "
                 wandb_log_losses[f"training-losses/{loss_name}"] = loss
-            self.log_msg(log_string)
 
-            # Log per-step losses
-            for loss_name, loss in per_step_losses.items():
-                wandb_log_losses[f"training-losses-per-step/{loss_name}"] = loss.item()
+            for loss_name, loss in metrics_per_step.items():
+                loss = loss.item()
+                wandb_log_losses[f"training-losses-per-step/{loss_name}"] = loss
+
+            self.log_msg(log_string)
 
             self.log_msg("")
 
@@ -692,14 +664,14 @@ class Trainer:
         ############################################################
         # Visualize predictions ####################################
         ############################################################
-        if self.global_rank == 0:
+        if self.global_rank == 0 and batches_trained > 0:
             vis_path = self.val_dir / "train.png"
             try:
                 visualize_predictions(
                     vis_path,
                     x.float(),
                     output.float(),
-                    target.float(),
+                    step_target.float(),
                     num_samples=4,
                     svg=False,
                 )
@@ -713,24 +685,16 @@ class Trainer:
                 self.log_msg(f"Error type: {type(e)}")
                 self.log_msg(f"Error args: {e.args}")
 
-        ############################################################
-        # Calculate average loss per batch ########################
-        ############################################################
-        for loss_name, loss in loss_per_cycle.items():
-            loss_per_cycle[loss_name] /= batches_trained
-
-        return loss_per_cycle
-
     @torch.inference_mode()
     def validate(self) -> dict[str, torch.Tensor]:
         """Validate the model."""
         self.model.eval()
         loss_per_cycle = {
-            "total-MAE": torch.tensor(0.0, device=self.device),
-            "total-MSE": torch.tensor(0.0, device=self.device),
-            "total-RMSE": torch.tensor(0.0, device=self.device),
-            "total-RNMSE": torch.tensor(0.0, device=self.device),
-            "total-RVMSE": torch.tensor(0.0, device=self.device),
+            "total-MAE": torch.tensor(0.0),
+            "total-MSE": torch.tensor(0.0),
+            "total-RMSE": torch.tensor(0.0),
+            "total-RNMSE": torch.tensor(0.0),
+            "total-RVMSE": torch.tensor(0.0),
         }
 
         if self.ddp_enabled:
@@ -743,59 +707,55 @@ class Trainer:
             xx = xx.to(self.device)
             target = target.to(self.device)
 
-            with torch.autocast(
-                device_type=self.device.type,
-                dtype=torch.bfloat16,
-                enabled=self.use_amp,
-            ):
-                ar_steps = target.shape[1]  # num of timesteps
-                outputs = []
-                output = None  # Initialize for first iteration
-                for _ar_step in range(ar_steps):
-                    if _ar_step == 0:
-                        x = xx
-                    else:
-                        x = torch.cat(
-                            (x[:, 1:, ...], output.detach()),
-                            dim=1,
-                        )  # remove first input step, append output step
-                    output = self.model(x)
-                    # Store detached output for logging only
-                    outputs.append(output.detach())
+            # Clean metrics dict for this iteration
+            metrics = {
+                k: torch.tensor(0.0, device=self.device) for k in self.loss_fns.keys()
+            }
+            metrics_per_step = {}
 
-                # Concatenate detached outputs for logging
-                output = torch.cat(outputs, dim=1)
-
-            # Log validation loss - overall
-            log_losses = self._compute_log_metrics(output.detach(), target.detach())
-
-            # Log validation loss - per AR step
-            per_step_losses = {}
+            output = torch.tensor(
+                0.0, device=self.device
+            )  # Initialize for first iteration
+            ar_steps = target.shape[1]  # num of timesteps
             for _ar_step in range(ar_steps):
-                step_output = output[:, _ar_step, ...].detach().unsqueeze(1)
-                step_target = target[:, _ar_step, ...].detach().unsqueeze(1)
-                step_losses = self._compute_log_metrics(step_output, step_target)
+                if _ar_step == 0:
+                    x = xx
+                else:
+                    x = torch.cat(
+                        (x[:, 1:, ...], output.detach()),
+                        dim=1,
+                    )  # remove first input step, append output step
+
+                with torch.autocast(
+                    device_type=self.device.type,
+                    dtype=torch.bfloat16,
+                    enabled=self.use_amp,
+                ):
+                    output = self.model(x)
+
+                # Compute metrics per AR step
+                step_target = target[:, _ar_step, ...].unsqueeze(1)
+                step_losses = self._compute_log_metrics(output, step_target)
                 for loss_name, loss_val in step_losses.items():
-                    per_step_losses[f"{loss_name}_step{_ar_step}"] = loss_val
+                    metrics_per_step[f"{loss_name}_step{_ar_step}"] = loss_val
+                    metrics[loss_name] += loss_val / ar_steps
 
             ###############################################################
             # Accumulate losses ###########################################
             ###############################################################
             if self.ddp_enabled:
                 # average the losses across all GPUs
-                log_losses = self._reduce_all_losses(log_losses)
-                per_step_losses = self._reduce_all_losses(per_step_losses)
+                metrics = self._reduce_all_losses(metrics)
+                metrics_per_step = self._reduce_all_losses(metrics_per_step)
 
-            for loss_name, log_loss in log_losses.items():
-                loss_per_cycle[f"total-{loss_name}"] += log_loss
+            for loss_name, log_loss in metrics.items():
+                loss_per_cycle[f"total-{loss_name}"] += log_loss.cpu()
 
             # Accumulate per-step losses
-            for loss_name, log_loss in per_step_losses.items():
+            for loss_name, log_loss in metrics_per_step.items():
                 if f"total-{loss_name}" not in loss_per_cycle:
-                    loss_per_cycle[f"total-{loss_name}"] = torch.tensor(
-                        0.0, device=self.device
-                    )
-                loss_per_cycle[f"total-{loss_name}"] += log_loss
+                    loss_per_cycle[f"total-{loss_name}"] = torch.tensor(0.0)
+                loss_per_cycle[f"total-{loss_name}"] += log_loss.cpu()
 
             ####################################################
             # Update cycle index #################################
@@ -819,7 +779,7 @@ class Trainer:
         ############################################################
         # Visualize predictions ####################################
         ############################################################
-        if self.global_rank == 0:
+        if self.global_rank == 0 and batches_validated > 0:
             # Visualize predictions
             vis_path = self.val_dir / "val.png"
             try:
@@ -827,7 +787,7 @@ class Trainer:
                     vis_path,
                     x.float(),
                     output.float(),
-                    target.float(),
+                    step_target.float(),
                     num_samples=4,
                     svg=False,
                 )
@@ -848,9 +808,9 @@ class Trainer:
             self.avg_sec_per_val_cycle * (self.num_cycles - 1) + duration
         ) / self.num_cycles
 
-        # Calculate average loss per batch
-        for loss_name, loss in loss_per_cycle.items():
-            loss_per_cycle[loss_name] /= batches_validated
+        # Calculate average loss per batch and convert back to tensors
+        for loss_name in loss_per_cycle.keys():
+            loss_per_cycle[loss_name] = loss_per_cycle[loss_name] / batches_validated
 
         return loss_per_cycle
 
@@ -876,34 +836,12 @@ class Trainer:
             self.log_msg("=" * 100)
             self.log_msg(f"Training - Cycle {self.cycle_idx}")
             self.log_msg(f"Training - train on next {self.val_every_x_batches} batches")
-            train_losses = self.train_for_x_batches(self.val_every_x_batches)
+            self.train_for_x_batches(self.val_every_x_batches)
             self.log_msg("=" * 100)
-            # Log overall losses
-            log_string = "Training - Overall Losses: "
-            for loss_name, loss in train_losses.items():
-                if "_step" not in loss_name:
-                    log_string += f"{loss_name}: {loss.item():.8f}, "
-            self.log_msg(log_string)
 
-            # Log per-step losses grouped by metric
-            metric_names = set()
-            for loss_name in train_losses.keys():
-                if "_step" in loss_name:
-                    metric = loss_name.split("_step")[0].replace("total-", "")
-                    metric_names.add(metric)
-
-            for metric in sorted(metric_names):
-                log_string = f"Training - {metric} per step: "
-                for loss_name, loss in sorted(train_losses.items()):
-                    if f"total-{metric}_step" in loss_name:
-                        step_num = loss_name.split("_step")[1]
-                        log_string += f"step{step_num}: {loss.item():.8f}, "
-                self.log_msg(log_string)
             self.log_msg("=" * 100)
             if self.global_rank == 0:
-                train_losses_wandb = {
-                    f"training-summary/{k}": v for k, v in train_losses.items()
-                }
+                train_losses_wandb = {}
                 train_losses_wandb["training-summary/batches_trained"] = (
                     self.total_batches_trained
                 )
