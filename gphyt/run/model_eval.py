@@ -299,7 +299,6 @@ class Evaluator:
             # Perform autoregressive prediction
             with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16):
                 ar_steps = target.shape[1]  # num of timesteps
-                outputs = []
                 output = torch.tensor(0.0, device=self.device)  # Initialize for linter
                 for _ar_step in range(ar_steps):
                     if _ar_step == 0:
@@ -310,10 +309,9 @@ class Evaluator:
                             dim=1,
                         )  # remove first input step, append output step
                     output = self.model(x)
-                    outputs.append(output)
 
                 # Use the final step for evaluation
-                final_output = outputs[-1]  # (B, 1, H, W, C)
+                final_output = output
                 final_target = target[:, -1:, ...]  # (B, 1, H, W, C)
 
             # Compute losses for each criterion using final step
