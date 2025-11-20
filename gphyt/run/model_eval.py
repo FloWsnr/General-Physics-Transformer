@@ -740,9 +740,9 @@ class Evaluator:
                 # Create datasets with the specified n_steps_output
                 horizon_datasets = {}
                 for name, dataset in self.datasets.items():
-                    horizon_datasets[name] = dataset.copy(
-                        overwrites={"n_steps_output": horizon}
-                    )
+                    ds = dataset.copy(overwrites={"n_steps_output": horizon})
+                    if ds is not None:
+                        horizon_datasets[name] = ds
 
                 # Check if files exist for this horizon
                 criterion_files = [
