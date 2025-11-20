@@ -291,7 +291,7 @@ class Evaluator:
         all_losses = {name: [] for name in self.eval_criteria.keys()}
 
         for i, (xx, target) in enumerate(loader):
-            self._log_msg(f"  Batch {i}/{len(loader)}")
+            self.logger.debug(f"  Batch {i}/{len(loader)}")
 
             xx = xx.to(self.device)
             target = target.to(self.device)
