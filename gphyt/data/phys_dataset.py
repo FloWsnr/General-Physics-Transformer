@@ -9,7 +9,7 @@ from pathlib import Path
 
 import torch
 
-from gphyt.data.well_dataset import WellDataset, ZScoreNormalization
+from gphyt.data.well_dataset import WellDataset, ZScoreNormalization, StrideError
 
 
 def zero_field_to_value(x: torch.Tensor, value: float) -> torch.Tensor:
@@ -25,6 +25,37 @@ def zero_field_to_value(x: torch.Tensor, value: float) -> torch.Tensor:
     zero_channels = torch.all(x == 0, dim=(0, 1, 2), keepdim=False)
     x[..., zero_channels] = value
     return x
+
+
+def get_phys_dataset(
+    data_dir: Path,
+    n_steps_input: int = 1,
+    n_steps_output: int = 1,
+    use_normalization: bool = True,
+    dt_stride: int | list[int] = 1,
+    full_trajectory_mode: bool = False,
+    max_rollout_steps: int = 10000,
+    nan_to_zero: bool = True,
+    flip_x: float = 0.0,
+    flip_y: float = 0.0,
+) -> Optional["PhysicsDataset"]:
+    """Helper function to create a PhysicsDataset."""
+    try:
+        return PhysicsDataset(
+            data_dir=data_dir,
+            n_steps_input=n_steps_input,
+            n_steps_output=n_steps_output,
+            use_normalization=use_normalization,
+            dt_stride=dt_stride,
+            full_trajectory_mode=full_trajectory_mode,
+            max_rollout_steps=max_rollout_steps,
+            nan_to_zero=nan_to_zero,
+            flip_x=flip_x,
+            flip_y=flip_y,
+        )
+    except StrideError as e:
+        print(f"Error creating PhysicsDataset for {data_dir}: {e}")
+        return None
 
 
 class PhysicsDataset(WellDataset):
@@ -125,7 +156,7 @@ class PhysicsDataset(WellDataset):
         name = data_dir.parents[1].name
         self.dataset_name = name
 
-    def copy(self, overwrites: dict[str, Any] = {}) -> "PhysicsDataset":
+    def copy(self, overwrites: dict[str, Any] = {}) -> Optional["PhysicsDataset"]:
         """Copy the dataset with optional overwrites.
 
         Useful for creating a new dataset with slightly different parameters.
@@ -134,10 +165,16 @@ class PhysicsDataset(WellDataset):
         ----------
         overwrites : dict[str, Any]
             Dictionary of overwrites for the config.
+
+        Returns
+        -------
+        PhysicsDataset
+            New PhysicsDataset with the updated config.
+            Returns None if the dataset could not be created due to too large stride.
         """
         config = self.config.copy()
         config.update(overwrites)
-        return PhysicsDataset(
+        return get_phys_dataset(
             data_dir=config["data_dir"],
             n_steps_input=config["n_steps_input"],
             n_steps_output=config["n_steps_output"],

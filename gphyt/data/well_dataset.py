@@ -45,6 +45,12 @@ if TYPE_CHECKING:
     from the_well.data.augmentation import Augmentation
 
 
+# Custom exceptions
+class StrideError(ValueError):
+    """Raised when the number of steps in a file is insufficient for the specified stride and input/output requirements."""
+    pass
+
+
 # Boundary condition codes
 class BoundaryCondition(Enum):
     WALL = 0
@@ -471,11 +477,12 @@ class WellDataset(Dataset):
                 windows_per_trajectory = raw_steps_to_possible_sample_t0s(
                     steps, self.n_steps_input, self.n_steps_output, self.min_dt_stride
                 )
-                assert windows_per_trajectory > 0, (
-                    f"{steps} steps is not enough steps for file {file}"
-                    f" to allow {self.n_steps_input} input and {self.n_steps_output} output steps"
-                    f" with a minimum stride of {self.min_dt_stride}"
-                )
+                if windows_per_trajectory <= 0:
+                    raise StrideError(
+                        f"{steps} steps is not enough steps for file {file}"
+                        f" to allow {self.n_steps_input} input and {self.n_steps_output} output steps"
+                        f" with a minimum stride of {self.min_dt_stride}"
+                    )
                 self.n_trajectories_per_file.append(trajectories)
                 self.n_steps_per_trajectory.append(steps)
                 self.n_windows_per_trajectory.append(windows_per_trajectory)

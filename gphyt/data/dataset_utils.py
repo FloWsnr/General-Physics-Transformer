@@ -9,7 +9,8 @@ from torch.utils.data import (
 )
 from torch.utils.data.distributed import DistributedSampler
 
-from gphyt.data.phys_dataset import SuperDataset, PhysicsDataset
+from gphyt.data.phys_dataset import SuperDataset, PhysicsDataset, get_phys_dataset
+from gphyt.data.well_dataset import StrideError
 
 
 def collate_fn(
@@ -138,7 +139,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
     dataset_list: list[str] = data_config["datasets"].copy()
 
     for dataset_name in dataset_list:
-        dataset = PhysicsDataset(
+        dataset = get_phys_dataset(
             data_dir=data_dir / f"{dataset_name}/data/{split_name}",
             n_steps_input=n_steps_input,
             n_steps_output=n_steps_output,
@@ -149,7 +150,8 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             flip_x=flip_x,
             flip_y=flip_y,
         )
-        datasets[dataset_name] = dataset
+        if dataset is not None:
+            datasets[dataset_name] = dataset
 
     # Check if all dataset names in the list are in the dictionary
     missing_datasets = [name for name in dataset_list if name not in datasets]
