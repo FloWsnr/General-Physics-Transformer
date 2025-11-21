@@ -11,7 +11,7 @@
 #SBATCH --nodes=1
 
 ### How many CPU cores to use
-#SBATCH --ntasks-per-node=23
+#SBATCH --ntasks-per-node=24
 ##SBATCH --exclusive
 
 ### Mail notification configuration

@@ -23,6 +23,7 @@ except ImportError:
 import pandas as pd
 
 import torch
+from torch.nn.modules.utils import consume_prefix_in_state_dict_if_present
 from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
 import torch.distributed as dist
 
@@ -141,6 +142,7 @@ class Evaluator:
         batch_size: int = 64,
         num_workers: int = 4,
         amp: bool = True,
+        compile: bool = True,
         checkpoint_name: str = "best_model",
         debug: bool = False,
     ) -> "Evaluator":
@@ -162,6 +164,8 @@ class Evaluator:
             Number of workers for dataloader, by default 4
         amp : bool, optional
             Use automatic mixed precision, by default True
+        compile : bool, optional
+            Whether to compile the model using torch.compile, by default True
         checkpoint_name : str, optional
             Name of the checkpoint to load, by default "best_model"
         debug : bool, optional
@@ -177,21 +181,23 @@ class Evaluator:
             if torch.cuda.is_available()
             else torch.device("cpu")
         )
-        if model_config == "unet-M":
-            model = get_model_unet({"model_size": "UNet_M"})
-        if model_config == "fno-M":
-            model = get_model_fno({"model_size": "FNO_M"})
+        if isinstance(model_config, str):
+            name = model_config.strip()
+            if name == "unet-M":
+                model = get_model_unet({"model_size": "UNet_M"})
+            if name == "fno-M":
+                model = get_model_fno({"model_size": "FNO_M"})
         else:
             model = get_model_gphyt(model_config)
 
         model.to(device)
-        torch.set_float32_matmul_precision("high")
-        if not platform.system() == "Windows" and isinstance(model, PhysicsTransformer):
-            model = torch.compile(model, mode="default")
 
         model, checkpoint_info = cls._load_checkpoint(
             base_path, device, model, checkpoint_name
         )
+        torch.set_float32_matmul_precision("high")
+        if not platform.system() == "Windows" and compile:
+            model = torch.compile(model, mode="default")
         model.eval()
         datasets = get_dt_datasets(data_config, split="test")
 
@@ -239,14 +245,17 @@ class Evaluator:
         checkpoint_path = find_checkpoint(
             path, subdir_name=subdir_name, specific_checkpoint=checkpoint_name
         )
-        data = load_stored_model(checkpoint_path, device, ddp=False)
-        model.load_state_dict(data["model_state_dict"], strict=True)
 
-        checkpoint = torch.load(checkpoint_path, weights_only=False)
+        data = load_stored_model(checkpoint_path, device, ddp=False)
+        model_dict = data["model_state_dict"]
+        consume_prefix_in_state_dict_if_present(model_dict, "module.")
+        consume_prefix_in_state_dict_if_present(model_dict, "_orig_mod.")
+        model.load_state_dict(model_dict, strict=True)
+
         checkpoint_info = {
-            "samples_trained": checkpoint["samples_trained"],
-            "batches_trained": checkpoint["batches_trained"],
-            "cycle_idx": checkpoint["cycle_idx"],
+            "samples_trained": data["samples_trained"],
+            "batches_trained": data["batches_trained"],
+            "cycle_idx": data["cycle_idx"],
         }
 
         return model, checkpoint_info
@@ -912,6 +921,7 @@ def main(
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
         amp=training_config["amp"],
+        compile=training_config["compile"],
         checkpoint_name=checkpoint_name,
         debug=debug,
     )

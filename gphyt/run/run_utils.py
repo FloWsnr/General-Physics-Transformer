@@ -2,6 +2,7 @@ import pathlib
 from pathlib import Path
 from typing import Optional
 import torch
+from torch.nn.modules.utils import consume_prefix_in_state_dict_if_present
 
 
 def load_stored_model(
@@ -38,6 +39,8 @@ def load_stored_model(
         else:
             # Keep the key as is
             clean_state_dict[key] = value
+
+    clean_state_dict.pop("_metadata", None)
 
     checkpoint["model_state_dict"] = clean_state_dict
     return checkpoint
