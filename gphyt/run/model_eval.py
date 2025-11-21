@@ -27,8 +27,10 @@ from torch.utils.data import DataLoader, DistributedSampler, SequentialSampler
 import torch.distributed as dist
 
 from gphyt.model.transformer.model import get_model as get_model_gphyt
+from gphyt.model.transformer.model import PhysicsTransformer
 from gphyt.model.unet import get_model as get_model_unet
-from gphyt.model.model_specs import UNet_M
+from gphyt.model.fno import get_model as get_model_fno
+
 from gphyt.model.transformer.loss_fns import VMSELoss, NMSELoss, MSELoss
 from gphyt.data.dataset_utils import get_dt_datasets
 from gphyt.data.phys_dataset import PhysicsDataset
@@ -91,6 +93,7 @@ class Evaluator:
         eval_dir: Path,
         batch_size: int = 1,
         num_workers: int = 0,
+        amp: bool = True,
         debug: bool = False,
     ):
         self.device = (
@@ -115,6 +118,7 @@ class Evaluator:
         self.eval_dir.mkdir(parents=True, exist_ok=True)
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.amp = amp
 
         self.eval_criteria = {
             "NMSE": NMSELoss(dims=(1, 2, 3), return_scalar=False),
@@ -136,6 +140,7 @@ class Evaluator:
         model_config: dict,
         batch_size: int = 64,
         num_workers: int = 4,
+        amp: bool = True,
         checkpoint_name: str = "best_model",
         debug: bool = False,
     ) -> "Evaluator":
@@ -155,6 +160,8 @@ class Evaluator:
             Batch size for evaluation, by default 256
         num_workers : int, optional
             Number of workers for dataloader, by default 4
+        amp : bool, optional
+            Use automatic mixed precision, by default True
         checkpoint_name : str, optional
             Name of the checkpoint to load, by default "best_model"
         debug : bool, optional
@@ -171,13 +178,15 @@ class Evaluator:
             else torch.device("cpu")
         )
         if model_config == "unet-M":
-            model = get_model_unet(UNet_M())
+            model = get_model_unet({"model_size": "UNet_M"})
+        if model_config == "fno-M":
+            model = get_model_fno({"model_size": "FNO_M"})
         else:
             model = get_model_gphyt(model_config)
 
         model.to(device)
         torch.set_float32_matmul_precision("high")
-        if not platform.system() == "Windows":
+        if not platform.system() == "Windows" and isinstance(model, PhysicsTransformer):
             model = torch.compile(model, mode="default")
 
         model, checkpoint_info = cls._load_checkpoint(
@@ -199,6 +208,7 @@ class Evaluator:
             eval_dir=eval_dir,
             batch_size=batch_size,
             num_workers=num_workers,
+            amp=amp,
             debug=debug,
         )
 
@@ -297,7 +307,9 @@ class Evaluator:
             target = target.to(self.device)
 
             # Perform autoregressive prediction
-            with torch.autocast(device_type=self.device.type, dtype=torch.bfloat16):
+            with torch.autocast(
+                enabled=self.amp, device_type=self.device.type, dtype=torch.bfloat16
+            ):
                 ar_steps = target.shape[1]  # num of timesteps
                 output = torch.tensor(0.0, device=self.device)  # Initialize for linter
                 for _ar_step in range(ar_steps):
@@ -447,8 +459,7 @@ class Evaluator:
 
         outputs = []
         with torch.autocast(
-            device_type=self.device.type,
-            dtype=torch.bfloat16,
+            device_type=self.device.type, dtype=torch.bfloat16, enabled=self.amp
         ):
             for i in range(num_timesteps):
                 # Predict next timestep
@@ -900,6 +911,7 @@ def main(
         model_config=model_config,
         batch_size=training_config["batch_size"],
         num_workers=training_config["num_workers"],
+        amp=training_config["amp"],
         checkpoint_name=checkpoint_name,
         debug=debug,
     )

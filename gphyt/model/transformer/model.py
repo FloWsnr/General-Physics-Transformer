@@ -14,7 +14,7 @@ from gphyt.model.transformer.num_integration import Euler, RK4, Heun
 import gphyt.model.model_specs as model_specs
 
 
-def get_model(model_config: dict):
+def get_model(model_config: dict) -> "PhysicsTransformer":
     """Get the model."""
     transformer_config: dict = model_config["transformer"]
     tokenizer_config: dict = model_config["tokenizer"]
