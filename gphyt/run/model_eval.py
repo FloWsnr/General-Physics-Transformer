@@ -136,7 +136,7 @@ class Evaluator:
     def from_checkpoint(
         cls,
         base_path: Path,
-        name: str,
+        run_name: str,
         data_config: dict,
         model_config: dict,
         batch_size: int = 64,
@@ -152,7 +152,7 @@ class Evaluator:
         ----------
         base_path : Path
             Path to the base directory of the model
-        name : str
+        run_name : str
             Name of the evaluation run
         data_config : dict
             Data configuration dictionary
@@ -182,10 +182,10 @@ class Evaluator:
             else torch.device("cpu")
         )
         if isinstance(model_config, str):
-            name = model_config.strip()
-            if name == "unet-M":
+            model_name = model_config.strip()
+            if model_name == "unet-M":
                 model = get_model_unet({"model_size": "UNet_M"})
-            if name == "fno-M":
+            if model_name == "fno-M":
                 model = get_model_fno({"model_size": "FNO_M"})
         else:
             model = get_model_gphyt(model_config)
@@ -201,7 +201,7 @@ class Evaluator:
         model.eval()
         datasets = get_dt_datasets(data_config, split="test")
 
-        eval_dir = base_path / name
+        eval_dir = base_path / run_name
         eval_dir.mkdir(parents=True, exist_ok=True)
 
         # save the checkpoint info
@@ -915,7 +915,7 @@ def main(
     data_config["datasets"] = data_config["datasets"]  # + eval_ds
     evaluator = Evaluator.from_checkpoint(
         base_path=log_dir / sim_name,
-        name=subdir_name,
+        run_name=subdir_name,
         data_config=data_config,
         model_config=model_config,
         batch_size=training_config["batch_size"],
