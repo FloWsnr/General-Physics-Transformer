@@ -222,7 +222,7 @@ class PhysicsDataset(WellDataset):
         if self.use_instance_norm:
             x, y = self.normalize_data(x, y)
 
-        return x, y
+        return x.float(), y.float()
 
 
 class SuperDataset:
