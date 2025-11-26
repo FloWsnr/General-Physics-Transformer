@@ -48,6 +48,7 @@ class LossVsTimePlotter(BasePlotter):
             x_label="Time steps",
             y_label="NMSE",
             y_log=y_log,
+            minor_ticks=(False, True),
         )
 
     def plot(
