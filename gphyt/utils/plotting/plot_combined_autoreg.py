@@ -1,0 +1,226 @@
+from typing import Literal
+from pathlib import Path
+import pandas as pd
+import torch
+import numpy as np
+
+
+from gphyt.utils.plotting.base_plotter import BasePlotter, calculate_combined_stats
+
+# Datasets for known physics
+DATASETS_KNOWN = [
+    [
+        "cylinder_sym_flow_water",
+        "cylinder_pipe_flow_water",
+        "object_periodic_flow_water",
+        "object_sym_flow_water",
+        "object_sym_flow_air",
+    ],
+    ["rayleigh_benard", "rayleigh_benard_obstacle"],
+    "twophase_flow",
+    "shear_flow",
+    "euler_multi_quadrants_periodicBC",
+    ["heated_object_pipe_flow_air", "cooled_object_pipe_flow_air"],
+]
+
+# Datasets for novel physics
+DATASETS_NOVEL = [
+    "euler_multi_quadrants_openBC",
+    "open_obj_water",
+    "supersonic_flow",
+    "turbulent_radiative_layer_2D",
+]
+
+
+class LossVsTimePlotter(BasePlotter):
+    def __init__(
+        self,
+        x_ticks: list[int],
+        y_ticks: list[float],
+        color: Literal["white", "black"] = "white",
+        y_log: bool = False,
+    ):
+        super().__init__(color)
+
+        self.setup_figure(
+            x_ticks=x_ticks,
+            y_ticks=y_ticks,
+            x_label="Time steps",
+            y_label="NMSE",
+            y_log=y_log,
+        )
+
+    def plot(
+        self,
+        x_data: np.ndarray,
+        mean_loss: torch.Tensor | np.ndarray,
+        label: str,
+        std_loss: torch.Tensor | np.ndarray | None = None,
+    ):
+        if isinstance(mean_loss, torch.Tensor):
+            mean_loss = mean_loss.cpu().numpy()
+        if isinstance(std_loss, torch.Tensor):
+            std_loss = std_loss.cpu().numpy()
+
+        color = next(self.color_cycler)
+        symbol = next(self.symbol_cycler)
+
+        self.plot_data(
+            x_data=x_data,
+            y_data=mean_loss,
+            color=color,
+            label=label,
+            symbolstyle=symbol,
+            markerstep=1,
+        )
+        if std_loss is not None:
+            self.plot_error_region(
+                x_data=x_data,
+                y_data=mean_loss,
+                y_err=std_loss,
+                color=color,
+            )
+
+
+# Runs for known physics
+RUNS_KNOWN = [
+    # ("fno-m", "FNO-M"),
+    # ("s-main-03", "GPₕᵧT-S"),
+    ("m-main-03", "GPₕᵧT-M"),
+    ("poseidon", "Poseidon"),
+    ("dpot", "DPOT"),
+    ("unet-m-04", "UNet-M"),
+    # ("mpp", "MPP"),
+    # ("l-main-05", "GPₕᵧT-L"),
+    # ("xl-main-03", "GPₕᵧT-XL"),
+]
+
+# Runs for novel physics
+RUNS_NOVEL = [
+    # ("fno-m", "FNO-M"),
+    # ("unet-m-04", "UNet-M"),
+    # ("s-main-03", "GPₕᵧT-S"),
+    ("m-main-03", "GPₕᵧT-M"),
+    ("poseidon", "Poseidon"),
+    ("dpot", "DPOT"),
+    # ("mpp", "MPP"),
+    # ("l-main-05", "GPₕᵧT-L"),
+    # ("xl-main-03", "GPₕᵧT-XL"),
+]
+
+if __name__ == "__main__":
+    base_dir = Path("/hpcwork/rwth1802/coding/General-Physics-Transformer/results")
+    horizons = [1, 4, 8, 12, 16, 20, 24]
+
+    # Create plotters for known physics
+    plotter_known_mean = LossVsTimePlotter(
+        x_ticks=horizons,
+        y_ticks=[1e-1, 1e0, 1e2, 1e4],
+        y_log=True,
+    )
+    plotter_known_median = LossVsTimePlotter(
+        x_ticks=horizons,
+        y_ticks=[1e-3, 1e-2, 1e-1, 1e0],
+        y_log=True,
+    )
+
+    # Create plotters for novel physics
+    plotter_novel_mean = LossVsTimePlotter(
+        x_ticks=horizons,
+        y_ticks=[1e-1, 1e0, 1e1],
+        y_log=True,
+    )
+    plotter_novel_median = LossVsTimePlotter(
+        x_ticks=horizons,
+        y_ticks=[1e-1, 1e0, 1e1],
+        y_log=True,
+    )
+
+    # Process known physics data
+    print("Processing known physics data...")
+    for run_name, display_name in RUNS_KNOWN:
+        print(f"  Processing {run_name}...")
+        mse_data = []
+        median_data = []
+        std_data = []
+        for time_horizon in horizons:
+            run_dir = base_dir / run_name / "eval/all_horizons"
+            # load df
+            df_nmse = pd.read_csv(run_dir / f"nmse_losses_h{time_horizon}.csv")
+            stats_nmse = calculate_combined_stats(df_nmse, DATASETS_KNOWN)
+            mse = stats_nmse.loc["OVERALL", "Combined Mean"]
+            median = stats_nmse.loc["OVERALL", "Combined Median"]
+            std = stats_nmse.loc["OVERALL", "Combined Std"]
+
+            mse_data.append(mse)
+            median_data.append(median)
+            std_data.append(std)
+
+        plotter_known_mean.plot(
+            x_data=np.array(horizons),
+            mean_loss=np.array(mse_data),
+            # std_loss=np.array(std_data),
+            label=display_name,
+        )
+        plotter_known_median.plot(
+            x_data=np.array(horizons),
+            mean_loss=np.array(median_data),
+            # std_loss=np.array(std_data),
+            label=display_name,
+        )
+
+    # Process novel physics data
+    print("\nProcessing novel physics data...")
+    for run_name, display_name in RUNS_NOVEL:
+        print(f"  Processing {run_name}...")
+        mse_data = []
+        median_data = []
+        std_data = []
+        for time_horizon in horizons:
+            run_dir = base_dir / run_name / "eval/all_horizons_novel"
+            # load df
+            df_nmse = pd.read_csv(run_dir / f"nmse_losses_h{time_horizon}.csv")
+            stats_nmse = calculate_combined_stats(df_nmse, DATASETS_NOVEL)
+            mse = stats_nmse.loc["OVERALL", "Combined Mean"]
+            median = stats_nmse.loc["OVERALL", "Combined Median"]
+            std = stats_nmse.loc["OVERALL", "Combined Std"]
+
+            mse_data.append(mse)
+            median_data.append(median)
+            std_data.append(std)
+
+        plotter_novel_mean.plot(
+            x_data=np.array(horizons),
+            mean_loss=np.array(mse_data),
+            # std_loss=np.array(std_data),
+            label=display_name,
+        )
+        plotter_novel_median.plot(
+            x_data=np.array(horizons),
+            mean_loss=np.array(median_data),
+            # std_loss=np.array(std_data),
+            label=display_name,
+        )
+
+    # Add legends
+    plotter_known_mean.legend(loc="upper left")
+    plotter_known_median.legend(loc="upper left")
+    plotter_novel_mean.legend(loc="upper left")
+    plotter_novel_median.legend(loc="upper left")
+
+    # Save all figures
+    print("\nSaving figures...")
+    plotter_known_mean.save_figure(
+        base_dir / "01_new_plots/model_comp_rollout_mean.png"
+    )
+    plotter_known_median.save_figure(
+        base_dir / "01_new_plots/model_comp_rollout_median.png"
+    )
+    plotter_novel_mean.save_figure(
+        base_dir / "01_new_plots/model_comp_novel_rollout_mean.png"
+    )
+    plotter_novel_median.save_figure(
+        base_dir / "01_new_plots/model_comp_novel_rollout_median.png"
+    )
+
+    print("Done! All four plots have been generated.")
