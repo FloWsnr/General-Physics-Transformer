@@ -279,7 +279,7 @@ class BasePlotter:
         y_label: str = "y",
         x_log=False,
         y_log=False,
-        padding_factor: float = 0.1,
+        padding_factor: float | tuple[float, float] = 0.1,
         minor_ticks: bool | tuple[bool, bool] = True,
     ) -> None:
         """
