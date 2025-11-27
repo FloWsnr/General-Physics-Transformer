@@ -9,11 +9,11 @@ from gphyt.utils.plotting.base_plotter import BasePlotter, calculate_combined_st
 RUNS = [
     # ("fno-m", "FNO-M"),
     # ("s-main-03", "GPₕᵧT-S"),
-    ("m-main-03", "GPₕᵧT-M"),
+    ("m-main-03", "GPₕᵧT"),
     ("poseidon", "Poseidon"),
     ("dpot", "DPOT"),
-    ("unet-m-04", "UNet-M"),
-    # ("mpp", "MPP"),
+    ("mpp", "MPP"),
+    ("unet-m-04", "UNet"),
     # ("l-main-05", "GPₕᵧT-L"),
     # ("xl-main-03", "GPₕᵧT-XL"),
 ]
@@ -36,13 +36,20 @@ DATASET_GROUPS = {
 # For compatibility with calculate_combined_stats
 DATASETS = list(DATASET_GROUPS.values())
 
+# Y-axis ticks for each horizon
+Y_TICKS_BY_HORIZON = {
+    1: [1e-4, 1e-3, 1e-2],
+    4: [1e-3, 1e-2, 1e-1],
+    8: [1e-2, 1e-1, 1e0],
+}
+
 
 class LossPlotter(BasePlotter):
-    def __init__(self):
+    def __init__(self, y_ticks):
         super().__init__(figsize=(12, 4.3))
         self.setup_figure(
-            x_ticks=[],  # Will be set dynamically
-            y_ticks=[1e-4, 1e-3, 1e-2],
+            x_ticks=[],
+            y_ticks=y_ticks,
             x_label="",
             y_label="NMSE",
             y_log=True,
@@ -50,66 +57,216 @@ class LossPlotter(BasePlotter):
             minor_ticks=(False, True),
         )
 
-    def plot_grouped_bars(self, data_by_model):
-        """Plot dataset groups as bars grouped by model.
+    def plot_grouped_bars(
+        self,
+        data_by_model,
+        overall_by_model,
+        errors_by_model,
+        overall_errors_by_model,
+        group_by="model",
+    ):
+        """Plot bars grouped by model or dataset.
 
         Args:
             data_by_model: Dict mapping model names to list of losses per dataset group
+            overall_by_model: Dict mapping model names to overall loss
+            errors_by_model: Dict mapping model names to list of (lower_err, upper_err) tuples
+            overall_errors_by_model: Dict mapping model names to (lower_err, upper_err) tuple
+            group_by: "model" to group by model (datasets as colors), "dataset" to group by dataset (models as colors)
         """
-        n_models = len(RUNS)
-        n_groups = len(DATASET_GROUPS)
+        if group_by == "model":
+            self._plot_grouped_by_model(
+                data_by_model,
+                overall_by_model,
+                errors_by_model,
+                overall_errors_by_model,
+            )
+        elif group_by == "dataset":
+            self._plot_grouped_by_dataset(
+                data_by_model,
+                overall_by_model,
+                errors_by_model,
+                overall_errors_by_model,
+            )
+        else:
+            raise ValueError(f"Invalid group_by: {group_by}")
 
-        # Calculate positions
-        bar_width = 0.8 / n_groups  # Total group width is 0.8
+    def _plot_grouped_by_model(
+        self, data_by_model, overall_by_model, errors_by_model, overall_errors_by_model
+    ):
+        """Plot dataset groups as bars grouped by model."""
+        n_models = len(RUNS)
+        n_groups = len(DATASET_GROUPS) + 1  # +1 for OVERALL
+
+        bar_width = 0.8 / n_groups
         group_positions = np.arange(n_models)
 
         # Plot bars for each dataset group
         for i, group_name in enumerate(DATASET_GROUPS.keys()):
             group_losses = []
+            group_errors = []
             for run_name, _ in RUNS:
                 group_losses.append(data_by_model[run_name][i])
+                group_errors.append(errors_by_model[run_name][i])
 
-            # Get color from the base plotter's color cycler
+            yerr = np.array(
+                [[err[0] for err in group_errors], [err[1] for err in group_errors]]
+            )
             color = next(self.color_cycler)
-
             positions = group_positions + (i - n_groups / 2) * bar_width + bar_width / 2
+
             self.ax.bar(
-                positions, group_losses, bar_width, label=group_name, color=color
+                positions,
+                group_losses,
+                bar_width,
+                label=group_name,
+                color=color,
+                yerr=yerr,
+                capsize=2,
+                error_kw={"linewidth": 1},
             )
 
-        # Set x-ticks with model names
+        # Plot OVERALL bar
+        overall_losses = [overall_by_model[run_name] for run_name, _ in RUNS]
+        overall_errors = [overall_errors_by_model[run_name] for run_name, _ in RUNS]
+        yerr = np.array(
+            [[err[0] for err in overall_errors], [err[1] for err in overall_errors]]
+        )
+        color = next(self.color_cycler)
+        i = len(DATASET_GROUPS)
+        positions = group_positions + (i - n_groups / 2) * bar_width + bar_width / 2
+
+        self.ax.bar(
+            positions,
+            overall_losses,
+            bar_width,
+            label="Overall",
+            color=color,
+            yerr=yerr,
+            capsize=2,
+            error_kw={"linewidth": 1},
+        )
+
+        # Set x-ticks with model names (no tick marks)
         model_names = [display_name for _, display_name in RUNS]
         self.ax.set_xticks(group_positions, model_names)
         self.ax.tick_params(axis="x", rotation=30, length=0)
 
         # Add legend
-        self.ax.legend(loc="upper left", fontsize=9, ncol=2, framealpha=0.9)
+        self.ax.legend(loc="upper left", fontsize=9, ncol=3, framealpha=0.8)
+
+    def _plot_grouped_by_dataset(
+        self, data_by_model, overall_by_model, errors_by_model, overall_errors_by_model
+    ):
+        """Plot models as bars grouped by dataset."""
+        n_models = len(RUNS)
+        n_groups = len(DATASET_GROUPS) + 1  # +1 for OVERALL
+
+        bar_width = 0.8 / n_models
+        group_positions = np.arange(n_groups)
+
+        # Plot bars for each model
+        for i, (run_name, display_name) in enumerate(RUNS):
+            model_losses = data_by_model[run_name] + [overall_by_model[run_name]]
+            model_errors = errors_by_model[run_name] + [
+                overall_errors_by_model[run_name]
+            ]
+
+            yerr = np.array(
+                [[err[0] for err in model_errors], [err[1] for err in model_errors]]
+            )
+            color = next(self.color_cycler)
+            positions = group_positions + (i - n_models / 2) * bar_width + bar_width / 2
+
+            self.ax.bar(
+                positions,
+                model_losses,
+                bar_width,
+                label=display_name,
+                color=color,
+                yerr=yerr,
+                capsize=2,
+                error_kw={"linewidth": 1},
+            )
+
+        # Set x-ticks with dataset group names + Overall (no tick marks)
+        dataset_names = list(DATASET_GROUPS.keys()) + ["Overall"]
+        self.ax.set_xticks(group_positions, dataset_names)
+        self.ax.tick_params(axis="x", rotation=30, length=0)
+
+        # Add legend
+        self.ax.legend(loc="upper left", fontsize=9, ncol=2, framealpha=0.8)
 
 
-if __name__ == "__main__":
-    base_dir = Path("/hpcwork/rwth1802/coding/General-Physics-Transformer/results")
-    plotter = LossPlotter()
-
-    # Dictionary to store losses for each model and dataset group
+def load_data_for_horizon(base_dir, horizon):
+    """Load and process data for a given horizon."""
     data_by_model = {}
+    overall_by_model = {}
+    errors_by_model = {}
+    overall_errors_by_model = {}
 
     for run_name, display_name in RUNS:
         run_dir = base_dir / run_name / "eval/all_horizons"
-        # Load dataframe
-        df_nmse = pd.read_csv(run_dir / "nmse_losses_h1.csv")
+        df_nmse = pd.read_csv(run_dir / f"nmse_losses_h{horizon}.csv")
 
-        # Use the existing calculate_combined_stats function
         stats_nmse = calculate_combined_stats(df_nmse, DATASETS)
 
-        # Extract mean for each dataset group (excluding the OVERALL row)
+        # Extract median and percentiles for each dataset group
         group_losses = []
+        group_errors = []
         for i in range(len(DATASET_GROUPS)):
-            group_mean = stats_nmse.iloc[i]["Combined Median"]
-            group_losses.append(group_mean)
+            median = stats_nmse.iloc[i]["Combined Median"]
+            q25 = stats_nmse.iloc[i]["Combined 25th"]
+            q75 = stats_nmse.iloc[i]["Combined 75th"]
+            group_losses.append(median)
+            group_errors.append((median - q25, q75 - median))
 
         data_by_model[run_name] = group_losses
+        errors_by_model[run_name] = group_errors
 
-    # Plot the grouped bars
-    plotter.plot_grouped_bars(data_by_model)
+        # Extract OVERALL loss and percentiles
+        overall_median = stats_nmse.loc["OVERALL", "Combined Median"]
+        overall_q25 = stats_nmse.loc["OVERALL", "Combined 25th"]
+        overall_q75 = stats_nmse.loc["OVERALL", "Combined 75th"]
+        overall_by_model[run_name] = overall_median
+        overall_errors_by_model[run_name] = (
+            overall_median - overall_q25,
+            overall_q75 - overall_median,
+        )
 
-    plotter.save_figure(base_dir / "01_new_plots/model_comp.png")
+    return data_by_model, overall_by_model, errors_by_model, overall_errors_by_model
+
+
+if __name__ == "__main__":
+    base_dir = Path("/home/flwi01/coding/General-Physics-Transformer/results")
+    output_dir = base_dir / "01_new_plots/histograms"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    horizons = [1, 4, 8]
+
+    for horizon in horizons:
+        print(f"Processing horizon {horizon}...")
+
+        # Load data once for this horizon
+        data = load_data_for_horizon(base_dir, horizon)
+
+        # Get y-axis ticks for this horizon
+        y_ticks = Y_TICKS_BY_HORIZON[horizon]
+
+        # Create plot grouped by model
+        plotter_model = LossPlotter(y_ticks)
+        plotter_model.plot_grouped_bars(*data, group_by="model")
+        plotter_model.save_figure(output_dir / f"model_comp_by_model_h{horizon}.png")
+        plotter_model.save_figure(output_dir / f"model_comp_by_model_h{horizon}.svg")
+
+        # Create plot grouped by dataset
+        plotter_dataset = LossPlotter(y_ticks)
+        plotter_dataset.plot_grouped_bars(*data, group_by="dataset")
+        plotter_dataset.save_figure(
+            output_dir / f"model_comp_by_dataset_h{horizon}.png"
+        )
+        plotter_dataset.save_figure(
+            output_dir / f"model_comp_by_dataset_h{horizon}.svg"
+        )
+
+    print("Done! All plots have been generated.")

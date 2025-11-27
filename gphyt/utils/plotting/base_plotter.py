@@ -231,7 +231,14 @@ class BasePlotter:
         )
 
     def plot_error_region(
-        self, x_data, y_data, y_err, color, alpha=0.2, edgecolor=None, layer: int = 1
+        self,
+        x_data,
+        y_data,
+        y_err: np.ndarray,
+        color,
+        alpha=0.2,
+        edgecolor=None,
+        layer: int = 1,
     ):
         """
         Function to plot error regions
@@ -261,10 +268,17 @@ class BasePlotter:
             Layer of the plot, by default 3 (behind of the data points and error bars)
         """
 
+        if y_err.ndim == 2:
+            lower_err = y_err[0]
+            upper_err = y_err[1]
+        else:
+            lower_err = y_err
+            upper_err = y_err
+
         self.ax.fill_between(
             x_data,
-            y1=y_data - y_err,
-            y2=y_data + y_err,
+            y1=y_data - lower_err,
+            y2=y_data + upper_err,
             color=color,
             alpha=alpha,
             zorder=layer,
@@ -503,12 +517,16 @@ def calculate_combined_stats(
             combined_mean = np.nanmean(matched_df.values)
             combined_median = np.nanmedian(matched_df.values)
             combined_std = np.nanstd(matched_df.values)
+            combined_q25 = np.nanpercentile(matched_df.values, 25)
+            combined_q75 = np.nanpercentile(matched_df.values, 75)
             results.append(
                 {
                     "Dataset": dataset_name,
                     "Combined Mean": combined_mean,
                     "Combined Median": combined_median,
                     "Combined Std": combined_std,
+                    "Combined 25th": combined_q25,
+                    "Combined 75th": combined_q75,
                 }
             )
 
@@ -521,6 +539,8 @@ def calculate_combined_stats(
                 "Combined Mean": np.nanmean(results["Combined Mean"].values),
                 "Combined Median": np.nanmedian(results["Combined Median"].values),
                 "Combined Std": np.nanstd(results["Combined Std"].values),
+                "Combined 25th": np.nanpercentile(results["Combined 25th"].values, 25),
+                "Combined 75th": np.nanpercentile(results["Combined 75th"].values, 75),
             }
         ]
     )

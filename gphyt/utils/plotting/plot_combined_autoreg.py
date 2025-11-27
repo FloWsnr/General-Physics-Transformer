@@ -56,12 +56,12 @@ class LossVsTimePlotter(BasePlotter):
         x_data: np.ndarray,
         mean_loss: torch.Tensor | np.ndarray,
         label: str,
-        std_loss: torch.Tensor | np.ndarray | None = None,
+        y_err: torch.Tensor | np.ndarray | None = None,
     ):
         if isinstance(mean_loss, torch.Tensor):
             mean_loss = mean_loss.cpu().numpy()
-        if isinstance(std_loss, torch.Tensor):
-            std_loss = std_loss.cpu().numpy()
+        if isinstance(y_err, torch.Tensor):
+            y_err = y_err.cpu().numpy()
 
         color = next(self.color_cycler)
         symbol = next(self.symbol_cycler)
@@ -74,12 +74,13 @@ class LossVsTimePlotter(BasePlotter):
             symbolstyle=symbol,
             markerstep=1,
         )
-        if std_loss is not None:
+        if y_err is not None:
             self.plot_error_region(
                 x_data=x_data,
                 y_data=mean_loss,
-                y_err=std_loss,
+                y_err=y_err,
                 color=color,
+                edgecolor=color,
             )
 
 
@@ -87,11 +88,11 @@ class LossVsTimePlotter(BasePlotter):
 RUNS_KNOWN = [
     # ("fno-m", "FNO-M"),
     # ("s-main-03", "GPₕᵧT-S"),
-    ("m-main-03", "GPₕᵧT-M"),
+    ("m-main-03", "GPₕᵧT"),
     ("poseidon", "Poseidon"),
     ("dpot", "DPOT"),
-    ("unet-m-04", "UNet-M"),
-    # ("mpp", "MPP"),
+    ("mpp", "MPP"),
+    ("unet-m-04", "UNet"),
     # ("l-main-05", "GPₕᵧT-L"),
     # ("xl-main-03", "GPₕᵧT-XL"),
 ]
@@ -99,18 +100,18 @@ RUNS_KNOWN = [
 # Runs for novel physics
 RUNS_NOVEL = [
     # ("fno-m", "FNO-M"),
-    # ("unet-m-04", "UNet-M"),
+    # ("unet-m-04", "UNet"),
     # ("s-main-03", "GPₕᵧT-S"),
-    ("m-main-03", "GPₕᵧT-M"),
+    ("m-main-03", "GPₕᵧT"),
     ("poseidon", "Poseidon"),
     ("dpot", "DPOT"),
-    # ("mpp", "MPP"),
+    ("mpp", "MPP"),
     # ("l-main-05", "GPₕᵧT-L"),
     # ("xl-main-03", "GPₕᵧT-XL"),
 ]
 
 if __name__ == "__main__":
-    base_dir = Path("/hpcwork/rwth1802/coding/General-Physics-Transformer/results")
+    base_dir = Path("/home/flwi01/coding/General-Physics-Transformer/results")
     horizons = [1, 4, 8, 12, 16, 20, 24]
 
     # Create plotters for known physics
@@ -144,30 +145,41 @@ if __name__ == "__main__":
         mse_data = []
         median_data = []
         std_data = []
+        time_steps = []
+        percentiles = []
+
         for time_horizon in horizons:
             run_dir = base_dir / run_name / "eval/all_horizons"
+            file_name = run_dir / f"nmse_losses_h{time_horizon}.csv"
+            if not file_name.exists():
+                print(f"    Warning: File {file_name} does not exist. Skipping.")
+                continue
             # load df
-            df_nmse = pd.read_csv(run_dir / f"nmse_losses_h{time_horizon}.csv")
+            df_nmse = pd.read_csv(file_name)
             stats_nmse = calculate_combined_stats(df_nmse, DATASETS_KNOWN)
             mse = stats_nmse.loc["OVERALL", "Combined Mean"]
             median = stats_nmse.loc["OVERALL", "Combined Median"]
             std = stats_nmse.loc["OVERALL", "Combined Std"]
+            q25 = stats_nmse.loc["OVERALL", "Combined 25th"]
+            q75 = stats_nmse.loc["OVERALL", "Combined 75th"]
 
             mse_data.append(mse)
             median_data.append(median)
             std_data.append(std)
+            time_steps.append(time_horizon)
+            percentiles.append((q25, q75))
 
         plotter_known_mean.plot(
-            x_data=np.array(horizons),
+            x_data=np.array(time_steps),
             mean_loss=np.array(mse_data),
-            # std_loss=np.array(std_data),
             label=display_name,
+            # y_err=np.array(std_data),
         )
         plotter_known_median.plot(
-            x_data=np.array(horizons),
+            x_data=np.array(time_steps),
             mean_loss=np.array(median_data),
-            # std_loss=np.array(std_data),
             label=display_name,
+            # y_err=np.array(percentiles).T,
         )
 
     # Process novel physics data
@@ -177,10 +189,15 @@ if __name__ == "__main__":
         mse_data = []
         median_data = []
         std_data = []
+        time_steps = []
         for time_horizon in horizons:
             run_dir = base_dir / run_name / "eval/all_horizons_novel"
+            file_name = run_dir / f"nmse_losses_h{time_horizon}.csv"
+            if not file_name.exists():
+                print(f"    Warning: File {file_name} does not exist. Skipping.")
+                continue
             # load df
-            df_nmse = pd.read_csv(run_dir / f"nmse_losses_h{time_horizon}.csv")
+            df_nmse = pd.read_csv(file_name)
             stats_nmse = calculate_combined_stats(df_nmse, DATASETS_NOVEL)
             mse = stats_nmse.loc["OVERALL", "Combined Mean"]
             median = stats_nmse.loc["OVERALL", "Combined Median"]
@@ -189,15 +206,16 @@ if __name__ == "__main__":
             mse_data.append(mse)
             median_data.append(median)
             std_data.append(std)
+            time_steps.append(time_horizon)
 
         plotter_novel_mean.plot(
-            x_data=np.array(horizons),
+            x_data=np.array(time_steps),
             mean_loss=np.array(mse_data),
             # std_loss=np.array(std_data),
             label=display_name,
         )
         plotter_novel_median.plot(
-            x_data=np.array(horizons),
+            x_data=np.array(time_steps),
             mean_loss=np.array(median_data),
             # std_loss=np.array(std_data),
             label=display_name,
