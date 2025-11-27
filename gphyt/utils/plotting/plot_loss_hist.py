@@ -11,9 +11,9 @@ RUNS = [
     # ("s-main-03", "GPₕᵧT-S"),
     ("m-main-03", "GPₕᵧT"),
     ("poseidon", "Poseidon"),
-    ("dpot", "DPOT"),
-    ("mpp", "MPP"),
-    ("unet-m-04", "UNet"),
+    # ("dpot", "DPOT"),
+    # ("mpp", "MPP"),
+    # ("unet-m-04", "UNet"),
     # ("l-main-05", "GPₕᵧT-L"),
     # ("xl-main-03", "GPₕᵧT-XL"),
 ]
@@ -41,12 +41,17 @@ Y_TICKS_BY_HORIZON = {
     1: [1e-4, 1e-3, 1e-2],
     4: [1e-3, 1e-2, 1e-1],
     8: [1e-2, 1e-1, 1e0],
+    16: [1e-1, 1e0, 1e1],
+    20: [1e-1, 1e0, 1e1],
+    24: [1e-1, 1e0, 1e1],
 }
+
+BLACK_COLOR = "#292929"
 
 
 class LossPlotter(BasePlotter):
     def __init__(self, y_ticks):
-        super().__init__(figsize=(12, 4.3))
+        super().__init__(figsize=(10, 4.3))
         self.setup_figure(
             x_ticks=[],
             y_ticks=y_ticks,
@@ -101,13 +106,39 @@ class LossPlotter(BasePlotter):
         bar_width = 0.8 / n_groups
         group_positions = np.arange(n_models)
 
+        # Plot OVERALL bar first
+        overall_losses = [overall_by_model[run_name] for run_name, _ in RUNS]
+        overall_errors = [overall_errors_by_model[run_name] for run_name, _ in RUNS]
+        yerr = np.array(
+            [[err[0] for err in overall_errors], [err[1] for err in overall_errors]]
+        )
+        color = next(self.color_cycler)
+        i = 0
+        positions = group_positions + (i - n_groups / 2) * bar_width + bar_width / 2
+
+        # Use lighter facecolor for black bars to make error bars visible
+        facecolor = BLACK_COLOR if color == "black" or color == "#000000" else color
+        edgecolor = color if color == "black" or color == "#000000" else None
+
+        self.ax.bar(
+            positions,
+            overall_losses,
+            bar_width,
+            label="Overall",
+            facecolor=facecolor,
+            edgecolor=edgecolor,
+            yerr=yerr,
+            capsize=2,
+            error_kw={"linewidth": 1},
+        )
+
         # Plot bars for each dataset group
-        for i, group_name in enumerate(DATASET_GROUPS.keys()):
+        for i, group_name in enumerate(DATASET_GROUPS.keys(), start=1):
             group_losses = []
             group_errors = []
             for run_name, _ in RUNS:
-                group_losses.append(data_by_model[run_name][i])
-                group_errors.append(errors_by_model[run_name][i])
+                group_losses.append(data_by_model[run_name][i - 1])
+                group_errors.append(errors_by_model[run_name][i - 1])
 
             yerr = np.array(
                 [[err[0] for err in group_errors], [err[1] for err in group_errors]]
@@ -115,42 +146,28 @@ class LossPlotter(BasePlotter):
             color = next(self.color_cycler)
             positions = group_positions + (i - n_groups / 2) * bar_width + bar_width / 2
 
+            # Use lighter facecolor for black bars to make error bars visible
+            facecolor = BLACK_COLOR if color == "black" or color == "#000000" else color
+            edgecolor = color if color == "black" or color == "#000000" else None
+
             self.ax.bar(
                 positions,
                 group_losses,
                 bar_width,
                 label=group_name,
-                color=color,
+                facecolor=facecolor,
+                edgecolor=edgecolor,
                 yerr=yerr,
                 capsize=2,
                 error_kw={"linewidth": 1},
             )
 
-        # Plot OVERALL bar
-        overall_losses = [overall_by_model[run_name] for run_name, _ in RUNS]
-        overall_errors = [overall_errors_by_model[run_name] for run_name, _ in RUNS]
-        yerr = np.array(
-            [[err[0] for err in overall_errors], [err[1] for err in overall_errors]]
-        )
-        color = next(self.color_cycler)
-        i = len(DATASET_GROUPS)
-        positions = group_positions + (i - n_groups / 2) * bar_width + bar_width / 2
-
-        self.ax.bar(
-            positions,
-            overall_losses,
-            bar_width,
-            label="Overall",
-            color=color,
-            yerr=yerr,
-            capsize=2,
-            error_kw={"linewidth": 1},
-        )
-
         # Set x-ticks with model names (no tick marks)
         model_names = [display_name for _, display_name in RUNS]
         self.ax.set_xticks(group_positions, model_names)
-        self.ax.tick_params(axis="x", rotation=30, length=0)
+        self.ax.tick_params(
+            axis="x", which="both", rotation=30, bottom=False, top=False
+        )
 
         # Add legend
         self.ax.legend(loc="upper left", fontsize=9, ncol=3, framealpha=0.8)
@@ -167,9 +184,9 @@ class LossPlotter(BasePlotter):
 
         # Plot bars for each model
         for i, (run_name, display_name) in enumerate(RUNS):
-            model_losses = data_by_model[run_name] + [overall_by_model[run_name]]
-            model_errors = errors_by_model[run_name] + [
-                overall_errors_by_model[run_name]
+            model_losses = [overall_by_model[run_name]] + data_by_model[run_name]
+            model_errors = [overall_errors_by_model[run_name]] + errors_by_model[
+                run_name
             ]
 
             yerr = np.array(
@@ -178,24 +195,31 @@ class LossPlotter(BasePlotter):
             color = next(self.color_cycler)
             positions = group_positions + (i - n_models / 2) * bar_width + bar_width / 2
 
+            # Use lighter facecolor for black bars to make error bars visible
+            facecolor = BLACK_COLOR if color == "black" or color == "#000000" else color
+            edgecolor = color if color == "black" or color == "#000000" else None
+
             self.ax.bar(
                 positions,
                 model_losses,
                 bar_width,
                 label=display_name,
-                color=color,
+                facecolor=facecolor,
+                edgecolor=edgecolor,
                 yerr=yerr,
                 capsize=2,
                 error_kw={"linewidth": 1},
             )
 
-        # Set x-ticks with dataset group names + Overall (no tick marks)
-        dataset_names = list(DATASET_GROUPS.keys()) + ["Overall"]
+        # Set x-ticks with Overall first, then dataset group names (no tick marks)
+        dataset_names = ["Overall"] + list(DATASET_GROUPS.keys())
         self.ax.set_xticks(group_positions, dataset_names)
-        self.ax.tick_params(axis="x", rotation=30, length=0)
+        self.ax.tick_params(
+            axis="x", which="both", rotation=30, bottom=False, top=False
+        )
 
         # Add legend
-        self.ax.legend(loc="upper left", fontsize=9, ncol=2, framealpha=0.8)
+        self.ax.legend(loc="upper left", fontsize=9, ncol=5, framealpha=0.8)
 
 
 def load_data_for_horizon(base_dir, horizon):
@@ -239,10 +263,10 @@ def load_data_for_horizon(base_dir, horizon):
 
 if __name__ == "__main__":
     base_dir = Path("/home/flwi01/coding/General-Physics-Transformer/results")
-    output_dir = base_dir / "01_new_plots/histograms"
+    output_dir = base_dir / "01_new_plots/histograms_02"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    horizons = [1, 4, 8]
+    horizons = [1, 4, 8, 16, 20, 24]
 
     for horizon in horizons:
         print(f"Processing horizon {horizon}...")

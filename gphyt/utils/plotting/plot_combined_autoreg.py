@@ -229,17 +229,23 @@ if __name__ == "__main__":
 
     # Save all figures
     print("\nSaving figures...")
-    plotter_known_mean.save_figure(
-        base_dir / "01_new_plots/model_comp_rollout_mean.png"
-    )
-    plotter_known_median.save_figure(
-        base_dir / "01_new_plots/model_comp_rollout_median.png"
-    )
-    plotter_novel_mean.save_figure(
-        base_dir / "01_new_plots/model_comp_novel_rollout_mean.png"
-    )
-    plotter_novel_median.save_figure(
-        base_dir / "01_new_plots/model_comp_novel_rollout_median.png"
-    )
+    output_dir = base_dir / "01_new_plots/rollout"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Done! All four plots have been generated.")
+    # Save known physics mean plot
+    plotter_known_mean.save_figure(output_dir / "model_comp_rollout_mean.png")
+    plotter_known_mean.save_figure(output_dir / "model_comp_rollout_mean.svg")
+
+    # Save known physics median plot
+    plotter_known_median.save_figure(output_dir / "model_comp_rollout_median.png")
+    plotter_known_median.save_figure(output_dir / "model_comp_rollout_median.svg")
+
+    # Save novel physics mean plot
+    plotter_novel_mean.save_figure(output_dir / "model_comp_novel_rollout_mean.png")
+    plotter_novel_mean.save_figure(output_dir / "model_comp_novel_rollout_mean.svg")
+
+    # Save novel physics median plot
+    plotter_novel_median.save_figure(output_dir / "model_comp_novel_rollout_median.png")
+    plotter_novel_median.save_figure(output_dir / "model_comp_novel_rollout_median.svg")
+
+    print("Done! All plots have been generated in both PNG and SVG formats.")
