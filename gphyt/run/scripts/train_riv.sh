@@ -61,7 +61,7 @@ conda activate gphyt
 base_dir="/scratch/zsa8rk/General-Physics-Transformer"
 python_exec="${base_dir}/gphyt/run/train.py"
 log_dir="${base_dir}/results"
-data_dir="$/scratch/zsa8rk/datasets"
+data_dir="/scratch/zsa8rk/datasets"
 base_config_file="${base_dir}/gphyt/run/scripts/config.yaml"
 # sim_name (same as wandb id)
 sim_name="m-main-ar8-01"
