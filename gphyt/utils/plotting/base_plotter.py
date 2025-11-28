@@ -438,7 +438,7 @@ class BasePlotter:
     def show_figure(self):
         plt.show()
 
-    def legend(self, title=None, loc="upper left", frameon=True):
+    def legend(self, title=None, loc="upper left", frameon=True, columns=1):
         num_points = 1  # number of marker points in the legend
         handlelength = 1  # length of the handle (line and marker) in the legend
 
@@ -452,6 +452,7 @@ class BasePlotter:
                 alignment="left",
                 numpoints=num_points,
                 handlelength=handlelength,
+                ncol=columns,
             )
 
     def close(self):
