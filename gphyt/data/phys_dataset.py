@@ -242,7 +242,7 @@ class PhysicsDataset(WellDataset):
         if self.return_meta:
             return x.float(), y.float(), metadata
         else:
-            return x.float(), y.float(), None
+            return x.float(), y.float()
 
 
 class SuperDataset:
