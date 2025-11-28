@@ -9,7 +9,12 @@ from pathlib import Path
 
 import torch
 
-from gphyt.data.well_dataset import WellDataset, ZScoreNormalization, StrideError
+from gphyt.data.well_dataset import (
+    TrajectoryMetadata,
+    WellDataset,
+    ZScoreNormalization,
+    StrideError,
+)
 
 
 def zero_field_to_value(x: torch.Tensor, value: float) -> torch.Tensor:
@@ -38,6 +43,7 @@ def get_phys_dataset(
     nan_to_zero: bool = True,
     flip_x: float = 0.0,
     flip_y: float = 0.0,
+    return_meta: bool = False,
 ) -> Optional["PhysicsDataset"]:
     """Helper function to create a PhysicsDataset."""
     try:
@@ -52,6 +58,7 @@ def get_phys_dataset(
             nan_to_zero=nan_to_zero,
             flip_x=flip_x,
             flip_y=flip_y,
+            return_meta=return_meta,
         )
     except StrideError as e:
         print(f"Error creating PhysicsDataset for {data_dir}: {e}")
@@ -92,6 +99,9 @@ class PhysicsDataset(WellDataset):
     flip_y: float
         Probability to flip the y-axis of the data
         By default 0.0 (no flipping). If set to 1.0, all data is flipped.
+    return_meta: bool
+        Whether to return metadata along with the data
+        By default False
     """
 
     def __init__(
@@ -106,6 +116,7 @@ class PhysicsDataset(WellDataset):
         nan_to_zero: bool = True,
         flip_x: float = 0.0,
         flip_y: float = 0.0,
+        return_meta: bool = False,
     ):
         self.config = {
             "data_dir": data_dir,
@@ -118,6 +129,7 @@ class PhysicsDataset(WellDataset):
             "nan_to_zero": nan_to_zero,
             "flip_x": flip_x,
             "flip_y": flip_y,
+            "return_meta": return_meta,
         }
 
         if isinstance(dt_stride, list):
@@ -156,6 +168,8 @@ class PhysicsDataset(WellDataset):
         name = data_dir.parents[1].name
         self.dataset_name = name
 
+        self.return_meta = return_meta
+
     def copy(self, overwrites: dict[str, Any] = {}) -> Optional["PhysicsDataset"]:
         """Copy the dataset with optional overwrites.
 
@@ -185,6 +199,7 @@ class PhysicsDataset(WellDataset):
             nan_to_zero=config["nan_to_zero"],
             flip_x=config["flip_x"],
             flip_y=config["flip_y"],
+            return_meta=config["return_meta"],
         )
 
     def __len__(self):
@@ -198,8 +213,10 @@ class PhysicsDataset(WellDataset):
         y = (y - mean) / std
         return x, y
 
-    def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
-        data, _ = super().__getitem__(index)  # returns (time, h, w, c)
+    def __getitem__(
+        self, index
+    ) -> tuple[torch.Tensor, torch.Tensor, Optional[TrajectoryMetadata]]:
+        data, metadata = super().__getitem__(index)  # returns (time, h, w, c)
         x = data["input_fields"]
         y = data["output_fields"]
 
@@ -222,7 +239,10 @@ class PhysicsDataset(WellDataset):
         if self.use_instance_norm:
             x, y = self.normalize_data(x, y)
 
-        return x.float(), y.float()
+        if self.return_meta:
+            return x.float(), y.float(), metadata
+        else:
+            return x.float(), y.float(), None
 
 
 class SuperDataset:
