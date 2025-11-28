@@ -83,6 +83,10 @@ class Evaluator:
         Batch size for evaluation, by default 256
     num_workers : int, optional
         Number of workers for dataloader, by default 4
+    amp : bool, optional
+        Use automatic mixed precision, by default True
+    eval_fraction: float, optional
+        Fraction of the evaluation dataset to use, by default 1.0
     debug : bool, optional
         Enable debug mode, by default False
     """
@@ -96,6 +100,7 @@ class Evaluator:
         num_workers: int = 0,
         amp: bool = True,
         debug: bool = False,
+        eval_fraction: float = 1.0,
     ):
         self.device = (
             torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -120,6 +125,7 @@ class Evaluator:
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.amp = amp
+        self.eval_fraction = eval_fraction
 
         self.eval_criteria = {
             "NMSE": NMSELoss(dims=(1, 2, 3), return_scalar=False),
@@ -144,6 +150,7 @@ class Evaluator:
         amp: bool = True,
         compile: bool = True,
         checkpoint_name: str = "best_model",
+        eval_fraction: float = 1.0,
         debug: bool = False,
     ) -> "Evaluator":
         """Create an Evaluator instance from a checkpoint.
@@ -168,6 +175,8 @@ class Evaluator:
             Whether to compile the model using torch.compile, by default True
         checkpoint_name : str, optional
             Name of the checkpoint to load, by default "best_model"
+        eval_fraction: float, optional
+            Fraction of the evaluation dataset to use, by default 1.0
         debug : bool, optional
             Enable debug mode, by default False
 
@@ -215,6 +224,7 @@ class Evaluator:
             batch_size=batch_size,
             num_workers=num_workers,
             amp=amp,
+            eval_fraction=eval_fraction,
             debug=debug,
         )
 
@@ -377,6 +387,12 @@ class Evaluator:
 
             if self.debug and i == 0:
                 self.logger.debug("Only do one batch in debug mode.")
+                break
+
+            if i >= self.eval_fraction * len(loader):
+                self.logger.debug(
+                    f"Stopping evaluation early at fraction {self.eval_fraction} of dataset."
+                )
                 break
 
         # Concatenate all losses
@@ -923,6 +939,7 @@ def main(
         amp=training_config["amp"],
         compile=training_config["compile"],
         checkpoint_name=checkpoint_name,
+        eval_fraction=config.get("eval_fraction", 1.0),
         debug=debug,
     )
     evaluator.main(forecast_horizons=forecast_horizons)
