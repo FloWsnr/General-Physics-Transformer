@@ -41,6 +41,7 @@ Y_TICKS_BY_HORIZON = {
     1: [1e-4, 1e-3, 1e-2],
     4: [1e-3, 1e-2, 1e-1],
     8: [1e-2, 1e-1, 1e0],
+    12: [1e-2, 1e-1, 1e0],
     16: [1e-1, 1e0, 1e1],
     20: [1e-1, 1e0, 1e1],
     24: [1e-1, 1e0, 1e1],
@@ -266,7 +267,7 @@ if __name__ == "__main__":
     output_dir = base_dir / "01_new_plots/histograms"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    horizons = [1, 4, 8, 16, 20, 24]
+    horizons = [1, 4, 8, 12, 16, 20, 24]
 
     for horizon in horizons:
         print(f"Processing horizon {horizon}...")
