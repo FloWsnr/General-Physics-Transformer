@@ -38,7 +38,7 @@ Y_TICKS_BY_DATASET_GROUP = {
     "rayleigh_benard": [1e-4, 1e-2, 1e0],
     "twophase_flow": [1e-4, 1e-2, 1e0],
     "shear_flow": [1e-4, 1e-2, 1e0],
-    "euler_periodic": [1e-4, 1e-2, 1e0],
+    "euler_periodic": [1e-1, 1e1],
     "heated_flow": [1e-4, 1e-2, 1e0],
 }
 
@@ -51,7 +51,7 @@ class LossVsTimePlotter(BasePlotter):
         color: Literal["white", "black"] = "white",
         y_log: bool = False,
     ):
-        super().__init__(color, figsize=(4.3, 4.3 / 3))
+        super().__init__(color, figsize=(4.3, 4.3 / 2))
 
         self.setup_figure(
             x_ticks=x_ticks,
@@ -60,7 +60,7 @@ class LossVsTimePlotter(BasePlotter):
             y_label="NMSE",
             y_log=y_log,
             minor_ticks=(False, True),
-            padding_factor=(0.1, 0.3),
+            padding_factor=(0.1, 0.2),
         )
 
     def plot(

@@ -1,25 +1,14 @@
-import json
+from typing import Literal
 from pathlib import Path
-
 import pandas as pd
+import torch
+import numpy as np
+
 
 from gphyt.utils.plotting.base_plotter import BasePlotter, calculate_combined_stats
 
-
-RUNS_PROMPT = [
-    "m-main-1-1-01",
-    "m-main-2-1-01",
-    "m-main-03",
-    "m-main-8-1-01",
-]
-
-RUNS_PATCH = [
-    "m-main-03",
-    "m-main-4-2-01",
-    "m-main-4-4-01",
-]
-
-DATASETS = [
+# Datasets for known physics
+DATASETS_KNOWN = [
     [
         "cylinder_sym_flow_water",
         "cylinder_pipe_flow_water",
@@ -34,85 +23,221 @@ DATASETS = [
     ["heated_object_pipe_flow_air", "cooled_object_pipe_flow_air"],
 ]
 
+# Datasets for novel physics
+DATASETS_NOVEL = [
+    "euler_multi_quadrants_openBC",
+    "open_obj_water",
+    "supersonic_flow",
+    "turbulent_radiative_layer_2D",
+]
 
-class PromptSizePlotter(BasePlotter):
-    def __init__(self):
-        super().__init__(figsize=(4.3, 4.3 / 2))
 
-        x_ticks = [1, 2, 4, 8]
-        y_ticks = [1e-3, 1e-2, 1e-1]
+class LossVsTimePlotter(BasePlotter):
+    def __init__(
+        self,
+        x_ticks: list[int],
+        y_ticks: list[float],
+        color: Literal["white", "black"] = "white",
+        y_log: bool = False,
+    ):
+        super().__init__(color, figsize=(4.3, 4.3))
+
         self.setup_figure(
             x_ticks=x_ticks,
             y_ticks=y_ticks,
-            x_label=r"$\mathregular{N_{input}}$",
-            y_label="MSE",
-            x_log=False,
-            y_log=True,
-            padding_factor=(0.1, 0.22),
-            minor_ticks=False,
+            x_label="Time steps",
+            y_label="NMSE",
+            y_log=y_log,
+            minor_ticks=(False, True),
+            padding_factor=(0.1, 0.1),
         )
 
+    def plot(
+        self,
+        x_data: np.ndarray,
+        mean_loss: torch.Tensor | np.ndarray,
+        label: str,
+        y_err: torch.Tensor | np.ndarray | None = None,
+    ):
+        if isinstance(mean_loss, torch.Tensor):
+            mean_loss = mean_loss.cpu().numpy()
+        if isinstance(y_err, torch.Tensor):
+            y_err = y_err.cpu().numpy()
 
-class PatchSizePlotter(BasePlotter):
-    def __init__(self):
-        super().__init__(figsize=(4.3, 4.3 / 2))
+        color = next(self.color_cycler)
+        symbol = next(self.symbol_cycler)
 
-        x_ticks = [1, 2, 4]
-        y_ticks = [1e-3, 1e-2, 1e-1]
-        self.setup_figure(
-            x_ticks=x_ticks,
-            y_ticks=y_ticks,
-            x_label="Temporal patch size",
-            y_label="MSE",
-            x_log=False,
-            y_log=True,
-            padding_factor=(0.1, 0.22),
-            minor_ticks=False,
+        self.plot_data(
+            x_data=x_data,
+            y_data=mean_loss,
+            color=color,
+            label=label,
+            symbolstyle=symbol,
+            markerstep=1,
         )
+        if y_err is not None:
+            self.plot_error_region(
+                x_data=x_data,
+                y_data=mean_loss,
+                y_err=y_err,
+                color=color,
+                edgecolor=color,
+            )
 
+
+# Model sizes for comparison
+MODEL_SIZES = [
+    ("m-main-1-1-01", "1/1"),
+    ("m-main-2-1-01", "2/1"),
+    ("m-main-03", "4/1"),
+    ("m-main-8-1-01", "8/1"),
+    ("m-main-4-2-01", "4/2"),
+    ("m-main-4-4-01", "4/4"),
+]
 
 if __name__ == "__main__":
-    base_dir = Path("General-Physics-Transformer/results")
-    # RUNS = ["m-main-4-1"]
+    base_dir = Path("/home/flwi01/coding/General-Physics-Transformer/results")
+    horizons = [1, 4, 8, 12, 16, 20, 24]
 
-    plotter = PromptSizePlotter()
+    # Create plotters for known physics
+    plotter_known_mean = LossVsTimePlotter(
+        x_ticks=horizons,
+        y_ticks=[1e-3, 1e-2, 1e-1, 1e0],
+        y_log=True,
+    )
+    plotter_known_median = LossVsTimePlotter(
+        x_ticks=horizons,
+        y_ticks=[1e-3, 1e-2, 1e-1, 1e0],
+        y_log=True,
+    )
 
-    losses = []
-    steps = [1, 2, 4, 8]
-    for step, run in zip(steps, RUNS_PROMPT):
-        print(f"Processing {run}")
-        run_dir = base_dir / run / "eval" / "best_model"
+    # Create plotters for novel physics
+    plotter_novel_mean = LossVsTimePlotter(
+        x_ticks=horizons,
+        y_ticks=[1e-1, 1e0, 1e1],
+        y_log=True,
+    )
+    plotter_novel_median = LossVsTimePlotter(
+        x_ticks=horizons,
+        y_ticks=[1e-1, 1e0, 1e1],
+        y_log=True,
+    )
 
-        with open(run_dir / "checkpoint_info.json", "r") as f:
-            checkpoint_info = json.load(f)
-        # load df
-        df = pd.read_csv(run_dir / "mse_losses.csv", index_col=0)
-        stats = calculate_combined_stats(df, DATASETS)
-        loss = stats.loc["OVERALL", "Combined Mean"]
-        losses.append(loss)
+    # Process known physics data
+    print("Processing known physics data...")
+    for run_name, display_name in MODEL_SIZES:
+        print(f"  Processing {run_name}...")
+        mse_data = []
+        median_data = []
+        std_data = []
+        time_steps = []
+        percentiles = []
 
-    # plot
-    plotter.plot_data(steps, losses)
-    plotter.save_figure(base_dir / "plots/prompt_size.png")
-    plotter.save_figure(base_dir / "plots/prompt_size.svg")
+        for time_horizon in horizons:
+            run_dir = base_dir / run_name / "eval/all_horizons"
+            file_name = run_dir / f"nmse_losses_h{time_horizon}.csv"
+            if not file_name.exists():
+                print(f"    Warning: File {file_name} does not exist. Skipping.")
+                continue
+            # load df
+            df_nmse = pd.read_csv(file_name)
+            stats_nmse = calculate_combined_stats(df_nmse, DATASETS_KNOWN)
+            mse = stats_nmse.loc["OVERALL", "Combined Mean"]
+            median = stats_nmse.loc["OVERALL", "Combined Median"]
+            std = stats_nmse.loc["OVERALL", "Combined Std"]
+            q25 = stats_nmse.loc["OVERALL", "Combined 25th"]
+            q75 = stats_nmse.loc["OVERALL", "Combined 75th"]
 
-    plotter = PatchSizePlotter()
+            mse_data.append(mse)
+            median_data.append(median)
+            std_data.append(std)
+            time_steps.append(time_horizon)
+            percentiles.append((q25, q75))
 
-    losses = []
-    steps = [1, 2, 4]
-    for step, run in zip(steps, RUNS_PATCH):
-        print(f"Processing {run}")
-        run_dir = base_dir / run / "eval" / "best_model"
+        plotter_known_mean.plot(
+            x_data=np.array(time_steps),
+            mean_loss=np.array(mse_data),
+            label=display_name,
+            # y_err=np.array(std_data),
+        )
+        plotter_known_median.plot(
+            x_data=np.array(time_steps),
+            mean_loss=np.array(median_data),
+            label=display_name,
+            # y_err=np.array(percentiles).T,
+        )
 
-        with open(run_dir / "checkpoint_info.json", "r") as f:
-            checkpoint_info = json.load(f)
-        # load df
-        df = pd.read_csv(run_dir / "mse_losses.csv", index_col=0)
-        stats = calculate_combined_stats(df, DATASETS)
-        loss = stats.loc["OVERALL", "Combined Mean"]
-        losses.append(loss)
+    # Process novel physics data
+    print("\nProcessing novel physics data...")
+    for run_name, display_name in MODEL_SIZES:
+        print(f"  Processing {run_name}...")
+        mse_data = []
+        median_data = []
+        std_data = []
+        time_steps = []
+        for time_horizon in horizons:
+            run_dir = base_dir / run_name / "eval/all_horizons_novel"
+            file_name = run_dir / f"nmse_losses_h{time_horizon}.csv"
+            if not file_name.exists():
+                print(f"    Warning: File {file_name} does not exist. Skipping.")
+                continue
+            # load df
+            df_nmse = pd.read_csv(file_name)
+            stats_nmse = calculate_combined_stats(df_nmse, DATASETS_NOVEL)
+            mse = stats_nmse.loc["OVERALL", "Combined Mean"]
+            median = stats_nmse.loc["OVERALL", "Combined Median"]
+            std = stats_nmse.loc["OVERALL", "Combined Std"]
 
-    # plot
-    plotter.plot_data(steps, losses)
-    plotter.save_figure(base_dir / "plots/patch_size.png")
-    plotter.save_figure(base_dir / "plots/patch_size.svg")
+            mse_data.append(mse)
+            median_data.append(median)
+            std_data.append(std)
+            time_steps.append(time_horizon)
+
+        plotter_novel_mean.plot(
+            x_data=np.array(time_steps),
+            mean_loss=np.array(mse_data),
+            # std_loss=np.array(std_data),
+            label=display_name,
+        )
+        plotter_novel_median.plot(
+            x_data=np.array(time_steps),
+            mean_loss=np.array(median_data),
+            # std_loss=np.array(std_data),
+            label=display_name,
+        )
+
+    # Add legends
+    plotter_known_mean.legend(loc="upper left")
+    plotter_known_median.legend(loc="upper left")
+    plotter_novel_mean.legend(loc="upper left")
+    plotter_novel_median.legend(loc="upper left")
+
+    # Save all figures
+    print("\nSaving figures...")
+    output_dir = base_dir / "01_new_plots/promptsize"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save known physics mean plot
+    plotter_known_mean.save_figure(output_dir / "model_promptsize_rollout_mean.png")
+    plotter_known_mean.save_figure(output_dir / "model_promptsize_rollout_mean.svg")
+
+    # Save known physics median plot
+    plotter_known_median.save_figure(output_dir / "model_promptsize_rollout_median.png")
+    plotter_known_median.save_figure(output_dir / "model_promptsize_rollout_median.svg")
+
+    # Save novel physics mean plot
+    plotter_novel_mean.save_figure(
+        output_dir / "model_promptsize_novel_rollout_mean.png"
+    )
+    plotter_novel_mean.save_figure(
+        output_dir / "model_promptsize_novel_rollout_mean.svg"
+    )
+    # Save novel physics median plot
+    plotter_novel_median.save_figure(
+        output_dir / "model_promptsize_novel_rollout_median.png"
+    )
+    plotter_novel_median.save_figure(
+        output_dir / "model_promptsize_novel_rollout_median.svg"
+    )
+
+    print("Done! All plots have been generated in both PNG and SVG formats.")

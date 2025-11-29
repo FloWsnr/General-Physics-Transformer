@@ -27,7 +27,7 @@ Y_TICKS_BY_DATASET = {
     "euler_multi_quadrants_openBC": [1e-2, 1e0],
     "open_obj_water": [1e-2, 1e0],
     "supersonic_flow": [1e-2, 1e0],
-    "turbulent_radiative_layer_2D": [1e-1, 1e0],
+    "turbulent_radiative_layer_2D": [1e-2, 1e0],
 }
 
 
@@ -39,7 +39,7 @@ class LossVsTimePlotter(BasePlotter):
         color: Literal["white", "black"] = "white",
         y_log: bool = False,
     ):
-        super().__init__(color, figsize=(4.3, 2.15))
+        super().__init__(color, figsize=(4.3, 4.3 / 2))
 
         self.setup_figure(
             x_ticks=x_ticks,
@@ -48,6 +48,7 @@ class LossVsTimePlotter(BasePlotter):
             y_label="NMSE",
             y_log=y_log,
             minor_ticks=(False, True),
+            padding_factor=(0.1, 0.2),
         )
 
     def plot(
@@ -89,7 +90,11 @@ RUNS_NOVEL = [
 
 if __name__ == "__main__":
     base_dir = Path("/home/flwi01/coding/General-Physics-Transformer/results")
-    horizons = [1, 4, 8]  # , 12, 16, 20, 24]
+    horizons = [1, 4, 8, 12, 16, 20, 24]
+
+    # Define output directory
+    output_dir = base_dir / "01_new_plots/novel_datasets"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Create one plot for each novel dataset
     for dataset in DATASETS_NOVEL:
@@ -162,12 +167,11 @@ if __name__ == "__main__":
                 )
 
         # Add legend and save figure
-        plotter.legend(loc="upper left")
-
-        output_dir = base_dir / "01_new_plots/novel_datasets"
-        output_dir.mkdir(parents=True, exist_ok=True)
+        plotter.legend(loc="upper left", columns=2)
 
         plotter.save_figure(output_dir / f"novel_{dataset}_model_comparison.png")
+        plotter.save_figure(output_dir / f"novel_{dataset}_model_comparison.svg")
         print(f"  Saved: {output_dir / f'novel_{dataset}_model_comparison.png'}")
+        print(f"  Saved: {output_dir / f'novel_{dataset}_model_comparison.svg'}")
 
-    print("\nDone! All dataset comparison plots have been generated.")
+    print("\nDone! All individual dataset comparison plots have been generated.")

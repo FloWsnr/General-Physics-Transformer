@@ -40,7 +40,7 @@ class LossVsTimePlotter(BasePlotter):
         color: Literal["white", "black"] = "white",
         y_log: bool = False,
     ):
-        super().__init__(color)
+        super().__init__(color, figsize=(4.3, 4.3))
 
         self.setup_figure(
             x_ticks=x_ticks,
@@ -49,6 +49,7 @@ class LossVsTimePlotter(BasePlotter):
             y_label="NMSE",
             y_log=y_log,
             minor_ticks=(False, True),
+            padding_factor=(0.1, 0.1),
         )
 
     def plot(
@@ -100,12 +101,12 @@ RUNS_KNOWN = [
 # Runs for novel physics
 RUNS_NOVEL = [
     # ("fno-m", "FNO-M"),
-    # ("unet-m-04", "UNet"),
     # ("s-main-03", "GPₕᵧT-S"),
     ("m-main-03", "GPₕᵧT"),
     ("poseidon", "Poseidon"),
     ("dpot", "DPOT"),
     ("mpp", "MPP"),
+    ("unet-m-04", "UNet"),
     # ("l-main-05", "GPₕᵧT-L"),
     # ("xl-main-03", "GPₕᵧT-XL"),
 ]

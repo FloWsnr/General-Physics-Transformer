@@ -11,9 +11,9 @@ RUNS = [
     # ("s-main-03", "GPₕᵧT-S"),
     ("m-main-03", "GPₕᵧT"),
     ("poseidon", "Poseidon"),
-    # ("dpot", "DPOT"),
-    # ("mpp", "MPP"),
-    # ("unet-m-04", "UNet"),
+    ("dpot", "DPOT"),
+    ("mpp", "MPP"),
+    ("unet-m-04", "UNet"),
     # ("l-main-05", "GPₕᵧT-L"),
     # ("xl-main-03", "GPₕᵧT-XL"),
 ]
@@ -263,7 +263,7 @@ def load_data_for_horizon(base_dir, horizon):
 
 if __name__ == "__main__":
     base_dir = Path("/home/flwi01/coding/General-Physics-Transformer/results")
-    output_dir = base_dir / "01_new_plots/histograms_02"
+    output_dir = base_dir / "01_new_plots/histograms"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     horizons = [1, 4, 8, 16, 20, 24]
