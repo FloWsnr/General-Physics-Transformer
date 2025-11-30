@@ -40,7 +40,7 @@ class LossVsTimePlotter(BasePlotter):
         color: Literal["white", "black"] = "white",
         y_log: bool = False,
     ):
-        super().__init__(color, figsize=(4.3, 4.3))
+        super().__init__(color, figsize=(4.3, 4.3 / 2))
 
         self.setup_figure(
             x_ticks=x_ticks,
@@ -49,7 +49,7 @@ class LossVsTimePlotter(BasePlotter):
             y_label="NMSE",
             y_log=y_log,
             minor_ticks=(False, True),
-            padding_factor=(0.1, 0.1),
+            padding_factor=(0.1, 0.2),
         )
 
     def plot(
@@ -91,23 +91,23 @@ MODEL_SIZES = [
     ("m-main-2-1-01", "2/1"),
     ("m-main-03", "4/1"),
     ("m-main-8-1-01", "8/1"),
-    ("m-main-4-2-01", "4/2"),
-    ("m-main-4-4-01", "4/4"),
+    # ("m-main-4-2-01", "4/2"),
+    # ("m-main-4-4-01", "4/4"),
 ]
 
 if __name__ == "__main__":
     base_dir = Path("/home/flwi01/coding/General-Physics-Transformer/results")
-    horizons = [1, 4, 8, 12, 16, 20, 24]
+    horizons = [1, 4, 8]
 
     # Create plotters for known physics
     plotter_known_mean = LossVsTimePlotter(
         x_ticks=horizons,
-        y_ticks=[1e-3, 1e-2, 1e-1, 1e0],
+        y_ticks=[1e-3, 1e-2, 1e-1],
         y_log=True,
     )
     plotter_known_median = LossVsTimePlotter(
         x_ticks=horizons,
-        y_ticks=[1e-3, 1e-2, 1e-1, 1e0],
+        y_ticks=[1e-3, 1e-2, 1e-1],
         y_log=True,
     )
 

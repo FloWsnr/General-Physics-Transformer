@@ -23,14 +23,6 @@ DATASETS_KNOWN = [
     ["heated_object_pipe_flow_air", "cooled_object_pipe_flow_air"],
 ]
 
-# Datasets for novel physics
-DATASETS_NOVEL = [
-    "euler_multi_quadrants_openBC",
-    "open_obj_water",
-    "supersonic_flow",
-    "turbulent_radiative_layer_2D",
-]
-
 
 class LossVsTimePlotter(BasePlotter):
     def __init__(
@@ -86,44 +78,36 @@ class LossVsTimePlotter(BasePlotter):
 
 
 # Model sizes for comparison
-MODEL_SIZES = [
-    ("s-main-03", "GPₕᵧT-S"),
-    ("m-main-03", "GPₕᵧT-M"),
-    ("l-main-05", "GPₕᵧT-L"),
-    # ("xl-main-03", "GPₕᵧT-XL"),
+MODEL_DERIVS = [
+    ("m-main-03", "GPₕᵧT"),
+    ("m-main-no-deriv", "No Derivatives"),
 ]
-
+MODEL_INT = [
+    ("m-main-03", "GPₕᵧT"),
+    ("m-main-no-int", "No Integrator"),
+]
 if __name__ == "__main__":
     base_dir = Path("/home/flwi01/coding/General-Physics-Transformer/results")
-    horizons = [1, 4, 8]
+    horizons = [
+        1,
+        4,
+        8,
+    ]
 
     # Create plotters for known physics
-    plotter_known_mean = LossVsTimePlotter(
+    plotter_derivs = LossVsTimePlotter(
         x_ticks=horizons,
         y_ticks=[1e-3, 1e-2, 1e-1],
         y_log=True,
     )
-    plotter_known_median = LossVsTimePlotter(
+    plotter_int = LossVsTimePlotter(
         x_ticks=horizons,
         y_ticks=[1e-3, 1e-2, 1e-1],
-        y_log=True,
-    )
-
-    # Create plotters for novel physics
-    plotter_novel_mean = LossVsTimePlotter(
-        x_ticks=horizons,
-        y_ticks=[1e-1, 1e0, 1e1],
-        y_log=True,
-    )
-    plotter_novel_median = LossVsTimePlotter(
-        x_ticks=horizons,
-        y_ticks=[1e-1, 1e0, 1e1],
         y_log=True,
     )
 
     # Process known physics data
-    print("Processing known physics data...")
-    for run_name, display_name in MODEL_SIZES:
+    for run_name, display_name in MODEL_DERIVS:
         print(f"  Processing {run_name}...")
         mse_data = []
         median_data = []
@@ -152,13 +136,7 @@ if __name__ == "__main__":
             time_steps.append(time_horizon)
             percentiles.append((q25, q75))
 
-        plotter_known_mean.plot(
-            x_data=np.array(time_steps),
-            mean_loss=np.array(mse_data),
-            label=display_name,
-            # y_err=np.array(std_data),
-        )
-        plotter_known_median.plot(
+        plotter_derivs.plot(
             x_data=np.array(time_steps),
             mean_loss=np.array(median_data),
             label=display_name,
@@ -166,22 +144,21 @@ if __name__ == "__main__":
         )
 
     # Process novel physics data
-    print("\nProcessing novel physics data...")
-    for run_name, display_name in MODEL_SIZES:
+    for run_name, display_name in MODEL_INT:
         print(f"  Processing {run_name}...")
         mse_data = []
         median_data = []
         std_data = []
         time_steps = []
         for time_horizon in horizons:
-            run_dir = base_dir / run_name / "eval/all_horizons_novel"
+            run_dir = base_dir / run_name / "eval/all_horizons"
             file_name = run_dir / f"nmse_losses_h{time_horizon}.csv"
             if not file_name.exists():
                 print(f"    Warning: File {file_name} does not exist. Skipping.")
                 continue
             # load df
             df_nmse = pd.read_csv(file_name)
-            stats_nmse = calculate_combined_stats(df_nmse, DATASETS_NOVEL)
+            stats_nmse = calculate_combined_stats(df_nmse, DATASETS_KNOWN)
             mse = stats_nmse.loc["OVERALL", "Combined Mean"]
             median = stats_nmse.loc["OVERALL", "Combined Median"]
             std = stats_nmse.loc["OVERALL", "Combined Std"]
@@ -191,13 +168,7 @@ if __name__ == "__main__":
             std_data.append(std)
             time_steps.append(time_horizon)
 
-        plotter_novel_mean.plot(
-            x_data=np.array(time_steps),
-            mean_loss=np.array(mse_data),
-            # std_loss=np.array(std_data),
-            label=display_name,
-        )
-        plotter_novel_median.plot(
+        plotter_int.plot(
             x_data=np.array(time_steps),
             mean_loss=np.array(median_data),
             # std_loss=np.array(std_data),
@@ -205,34 +176,18 @@ if __name__ == "__main__":
         )
 
     # Add legends
-    plotter_known_mean.legend(loc="upper left")
-    plotter_known_median.legend(loc="upper left")
-    plotter_novel_mean.legend(loc="upper left")
-    plotter_novel_median.legend(loc="upper left")
+    plotter_derivs.legend(loc="upper left")
+    plotter_int.legend(loc="upper left")
 
     # Save all figures
     print("\nSaving figures...")
-    output_dir = base_dir / "01_new_plots/scaling"
+    output_dir = base_dir / "01_new_plots/ablation"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save known physics mean plot
-    plotter_known_mean.save_figure(output_dir / "model_scaling_rollout_mean.png")
-    plotter_known_mean.save_figure(output_dir / "model_scaling_rollout_mean.svg")
-
     # Save known physics median plot
-    plotter_known_median.save_figure(output_dir / "model_scaling_rollout_median.png")
-    plotter_known_median.save_figure(output_dir / "model_scaling_rollout_median.svg")
+    plotter_derivs.save_figure(output_dir / "model_ablation_derivs_median.png")
+    plotter_derivs.save_figure(output_dir / "model_ablation_derivs_median.svg")
 
-    # Save novel physics mean plot
-    plotter_novel_mean.save_figure(output_dir / "model_scaling_novel_rollout_mean.png")
-    plotter_novel_mean.save_figure(output_dir / "model_scaling_novel_rollout_mean.svg")
-
-    # Save novel physics median plot
-    plotter_novel_median.save_figure(
-        output_dir / "model_scaling_novel_rollout_median.png"
-    )
-    plotter_novel_median.save_figure(
-        output_dir / "model_scaling_novel_rollout_median.svg"
-    )
-
+    plotter_int.save_figure(output_dir / "model_ablation_int_median.png")
+    plotter_int.save_figure(output_dir / "model_ablation_int_median.svg")
     print("Done! All plots have been generated in both PNG and SVG formats.")
