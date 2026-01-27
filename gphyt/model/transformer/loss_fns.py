@@ -1,7 +1,5 @@
 """
 Custom loss functions for the transformer model.
-By: Florian Wiesner
-Date: 2025-04-25
 """
 
 from typing import Optional

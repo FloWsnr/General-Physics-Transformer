@@ -1,7 +1,5 @@
 """
 Detailed evaluation of the model, its predictions, and the losses.
-By: Florian Wiesner
-Date: 2025-05-01
 """
 
 from pathlib import Path

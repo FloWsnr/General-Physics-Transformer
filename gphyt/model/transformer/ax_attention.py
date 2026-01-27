@@ -1,7 +1,5 @@
 """
 Axial Attention module
-By: Florian Wiesner
-Date: 2025-03-31
 
 Inspired by: https://github.com/PolymathicAI/multiple_physics_pretraining/tree/main
 """

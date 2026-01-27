@@ -1,7 +1,5 @@
 """
 Attention module
-By: Florian Wiesner
-Date: 2025-03-31
 """
 
 from typing import Optional

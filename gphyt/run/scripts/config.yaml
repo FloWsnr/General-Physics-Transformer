@@ -1,6 +1,6 @@
 wandb:
   project: Large-Physics-Foundation-Model
-  entity: wsnr-florian
+  entity: anonymous-user
   id: final-training
   tags: []
   log_model: gradients # log :all", "parameters" or "gradients" or null

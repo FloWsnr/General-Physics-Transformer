@@ -354,7 +354,7 @@ def test_twophase_flow_dataset_full_integrity():
 
 def test_supersonic_flow_dataset():
     """Test SupersonicFlowDataset returns correct tensor shapes and field order."""
-    path = Path("/scratch/zsa8rk/datasets/supersonic_flow/data/train")
+    path = Path("data/datasets/supersonic_flow/data/train")
     include_field_names = {
         "t0_fields": ["pressure", "density", "temperature"],
         "t1_fields": ["velocity"],

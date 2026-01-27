@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 ### Task name
-#SBATCH --account=rwth1802
+#SBATCH --account=xxxxxxx
 #SBATCH --job-name=eval_gphyt
 
 ### Output file
@@ -16,7 +16,7 @@
 
 ### Mail notification configuration
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=florian.wiesner@avt.rwth-aachen.de
+#SBATCH --mail-user=email@example.com
 
 ### Maximum runtime per task
 #SBATCH --time=24:00:00
@@ -41,9 +41,9 @@ conda activate gphyt
 # debug mode
 # debug=true
 # Set up paths
-base_dir="/hpcwork/rwth1802/coding/General-Physics-Transformer"
+base_dir="/path/to/General-Physics-Transformer"
 
-python_bin="/home/fw641779/miniforge3/envs/gphyt/bin/python"
+python_bin="/path/to/miniforge3/envs/gphyt/bin/python"
 python_exec="${base_dir}/gphyt/run/model_eval.py"
 log_dir="${base_dir}/results"
 data_dir="${base_dir}/data/datasets"

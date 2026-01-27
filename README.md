@@ -2,9 +2,9 @@
 
 Paper: https://arxiv.org/abs/2509.13805
 
-Blog post if you want to see some cool results: https://flowsnr.github.io/blog/physics-foundation-model/
+Blog post if you want to see some cool results: [blog link]
 
-Weights: https://huggingface.co/flwi/Physics-Foundation-Model
+Weights: [huggingface link]
 
 ## Introduction
 

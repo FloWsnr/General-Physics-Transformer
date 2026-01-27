@@ -1,9 +1,6 @@
 """
 Normalization Layers
 
-By: Florian Wiesner
-Date: 2025-03-31
-
 Reversible Instance Normalization
 Taken from: https://github.com/ts-kim/RevIN
 

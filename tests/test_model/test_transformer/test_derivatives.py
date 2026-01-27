@@ -1,8 +1,5 @@
 """
 Tests for the FiniteDifference class.
-
-By: Florian Wiesner
-Date: 2025-04-15
 """
 
 import torch

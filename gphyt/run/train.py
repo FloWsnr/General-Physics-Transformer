@@ -1,8 +1,5 @@
 """
 Training script for transformer models.
-
-Author: Florian Wiesner
-Date: 2025-04-07
 """
 
 import os

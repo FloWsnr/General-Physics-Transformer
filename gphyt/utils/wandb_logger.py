@@ -1,8 +1,5 @@
 """
 Wandb logger for handling all wandb-related logging functionality.
-
-Author: Florian Wiesner
-Date: 2025-04-07
 """
 
 from pathlib import Path

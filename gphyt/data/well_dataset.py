@@ -2,9 +2,6 @@
 Copy of the WellDataset class from the_well.data.datasets.py
 
 This is a modified version of the WellDataset class that is used to load the data from the HDF5 files.
-
-By: Florian Wiesner
-Date: 2025-04-03
 """
 
 import itertools

@@ -1,7 +1,5 @@
 """
 Tokenizer module for the transformer model.
-By: Florian Wiesner
-Date: 2025-04-01
 """
 
 from typing import Optional

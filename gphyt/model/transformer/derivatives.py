@@ -1,8 +1,5 @@
 """
 Calculate derivatives of the physical fields as additional channels for the transformer model.
-
-By: Florian Wiesner
-Date: 2025-04-15
 """
 
 import torch

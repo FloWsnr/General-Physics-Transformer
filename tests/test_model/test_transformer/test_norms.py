@@ -1,8 +1,5 @@
 """
 Tests for normalization layers in the transformer module.
-
-By: Florian Wiesner
-Date: 2025-03-31
 """
 
 import pytest
