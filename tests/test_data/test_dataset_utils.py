@@ -13,7 +13,7 @@ from gphyt.data.phys_dataset import PhysicsDataset
 
 
 def test_physics_dataset_collate_fn(dummy_datapath: Path):
-    dataset = PhysicsDataset(dummy_datapath.parent, n_steps_input=4, n_steps_output=4)
+    dataset = PhysicsDataset(dummy_datapath.parent, n_steps_input=4, n_steps_output=4, use_normalization=False)
     batch = [dataset[0], dataset[1]]
     collated = collate_fn(batch)
     assert collated[0].shape == (2, 4, 32, 32, 6)

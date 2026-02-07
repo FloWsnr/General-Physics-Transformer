@@ -1,10 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "gphyt"
 version = "0.1.0"
+authors = [
+    { name = "Florian Wiesner", email = "wiesnerflorian94@gmail.com" },
+]
 description = "Towards a Physics Foundation Model"
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = []
+requires-python = ">=3.13"
+dependencies = [
+    "torch>=2.0",
+    "torchvision",
+    "pyyaml",
+    "python-dotenv",
+    "wandb",
+    "einops",
+    "h5py",
+    "the-well",
+    "neuraloperator",
+    "pandas",
+    "numpy",
+    "matplotlib",
+    "imageio",
+    "Pillow",
+]
 
-[tool.setuptools]
-packages = ["gphyt"]
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[[tool.uv.index]]
+url = "https://download.pytorch.org/whl/cu129"
+name = "pytorch-cu129"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu129" }
+torchvision = { index = "pytorch-cu129" }
