@@ -859,6 +859,11 @@ def main(
     data_config = config["data"]
     training_config = config["training"]
 
+    data_config.setdefault("include_fields", {
+        "t0_fields": ["pressure", "density", "temperature"],
+        "t1_fields": ["velocity"],
+    })
+
     data_config["datasets"] = data_config["datasets"]  # + eval_ds
     evaluator = Evaluator.from_checkpoint(
         base_path=log_dir / sim_name,

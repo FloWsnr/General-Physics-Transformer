@@ -59,12 +59,6 @@ class BoundaryCondition(Enum):
     SYMMETRIC = 3
 
 
-INCLUDE_FIELDS = {
-    "t0_fields": ["pressure", "density", "temperature"],
-    "t1_fields": ["velocity"],
-}
-
-
 @dataclass
 class WellMetadata:
     """Dataclass to store metadata for each dataset."""
@@ -206,6 +200,10 @@ class WellDataset(Dataset):
             deviation is lower than this value, it is replaced by this value.
         storage_options :
             Option for the ffspec storage.
+        include_fields :
+            Optional dictionary mapping field group names (e.g. "t0_fields", "t1_fields")
+            to lists of field names to include. When None, all field names are read from
+            the HDF5 file attributes.
     """
 
     def __init__(
@@ -239,8 +237,10 @@ class WellDataset(Dataset):
         transform: Optional["Augmentation"] = None,
         min_std: float = 1e-4,
         storage_options: Optional[Dict] = None,
+        include_fields: Optional[Dict[str, List[str]]] = None,
     ):
         super().__init__()
+        self.include_fields = include_fields
         assert path is not None or (
             well_base_path is not None and well_dataset_name is not None
         ), "Must specify path or well_base_path and well_dataset_name"
@@ -617,11 +617,10 @@ class WellDataset(Dataset):
         constant_fields = {0: {}, 1: {}, 2: {}}
         # Iterate through field types and apply appropriate transforms to stack them
         for i, order_fields in enumerate(["t0_fields", "t1_fields", "t2_fields"]):
-            # field_names = file[order_fields].attrs["field_names"]
-            if order_fields not in INCLUDE_FIELDS:
-                field_names = field_names = file[order_fields].attrs["field_names"]
+            if self.include_fields is not None and order_fields in self.include_fields:
+                field_names = self.include_fields[order_fields]
             else:
-                field_names = INCLUDE_FIELDS[order_fields]
+                field_names = file[order_fields].attrs["field_names"]
             for field_name in field_names:
                 field = file[order_fields][field_name]
                 use_dims = field.attrs["dim_varying"]

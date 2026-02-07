@@ -124,6 +124,10 @@ def main(
 
         # Dataset config is data_config directly
         dataset_config = data_config
+        dataset_config.setdefault("include_fields", {
+            "t0_fields": ["pressure", "density", "temperature"],
+            "t1_fields": ["velocity"],
+        })
 
         # Checkpoint config
         cp_config = config.get("checkpoint", {})
@@ -139,6 +143,10 @@ def main(
         training_config = config
         model_config = config["model"]
         dataset_config = config["dataset"]
+        dataset_config.setdefault("include_fields", {
+            "t0_fields": ["pressure", "density", "temperature"],
+            "t1_fields": ["velocity"],
+        })
 
         seed = int(config["seed"])
         batch_size = int(config["batch_size"])

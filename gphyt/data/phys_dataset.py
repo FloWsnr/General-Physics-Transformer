@@ -44,6 +44,7 @@ def get_phys_dataset(
     flip_x: float = 0.0,
     flip_y: float = 0.0,
     return_meta: bool = False,
+    include_fields: dict[str, list[str]] | None = None,
 ) -> Optional["PhysicsDataset"]:
     """Helper function to create a PhysicsDataset."""
     try:
@@ -59,6 +60,7 @@ def get_phys_dataset(
             flip_x=flip_x,
             flip_y=flip_y,
             return_meta=return_meta,
+            include_fields=include_fields,
         )
     except StrideError as e:
         print(f"Error creating PhysicsDataset for {data_dir}: {e}")
@@ -117,6 +119,7 @@ class PhysicsDataset(WellDataset):
         flip_x: float = 0.0,
         flip_y: float = 0.0,
         return_meta: bool = False,
+        include_fields: dict[str, list[str]] | None = None,
     ):
         self.config = {
             "data_dir": data_dir,
@@ -130,6 +133,7 @@ class PhysicsDataset(WellDataset):
             "flip_x": flip_x,
             "flip_y": flip_y,
             "return_meta": return_meta,
+            "include_fields": include_fields,
         }
 
         if isinstance(dt_stride, list):
@@ -156,6 +160,7 @@ class PhysicsDataset(WellDataset):
             max_dt_stride=max_dt_stride,
             full_trajectory_mode=full_trajectory_mode,
             max_rollout_steps=max_rollout_steps,
+            include_fields=include_fields,
         )
         self.nan_to_zero = nan_to_zero
         self.flip_x = flip_x
@@ -200,6 +205,7 @@ class PhysicsDataset(WellDataset):
             flip_x=config["flip_x"],
             flip_y=config["flip_y"],
             return_meta=config["return_meta"],
+            include_fields=config.get("include_fields"),
         )
 
     def __len__(self):

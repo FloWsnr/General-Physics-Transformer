@@ -135,6 +135,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
     use_normalization = data_config.get("use_normalization", True)
     flip_x = data_config.get("flip_x", 0.0)
     flip_y = data_config.get("flip_y", 0.0)
+    include_fields = data_config.get("include_fields", None)
     datasets = {}
     dataset_list: list[str] = data_config["datasets"].copy()
 
@@ -149,6 +150,7 @@ def get_datasets(data_config: dict, split: str = "train") -> dict[str, PhysicsDa
             use_normalization=use_normalization,
             flip_x=flip_x,
             flip_y=flip_y,
+            include_fields=include_fields,
         )
         if dataset is not None:
             datasets[dataset_name] = dataset
