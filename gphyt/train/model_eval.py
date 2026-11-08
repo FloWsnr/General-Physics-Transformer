@@ -63,7 +63,7 @@ DATASET_FIELDS = {
 
 
 def load_config(path: Path) -> dict:
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         config = yaml.load(f, Loader=Loader)
     return config
 
@@ -213,7 +213,7 @@ class Evaluator:
         eval_dir.mkdir(parents=True, exist_ok=True)
 
         # save the checkpoint info
-        with open(eval_dir / "checkpoint_info.json", "w") as f:
+        with open(eval_dir / "checkpoint_info.json", "w", encoding="utf-8") as f:
             json.dump(checkpoint_info, f)
 
         return cls(
@@ -833,7 +833,7 @@ def main(
     """
     # Load config
     config_path = Path(config_path)
-    with open(config_path, "r") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.load(f, Loader=Loader)
 
     ####################################################################
